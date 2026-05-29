@@ -46,13 +46,21 @@ def create_app():
     from routes import auth_bp, main_bp, asset_bp, report_bp, api_bp
     from flask import send_from_directory
 
-    @app.route('/', defaults={'path': ''})
-    @app.route('/<path:path>')
-    def serve_react(path):
-        build_dir = os.path.join(os.path.dirname(__file__), 'frontend', 'build')
-        if path and os.path.exists(os.path.join(build_dir, path)):
-            return send_from_directory(build_dir, path)
-        return send_from_directory(build_dir, 'index.html')
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_react(path):
+    build_dir = os.path.join(os.path.dirname(__file__), 'frontend', 'build')
+    if path and os.path.exists(os.path.join(build_dir, path)):
+        return send_from_directory(build_dir, path)
+    return send_from_directory(build_dir, 'index.html')
+
+@app.route('/static/js/<path:filename>')
+def serve_js(filename):
+    return send_from_directory(os.path.join(os.path.dirname(__file__), 'frontend', 'build', 'static', 'js'), filename)
+
+@app.route('/static/css/<path:filename>')
+def serve_css(filename):
+    return send_from_directory(os.path.join(os.path.dirname(__file__), 'frontend', 'build', 'static', 'css'), filename)
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(asset_bp)
