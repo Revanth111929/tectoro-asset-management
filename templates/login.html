@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login – Tectoro Asset Management</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Inter',sans-serif; height:100vh; overflow:hidden; display:flex; }
+
+    /* ── LEFT PANEL (login form) ── */
+    .login-panel {
+      width: 420px;
+      min-width: 380px;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 3rem 2.5rem;
+      position: relative;
+      z-index: 10;
+      box-shadow: 4px 0 30px rgba(0,0,0,0.1);
+    }
+    .login-logo {
+      display:flex; align-items:center; gap:.6rem;
+      margin-bottom:2.5rem;
+    }
+    .login-logo .logo-icon {
+      width:44px; height:44px; background:linear-gradient(135deg,#2563eb,#1d4ed8);
+      border-radius:12px; display:flex; align-items:center; justify-content:center;
+      color:#fff; font-size:1.3rem;
+    }
+    .login-logo span { font-size:1.4rem; font-weight:700; color:#1e293b; }
+
+    .login-title { font-size:1.6rem; font-weight:700; color:#1e293b; margin-bottom:.4rem; }
+    .login-sub   { color:#64748b; font-size:.95rem; margin-bottom:2rem; }
+
+    .form-label { font-weight:500; color:#374151; font-size:.9rem; margin-bottom:.4rem; }
+    .input-group-text {
+      background:#f8fafc; border-right:none; color:#94a3b8;
+    }
+    .form-control {
+      border-left:none; background:#f8fafc;
+      padding:.7rem 1rem; font-size:.95rem;
+    }
+    .form-control:focus {
+      box-shadow:none; border-color:#2563eb; background:#fff;
+    }
+    .input-group:focus-within .input-group-text {
+      border-color:#2563eb; background:#fff;
+    }
+
+    .btn-login {
+      background: linear-gradient(135deg,#2563eb,#1d4ed8);
+      color:#fff; border:none; padding:.85rem;
+      border-radius:10px; font-weight:600; font-size:1rem;
+      width:100%; margin-top:1.5rem;
+      transition:all .3s; letter-spacing:.3px;
+    }
+    .btn-login:hover {
+      transform:translateY(-1px);
+      box-shadow:0 8px 25px rgba(37,99,235,0.4);
+      color:#fff;
+    }
+
+    .divider { display:flex; align-items:center; gap:1rem; margin:1.5rem 0; }
+    .divider::before, .divider::after {
+      content:''; flex:1; height:1px; background:#e2e8f0;
+    }
+    .divider span { color:#94a3b8; font-size:.85rem; white-space:nowrap; }
+
+    .demo-box {
+      background:#f0f9ff; border:1px solid #bae6fd;
+      border-radius:10px; padding:1rem 1.2rem;
+      font-size:.85rem; color:#0369a1;
+    }
+    .demo-box strong { display:block; margin-bottom:.3rem; color:#0c4a6e; }
+
+    .dots { display:flex; gap:.5rem; justify-content:center; margin-top:2rem; }
+    .dot { width:8px; height:8px; border-radius:50%; background:#e2e8f0; }
+    .dot.active { background:#2563eb; }
+
+    /* ── RIGHT PANEL (gradient background) ── */
+    .hero-panel {
+      flex: 1;
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 45%, #2563eb 100%);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .blob {
+      position:absolute; border-radius:50%;
+      filter:blur(80px); opacity:.3;
+      animation:float 8s ease-in-out infinite;
+    }
+    .blob-1 { width:500px;height:500px;background:#3b82f6;top:-150px;right:-100px; }
+    .blob-2 { width:400px;height:400px;background:#8b5cf6;bottom:-100px;left:-50px;animation-delay:3s; }
+    .blob-3 { width:250px;height:250px;background:#06b6d4;top:50%;left:30%;animation-delay:5s; }
+    @keyframes float {
+      0%,100% { transform:translateY(0) scale(1); }
+      50%      { transform:translateY(-30px) scale(1.05); }
+    }
+    .hero-text {
+      position:relative; z-index:5;
+      text-align:center; color:#fff; padding:2rem;
+    }
+    .hero-text h1 {
+      font-size:clamp(3rem,6vw,5rem);
+      font-weight:800; line-height:1.1; margin-bottom:1rem;
+    }
+    .hero-text p { font-size:1.1rem; color:rgba(255,255,255,0.7); max-width:400px; margin:0 auto; }
+
+    /* floating cards */
+    .float-card {
+      position:absolute; background:rgba(255,255,255,0.1);
+      backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.2);
+      border-radius:12px; padding:.8rem 1.2rem; color:#fff;
+      font-size:.85rem; display:flex; align-items:center; gap:.6rem;
+      animation:float 6s ease-in-out infinite;
+    }
+    .float-card.c1 { top:15%; left:10%; animation-delay:0s; }
+    .float-card.c2 { top:25%; right:8%; animation-delay:2s; }
+    .float-card.c3 { bottom:20%; left:8%; animation-delay:4s; }
+    .float-card.c4 { bottom:30%; right:10%; animation-delay:1s; }
+    .float-card i  { font-size:1.2rem; color:#60a5fa; }
+
+    @media(max-width:768px) {
+      .hero-panel { display:none; }
+      .login-panel { width:100%; min-width:unset; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- LEFT: Login Form -->
+<div class="login-panel">
+  <div class="login-logo">
+    <div class="logo-icon"><i class="bi bi-boxes"></i></div>
+    <span>Tectoro Asset Management</span>
+  </div>
+
+  <h2 class="login-title">Welcome back</h2>
+  <p class="login-sub">Sign in to your account to continue</p>
+
+  <!-- Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show py-2 mb-3" role="alert">
+        <i class="bi bi-info-circle me-2"></i>{{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endwith %}
+
+  <form method="POST" action="{{ url_for('auth.login') }}">
+    <div class="mb-3">
+      <label class="form-label">Username</label>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-person"></i></span>
+        <input type="text" name="username" class="form-control"
+               placeholder="Enter username" required autofocus/>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Password</label>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-lock"></i></span>
+        <input type="password" name="password" id="passwordInput"
+               class="form-control" placeholder="••••••••" required/>
+        <button type="button" class="btn btn-outline-secondary border-start-0"
+                onclick="togglePwd()" style="border-left:none">
+          <i class="bi bi-eye" id="eyeIcon"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="remember" id="remember"/>
+        <label class="form-check-label text-muted small" for="remember">Remember me</label>
+      </div>
+    </div>
+
+    <button type="submit" class="btn-login">
+      <i class="bi bi-box-arrow-in-right me-2"></i>LOGIN
+    </button>
+  </form>
+
+  <div class="divider"><span>Demo Credentials</span></div>
+
+  <div class="demo-box">
+    <strong><i class="bi bi-shield-check me-1"></i>Admin Account</strong>
+    Username: <code>admin</code> &nbsp;|&nbsp; Password: <code>admin123</code>
+  </div>
+
+  <div class="dots mt-3">
+    <div class="dot active"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
+  </div>
+</div>
+
+<!-- RIGHT: Hero Panel -->
+<div class="hero-panel">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+
+  <!-- Floating info cards -->
+  <div class="float-card c1"><i class="bi bi-laptop"></i> 10 Assets Tracked</div>
+  <div class="float-card c2"><i class="bi bi-people"></i> 5 Employees</div>
+  <div class="float-card c3"><i class="bi bi-graph-up-arrow"></i> Reports Ready</div>
+  <div class="float-card c4"><i class="bi bi-shield-check"></i> Secure &amp; Fast</div>
+
+  <div class="hero-text">
+    <h1>Welcome.</h1>
+    <p>Your complete asset management solution. Track everything, lose nothing.</p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  function togglePwd() {
+    const inp = document.getElementById('passwordInput');
+    const ico = document.getElementById('eyeIcon');
+    if (inp.type === 'password') {
+      inp.type = 'text';
+      ico.className = 'bi bi-eye-slash';
+    } else {
+      inp.type = 'password';
+      ico.className = 'bi bi-eye';
+    }
+  }
+</script>
+</body>
+</html>
