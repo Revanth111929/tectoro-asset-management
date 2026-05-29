@@ -49,6 +49,12 @@ def create_app():
     @app.route('/', defaults={'path': ''})
     @app.route('/<path:path>')
     def serve_react(path):
+        # Don't intercept API, assets, auth, or blueprint routes
+        if path and (path.startswith('api/') or path.startswith('assets') or
+                     path.startswith('auth') or path.startswith('reports') or
+                     path.startswith('static/qrcodes')):
+            from flask import abort
+            abort(404)
         build_dir = os.path.join(os.path.dirname(__file__), 'frontend', 'build')
         if path and os.path.exists(os.path.join(build_dir, path)):
             return send_from_directory(build_dir, path)
