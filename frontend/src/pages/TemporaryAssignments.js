@@ -19,6 +19,9 @@ function TemporaryAssignments() {
   const [loadingTempAsset, setLoadingTempAsset] = useState(false);
   const [employeeAssets, setEmployeeAssets] = useState([]);
   const [searchingEmployee, setSearchingEmployee] = useState(false);
+  const [employeeSuggestions, setEmployeeSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searchingEmployees, setSearchingEmployees] = useState(false);
   
   const [formData, setFormData] = useState({
     employee_id: '',
@@ -71,6 +74,8 @@ function TemporaryAssignments() {
     setOriginalAssetDetails(null);
     setTempAssetDetails(null);
     setEmployeeAssets([]);
+    setEmployeeSuggestions([]);
+    setShowSuggestions(false);
     setFormData({
       employee_id: '',
       employee_name: '',
@@ -157,6 +162,58 @@ function TemporaryAssignments() {
     } catch (error) {
       console.error('Error searching employee assets:', error);
       alert('Error: ' + (error.response?.data?.error || 'Failed to search employee assets'));
+    } finally {
+      setSearchingEmployee(false);
+    }
+  };
+
+  const searchEmployees = async (searchTerm) => {
+    if (!searchTerm || searchTerm.length < 2) {
+      setEmployeeSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    setSearchingEmployees(true);
+    try {
+      const response = await axios.get(`/api/employees?q=${encodeURIComponent(searchTerm)}`);
+      setEmployeeSuggestions(response.data || []);
+      setShowSuggestions(true);
+    } catch (error) {
+      console.error('Error searching employees:', error);
+      setEmployeeSuggestions([]);
+    } finally {
+      setSearchingEmployees(false);
+    }
+  };
+
+  const selectEmployee = (employee) => {
+    setFormData(prev => ({
+      ...prev,
+      employee_id: employee.emp_id,
+      employee_name: employee.employee_name,
+      employee_email: employee.email || ''
+    }));
+    setShowSuggestions(false);
+    setEmployeeSuggestions([]);
+    // Automatically search for their assets
+    setTimeout(() => {
+      searchEmployeeAssetsByEmployeeId(employee.emp_id);
+    }, 100);
+  };
+
+  const searchEmployeeAssetsByEmployeeId = async (empId) => {
+    setSearchingEmployee(true);
+    try {
+      const response = await axios.get(`/api/assets/by-employee/${empId}`);
+      if (response.data.assets && response.data.assets.length > 0) {
+        setEmployeeAssets(response.data.assets);
+      } else {
+        setEmployeeAssets([]);
+      }
+    } catch (error) {
+      console.error('Error fetching employee assets:', error);
+      setEmployeeAssets([]);
     } finally {
       setSearchingEmployee(false);
     }
@@ -412,30 +469,75 @@ function TemporaryAssignments() {
                             <i className="bi bi-search me-2"></i>Find Employee Assets
                           </h6>
                           <div className="row g-2">
-                            <div className="col-md-4">
+                            <div className="col-md-10">
                               <input
                                 type="text"
                                 className="form-control"
-                                placeholder="Enter Employee ID"
-                                value={formData.employee_id}
-                                onChange={(e) => setFormData({...formData, employee_id: e.target.value})}
+                                placeholder="Search by Employee ID or Name..."
+                                value={formData.employee_id || formData.employee_name}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setFormData({...formData, employee_id: value, employee_name: value});
+                                  searchEmployees(value);
+                                }}
+                                onFocus={() => {
+                                  if (employeeSuggestions.length > 0) {
+                                    setShowSuggestions(true);
+                                  }
+                                }}
                               />
-                            </div>
-                            <div className="col-md-6">
-                              <input
-                                type="text"
-                                className="form-control"
-                                placeholder="Employee Name"
-                                value={formData.employee_name}
-                                onChange={(e) => setFormData({...formData, employee_name: e.target.value})}
-                              />
+                              {/* Employee Suggestions Dropdown */}
+                              {showSuggestions && employeeSuggestions.length > 0 && (
+                                <div style={{
+                                  position: 'absolute',
+                                  top: '100%',
+                                  left: '0',
+                                  right: '0',
+                                  background: 'white',
+                                  border: '1px solid #dee2e6',
+                                  borderRadius: '4px',
+                                  maxHeight: '200px',
+                                  overflowY: 'auto',
+                                  zIndex: 1000,
+                                  boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                                  marginTop: '4px'
+                                }}>
+                                  {employeeSuggestions.map((emp, index) => (
+                                    <div
+                                      key={index}
+                                      onClick={() => selectEmployee(emp)}
+                                      style={{
+                                        padding: '10px 15px',
+                                        cursor: 'pointer',
+                                        borderBottom: index < employeeSuggestions.length - 1 ? '1px solid #f0f0f0' : 'none',
+                                        transition: 'background-color 0.2s'
+                                      }}
+                                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                                    >
+                                      <div style={{ fontWeight: '500', color: '#212529' }}>
+                                        {emp.employee_name}
+                                      </div>
+                                      <small style={{ color: '#6c757d' }}>
+                                        ID: {emp.emp_id} {emp.email && `• ${emp.email}`}
+                                      </small>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {searchingEmployees && (
+                                <small className="text-muted">
+                                  <span className="spinner-border spinner-border-sm me-1"></span>
+                                  Searching...
+                                </small>
+                              )}
                             </div>
                             <div className="col-md-2">
                               <button
                                 type="button"
                                 className="btn btn-primary w-100"
                                 onClick={searchEmployeeAssets}
-                                disabled={searchingEmployee}
+                                disabled={searchingEmployee || !formData.employee_id}
                               >
                                 {searchingEmployee ? (
                                   <span className="spinner-border spinner-border-sm"></span>
