@@ -2,9 +2,56 @@
 import { canPerform } from '../utils/permissions';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { assetAPI } from '../services/api';
+import { assetAPI, ackAPI } from '../services/api';
 
-const CATEGORIES = ['Laptop', 'Desktop', 'Monitor', 'Printer', 'Phone', 'Server', 'Furniture', 'Mouse', 'Headphones', 'Hard Disk', 'UPS', 'Laptop Bag', 'Other'];
+const AckBadge = ({ asset, onSend }) => {
+  const [sending, setSending] = useState(false);
+  const [status,  setStatus]  = useState(asset.ack_status || 'Not Sent');
+  const [msg,     setMsg]     = useState('');
+
+  const handleSend = async (e) => {
+    e.stopPropagation();
+    if (!asset.employee_email) { setMsg('No email'); return; }
+    setSending(true);
+    try {
+      await ackAPI.sendEmail(asset.id);
+      setStatus('Pending');
+      setMsg('Sent!');
+      if (onSend) onSend();
+    } catch (err) {
+      setMsg(err.response?.data?.error || 'Failed');
+    } finally { setSending(false); }
+  };
+
+  const colors = {
+    'Not Sent':     { bg:'#f1f5f9', color:'#64748b' },
+    'Pending':      { bg:'#fef9c3', color:'#92400e' },
+    'Acknowledged': { bg:'#dcfce7', color:'#166534' },
+  };
+  const c = colors[status] || colors['Not Sent'];
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+        <span style={{ background:c.bg, color:c.color, padding:'2px 8px',
+          borderRadius:20, fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
+          {status==='Acknowledged' ? '✓ ' : status==='Pending' ? '⏳ ' : ''}{status}
+        </span>
+        {status !== 'Acknowledged' && asset.employee_email && (
+          <button className="btn btn-outline-primary"
+            style={{ fontSize:10, padding:'1px 6px', lineHeight:'16px' }}
+            onClick={handleSend} disabled={sending}>
+            {sending ? '…' : status==='Pending' ? '↺' : '📧'}
+          </button>
+        )}
+      </div>
+      {msg && <span style={{ fontSize:10, color: msg==='Sent!' ? '#16a34a' : '#dc2626' }}>{msg}</span>}
+    </div>
+  );
+};
+
+
+const CATEGORIES = ['Laptop', 'CPU', 'Monitor', 'Printer', 'Phone', 'Server', 'Mouse', 'Headphones', 'Hard Disk', 'UPS', 'Laptop Bag', 'Other'];
 const STATUSES   = ['Available', 'Assigned', 'Maintenance', 'Retired'];
 
 function AssetList() {
@@ -37,7 +84,7 @@ function AssetList() {
   }, [routerLocation.search]);
   const [location, setLocation] = useState('');
   const [page,     setPage]     = useState(1);
-  const [sortBy,   setSortBy]   = useState('emp_asc');
+  const [sortBy,   setSortBy]   = useState('id_desc');
 
   const fetchAssets = useCallback(() => {
     setLoading(true);
@@ -188,7 +235,7 @@ function AssetList() {
       {/* Header */}
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
-          <h2 className="fw-bold mb-1">Tectoro Asset Management</h2>
+          <h2 className="fw-bold mb-1">Asset Management</h2>
           <p className="text-muted mb-0">{total} total records</p>
         </div>
         {canPerform('create') && (
@@ -233,8 +280,8 @@ function AssetList() {
 
           <div className="col-md-2">
             <select className="form-select" value={sortBy} onChange={e => { setSortBy(e.target.value); setPage(1); }}>
-              <option value="id_asc">Sort: ID (oldest first)</option>
               <option value="id_desc">Sort: Last Added</option>
+              <option value="id_asc">Sort: ID (oldest first)</option>
               <option value="emp_asc">Sort: EMP ID (A→Z)</option>
               <option value="emp_desc">Sort: EMP ID (Z→A)</option>
               <option value="name_asc">Sort: Asset Name (A→Z)</option>
@@ -243,7 +290,7 @@ function AssetList() {
           <div className="col-md-2">
             <button
               className="btn btn-outline-secondary w-100"
-              onClick={() => { setSearch(''); setCategory(''); setStatus(''); setLocation(''); setSortBy('id_asc'); }}
+              onClick={() => { setSearch(''); setCategory(''); setStatus(''); setLocation(''); setSortBy('id_desc'); }}
             >
               <i className="bi bi-x-circle me-1"></i>Clear
             </button>
@@ -330,13 +377,14 @@ function AssetList() {
                     <th>Location</th>
                     <th>Warranty Date</th>
                     <th>Status</th>
+                  <th>Acknowledgment</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {assets.length === 0 && (
                     <tr>
-                      <td colSpan={canPerform('bulkActions') ? 15 : 14} className="text-center py-5 text-muted">
+                      <td colSpan={canPerform('bulkActions') ? 16 : 15} className="text-center py-5 text-muted">
                         <i className="bi bi-inbox fs-2 d-block mb-2"></i>
                         No assets found
                       </td>
@@ -375,10 +423,14 @@ function AssetList() {
                         ) : '—'}
                       </td>
                       <td>{statusBadge(a.status)}</td>
+                      <td><AckBadge asset={a} onSend={fetchAssets} /></td>
                       <td>
                         <div className="btn-group btn-group-sm">
                           <Link to={`/assets/view/${a.id}`} className="btn btn-outline-primary" title="View">
                             <i className="bi bi-eye"></i>
+                          </Link>
+                          <Link to={`/assets/timeline/${a.id}`} className="btn btn-outline-info" title="View Timeline">
+                            <i className="bi bi-clock-history"></i>
                           </Link>
                           {canPerform('edit') && <Link to={`/assets/edit/${a.id}`} className="btn btn-outline-secondary" title="Edit">
                             <i className="bi bi-pencil"></i>

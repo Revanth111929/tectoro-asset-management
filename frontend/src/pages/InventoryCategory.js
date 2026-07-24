@@ -5,67 +5,95 @@ import { assetAPI } from '../services/api';
 import { canPerform } from '../utils/permissions';
 
 const CATEGORY_CONFIG = {
-  laptops: {
+  laptop: {
     title: 'Laptop Inventory',
     icon: 'bi-laptop',
     category: 'Laptop',
-    columns: ['emp_id', 'employee_name', 'asset_name', 'serial_number', 'model_name', 'os', 'ram', 'laptop_bag_serial', 'status'],
-    labels: ['EMP ID', 'Employee', 'Asset Name', 'Serial Number', 'Model', 'OS', 'RAM', 'Bag Serial', 'Status']
+    columns: ['emp_id', 'employee_name', 'brand_name', 'model_name', 'serial_number', 'processor', 'ram', 'os', 'status'],
+    labels: ['EMP ID', 'Employee', 'Brand', 'Model', 'Serial Number', 'Processor', 'RAM', 'OS', 'Status']
   },
-  mobiles: {
-    title: 'Mobile Device Inventory',
-    icon: 'bi-phone',
-    category: 'Phone',
-    columns: ['emp_id', 'employee_name', 'asset_name', 'serial_number', 'mobile_imei', 'mobile_number_sim', 'testing_status', 'status'],
-    labels: ['EMP ID', 'Employee', 'Device Name', 'Serial Number', 'IMEI', 'SIM Number', 'Testing', 'Status']
+  cpu: {
+    title: 'CPU Inventory',
+    icon: 'bi-cpu',
+    category: 'CPU',
+    columns: ['emp_id', 'employee_name', 'brand_name', 'model_name', 'serial_number', 'processor', 'ram', 'graphics_card', 'status'],
+    labels: ['EMP ID', 'Employee', 'Brand', 'Model', 'Serial Number', 'Processor', 'RAM', 'Graphics Card', 'Status']
   },
-  printers: {
+  monitor: {
+    title: 'Monitor Inventory',
+    icon: 'bi-display',
+    category: 'Monitor',
+    columns: ['emp_id', 'employee_name', 'brand_name', 'model_name', 'serial_number', 'screen_size', 'resolution', 'refresh_rate', 'status'],
+    labels: ['EMP ID', 'Employee', 'Brand', 'Model', 'Serial Number', 'Screen Size', 'Resolution', 'Refresh Rate', 'Status']
+  },
+  printer: {
     title: 'Printer Inventory',
     icon: 'bi-printer',
     category: 'Printer',
-    columns: ['asset_name', 'serial_number', 'printer_type', 'printer_model', 'location', 'status'],
-    labels: ['Printer Name', 'Serial Number', 'Type', 'Model', 'Location', 'Status']
+    columns: ['brand_name', 'model_name', 'serial_number', 'printer_type', 'color_or_mono', 'network_enabled', 'location', 'status'],
+    labels: ['Brand', 'Model', 'Serial Number', 'Type', 'Color/Mono', 'Network', 'Location', 'Status']
   },
-  'hard-disks': {
-    title: 'Hard Disk Inventory',
-    icon: 'bi-device-hdd',
-    category: 'Hard Disk',
-    columns: ['emp_id', 'employee_name', 'hard_disk_serial', 'hard_disk_capacity', 'location', 'status'],
-    labels: ['EMP ID', 'Employee', 'HDD Serial', 'Capacity', 'Location', 'Status']
+  phone: {
+    title: 'Phone Inventory',
+    icon: 'bi-phone',
+    category: 'Phone',
+    columns: ['emp_id', 'employee_name', 'brand_name', 'model_name', 'serial_number', 'imei_1', 'imei_2', 'mobile_number', 'status'],
+    labels: ['EMP ID', 'Employee', 'Brand', 'Model', 'Serial Number', 'IMEI 1', 'IMEI 2', 'Mobile Number', 'Status']
   },
-  ups: {
-    title: 'UPS Device Inventory',
-    icon: 'bi-lightning-charge',
-    category: 'UPS',
-    columns: ['asset_name', 'ups_serial', 'ups_capacity', 'location', 'status'],
-    labels: ['UPS Name', 'Serial Number', 'Capacity', 'Location', 'Status']
-  },
-  'laptop-bags': {
-    title: 'Laptop Bag Inventory',
-    icon: 'bi-bag',
-    category: 'Laptop Bag',
-    columns: ['emp_id', 'employee_name', 'laptop_bag_serial', 'asset_name', 'status'],
-    labels: ['EMP ID', 'Employee', 'Bag Serial', 'Assigned Laptop', 'Status']
+  server: {
+    title: 'Server Inventory',
+    icon: 'bi-hdd-rack',
+    category: 'Server',
+    columns: ['brand_name', 'model_name', 'serial_number', 'processor', 'ram', 'storage_capacity', 'ip_address', 'rack_location', 'status'],
+    labels: ['Brand', 'Model', 'Serial Number', 'Processor', 'RAM', 'Storage', 'IP Address', 'Rack Location', 'Status']
   },
   mouse: {
     title: 'Mouse Inventory',
     icon: 'bi-mouse',
     category: 'Mouse',
-    columns: ['emp_id', 'employee_name', 'asset_name', 'serial_number', 'model_name', 'location', 'status'],
-    labels: ['EMP ID', 'Employee', 'Mouse Name', 'Serial Number', 'Model', 'Location', 'Status']
+    columns: ['emp_id', 'employee_name', 'brand_name', 'model_name', 'serial_number', 'connection_type', 'status'],
+    labels: ['EMP ID', 'Employee', 'Brand', 'Model', 'Serial Number', 'Connection Type', 'Status']
   },
   headphones: {
     title: 'Headphones Inventory',
     icon: 'bi-headphones',
     category: 'Headphones',
-    columns: ['emp_id', 'employee_name', 'asset_name', 'serial_number', 'model_name', 'location', 'status'],
-    labels: ['EMP ID', 'Employee', 'Headphones Name', 'Serial Number', 'Model', 'Location', 'Status']
+    columns: ['emp_id', 'employee_name', 'brand_name', 'model_name', 'serial_number', 'connection_type', 'noise_cancellation', 'status'],
+    labels: ['EMP ID', 'Employee', 'Brand', 'Model', 'Serial Number', 'Connection', 'Noise Cancellation', 'Status']
+  },
+  'hard-disk': {
+    title: 'Hard Disk Inventory',
+    icon: 'bi-device-hdd',
+    category: 'Hard Disk',
+    columns: ['emp_id', 'employee_name', 'brand_name', 'model_name', 'serial_number', 'storage_capacity', 'storage_type', 'interface_type', 'status'],
+    labels: ['EMP ID', 'Employee', 'Brand', 'Model', 'Serial Number', 'Capacity', 'Type', 'Interface', 'Status']
+  },
+  ups: {
+    title: 'UPS Inventory',
+    icon: 'bi-lightning-charge',
+    category: 'UPS',
+    columns: ['brand_name', 'model_name', 'serial_number', 'capacity_va', 'battery_type', 'backup_time', 'location', 'status'],
+    labels: ['Brand', 'Model', 'Serial Number', 'Capacity (VA)', 'Battery Type', 'Backup Time', 'Location', 'Status']
+  },
+  'laptop-bag': {
+    title: 'Laptop Bag Inventory',
+    icon: 'bi-bag',
+    category: 'Laptop Bag',
+    columns: ['emp_id', 'employee_name', 'brand_name', 'model_name', 'size_compatibility', 'color', 'status'],
+    labels: ['EMP ID', 'Employee', 'Brand', 'Model', 'Size', 'Color', 'Status']
+  },
+  other: {
+    title: 'Other Assets Inventory',
+    icon: 'bi-three-dots',
+    category: 'Other',
+    columns: ['emp_id', 'employee_name', 'asset_name', 'brand_name', 'model_name', 'serial_number', 'custom_description', 'status'],
+    labels: ['EMP ID', 'Employee', 'Asset Name', 'Brand', 'Model', 'Serial Number', 'Description', 'Status']
   }
 };
 
 function InventoryCategory() {
   const { type } = useParams();
-  const config = CATEGORY_CONFIG[type] || CATEGORY_CONFIG.laptops;
+  const config = CATEGORY_CONFIG[type];
   
   const [assets, setAssets] = useState([]);
   const [total, setTotal] = useState(0);
@@ -82,6 +110,8 @@ function InventoryCategory() {
   const [newStatus, setNewStatus] = useState('Available');
 
   const fetchAssets = useCallback(() => {
+    if (!config) return; // Don't fetch if config is invalid
+    
     setLoading(true);
     const params = { 
       category: config.category, 
@@ -98,13 +128,27 @@ function InventoryCategory() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [config.category, search, status, page]);
+  }, [config, search, status, page]);
 
   useEffect(() => { fetchAssets(); }, [fetchAssets]);
   useEffect(() => { setPage(1); }, [search, status]);
   
   // Clear selection when page changes
   useEffect(() => { setSelectedIds([]); }, [page]);
+  
+  // If category not found, show error message
+  if (!config) {
+    return (
+      <div className="text-center py-5">
+        <i className="bi bi-exclamation-triangle fs-1 text-warning d-block mb-3"></i>
+        <h3>Category Not Found</h3>
+        <p className="text-muted">The category "{type}" does not exist.</p>
+        <Link to="/assets" className="btn btn-primary">
+          <i className="bi bi-arrow-left me-2"></i>Go to All Assets
+        </Link>
+      </div>
+    );
+  }
 
   // Bulk selection handlers
   const toggleSelectAll = () => {

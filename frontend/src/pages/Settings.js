@@ -4,6 +4,12 @@ import api from '../services/api';
 
 const EMPTY = { username: '', email: '', password: '', role: 'standard', smtp_password: '' };
 
+const ROLES = [
+  { value: 'admin',    label: 'Admin',           desc: 'Full access — manage assets, users, settings',         color: '#dc2626' },
+  { value: 'standard', label: 'Standard User',   desc: 'Can create and edit assets. Cannot delete or manage users', color: '#2563eb' },
+  { value: 'viewer',   label: 'View Only',        desc: 'Read-only access. Cannot create, edit, or delete anything', color: '#64748b' },
+];
+
 function Settings() {
   const [users,    setUsers]    = useState([]);
   const [loading,  setLoading]  = useState(true);
@@ -94,8 +100,8 @@ function Settings() {
       color: role === 'admin' ? '#2563eb' : '#16a34a',
       border: `1px solid ${role === 'admin' ? 'rgba(37,99,235,0.25)' : 'rgba(22,163,74,0.25)'}`,
     }}>
-      <i className={`bi bi-${role === 'admin' ? 'shield-fill' : 'person-fill'}`}></i>
-      {role === 'admin' ? 'Admin' : 'Standard'}
+      <i className={`bi bi-${role==='admin' ? 'shield-fill' : role==='viewer' ? 'eye-fill' : 'person-fill'}`}></i>
+      {role==='admin' ? 'Administrator' : role==='viewer' ? 'View Only' : 'Standard User'}
     </span>
   );
 
@@ -183,8 +189,9 @@ function Settings() {
                     <select className="form-select"
                       value={form.role}
                       onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
-                      <option value="standard">Standard — View & Edit assets</option>
-                      <option value="admin">Admin — Full access + User management</option>
+                      {ROLES.map(r => (
+                        <option key={r.value} value={r.value}>{r.label}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -229,8 +236,8 @@ function Settings() {
                 {/* Role description */}
                 <div className="col-md-8 d-flex align-items-end">
                   <div className="p-3 rounded-3 w-100" style={{
-                    background: form.role === 'admin' ? 'rgba(37,99,235,0.06)' : 'rgba(22,163,74,0.06)',
-                    border: `1px solid ${form.role === 'admin' ? 'rgba(37,99,235,0.2)' : 'rgba(22,163,74,0.2)'}`,
+                    background: ROLES.find(r=>r.value===form.role)?.color+'18' || '#f8fafc',
+                    border: `1px solid ${ROLES.find(r=>r.value===form.role)?.color || '#e2e8f0'}40`,
                     fontSize: '13px'
                   }}>
                     <i className={`bi bi-${form.role === 'admin' ? 'shield-fill text-primary' : 'person-fill text-success'} me-2`}></i>

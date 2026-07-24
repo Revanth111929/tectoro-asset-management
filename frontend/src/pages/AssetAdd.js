@@ -1,36 +1,183 @@
 // AssetAdd.js – Two tabs: New Device (inventory) | Existing Device (full form)
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { assetAPI } from '../services/api';
-
-const CATEGORIES = ['Laptop', 'Desktop', 'Monitor', 'Printer', 'Phone', 'Server', 'Furniture', 'Mouse', 'Headphones', 'Hard Disk', 'UPS', 'Laptop Bag', 'Other'];
-const OS_LIST    = ['Windows 11', 'Windows 10', 'Ubuntu', 'macOS', 'Chrome OS', 'Other', 'N/A'];
-const RAM_LIST   = ['4GB', '8GB', '16GB', '32GB', '64GB', 'N/A', 'Other'];
-const STATUSES   = ['Available', 'Assigned', 'Maintenance', 'Retired'];
+import { assetAPI, employeeAPI, ackAPI } from '../services/api';
+import DynamicAssetForm from '../components/DynamicAssetForm';
+import { CATEGORY_FIELDS, FIELD_METADATA } from '../config/categoryFields';
 
 // ── NEW DEVICE FORM (inventory entry, no employee) ────────────────────────────
 const EMPTY_NEW = {
-  asset_name: '', category: '', serial_number: '', model_name: '',
-  os: '', version: '', ram: '', location: '',
-  invoice_number: '', invoice_date: '', warranty_date: '',
-  purchase_price: '', quantity: '1', configuration: '',
-  charger_serial: '', laptop_bag_serial: '', hard_disk_serial: '',
-  hard_disk_capacity: '', ups_serial: '', ups_capacity: '',
-  printer_type: '', printer_model: '',
-  mobile_imei: '', mobile_number_sim: '',
-  comments: '', status: 'Available',
+  // Basic fields
+  asset_name: '', 
+  category: '', 
+  serial_number: '', 
+  model_name: '',
+  brand_name: '',
+  status: 'Available',
+  
+  // Legacy fields
+  os: '', 
+  version: '', 
+  ram: '', 
+  location: '',
+  invoice_number: '', 
+  invoice_date: '', 
+  warranty_date: '',
+  purchase_price: '', 
+  quantity: '1', 
+  configuration: '',
+  charger_serial: '', 
+  laptop_bag_serial: '', 
+  hard_disk_serial: '',
+  hard_disk_capacity: '', 
+  ups_serial: '', 
+  ups_capacity: '',
+  printer_type: '', 
+  printer_model: '',
+  mobile_imei: '', 
+  mobile_number_sim: '', 
+  testing_status: '',
+  comments: '',
+  
+  // New dynamic category-specific fields
+  // Computer specifications
+  processor: '',
+  storage_type: '',
+  storage_capacity: '',
+  graphics_card: '',
+  os_version: '',
+  screen_size: '',
+  
+  // Mobile/Phone specific
+  imei_1: '',
+  imei_2: '',
+  mobile_number: '',
+  
+  // Printer specific
+  color_or_mono: '',
+  network_enabled: '',
+  
+  // Monitor specific
+  resolution: '',
+  refresh_rate: '',
+  
+  // Server specific
+  cpu_count: '',
+  raid_config: '',
+  ip_address: '',
+  rack_location: '',
+  
+  // Hard Disk specific
+  interface_type: '',
+  
+  // UPS specific
+  capacity_va: '',
+  battery_type: '',
+  backup_time: '',
+  
+  // Peripherals
+  connection_type: '',
+  noise_cancellation: '',
+  
+  // Laptop Bag specific
+  size_compatibility: '',
+  color: '',
+  warranty_period: '',
+  
+  // Purchase & Warranty
+  purchase_vendor: '',
+  purchase_date: '',
+  warranty_start_date: '',
+  warranty_end_date: '',
+  
+  // Assignment
+  assigned_employee: '',
+  
+  // Other
+  custom_description: '',
+  remarks: '',
 };
 
 // ── EXISTING DEVICE FORM (full form with employee) ────────────────────────────
 const EMPTY_EXISTING = {
-  emp_id: '', employee_name: '', mobile_number: '', employee_email: '',
-  asset_name: '', category: '', serial_number: '', model_name: '',
-  os: '', version: '', ram: '', location: '',
-  invoice_number: '', invoice_date: '', warranty_date: '',
-  charger_serial: '', old_user: '', date: '', old_device: '',
-  comments: '', status: 'Assigned',
-  purchase_price: '', configuration: '',
+  // Employee fields
+  emp_id: '', 
+  employee_name: '', 
+  mobile_number: '', 
+  employee_email: '',
+  
+  // Basic fields
+  asset_name: '', 
+  category: '', 
+  serial_number: '', 
+  model_name: '',
+  brand_name: '',
+  status: 'Assigned',
+  
+  // Legacy fields
+  os: '', 
+  version: '', 
+  ram: '', 
+  location: '',
+  invoice_number: '', 
+  invoice_date: '', 
+  warranty_date: '',
+  purchase_price: '', 
+  quantity: '1', 
+  configuration: '',
+  charger_serial: '', 
+  laptop_bag_serial: '', 
+  hard_disk_serial: '',
+  hard_disk_capacity: '', 
+  ups_serial: '', 
+  ups_capacity: '',
+  printer_type: '', 
+  printer_model: '',
+  mobile_imei: '', 
+  mobile_number_sim: '', 
+  testing_status: '',
+  comments: '',
+  
+  // New dynamic category-specific fields
+  processor: '',
+  storage_type: '',
+  storage_capacity: '',
+  graphics_card: '',
+  os_version: '',
+  screen_size: '',
+  imei_1: '',
+  imei_2: '',
+  color_or_mono: '',
+  network_enabled: '',
+  resolution: '',
+  refresh_rate: '',
+  cpu_count: '',
+  raid_config: '',
+  ip_address: '',
+  rack_location: '',
+  interface_type: '',
+  capacity_va: '',
+  battery_type: '',
+  backup_time: '',
+  connection_type: '',
+  noise_cancellation: '',
+  size_compatibility: '',
+  color: '',
+  warranty_period: '',
+  purchase_vendor: '',
+  purchase_date: '',
+  warranty_start_date: '',
+  warranty_end_date: '',
+  assigned_employee: '',
+  custom_description: '',
+  remarks: '',
+  
+  // Old device tracking
+  old_user: '', 
+  date: '', 
+  old_device: '',
 };
+const SEND_ACK_DEFAULT = false;
 
 // ── Reusable Field wrapper ────────────────────────────────────────────────────
 const F = ({ label, required, col = 'col-md-4', error, children }) => (
@@ -44,7 +191,7 @@ const F = ({ label, required, col = 'col-md-4', error, children }) => (
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// NEW DEVICE TAB
+// NEW DEVICE TAB - Using Dynamic Form
 // ═══════════════════════════════════════════════════════════════════════════════
 function NewDeviceForm({ navigate }) {
   const [form,     setForm]     = useState(EMPTY_NEW);
@@ -52,17 +199,37 @@ function NewDeviceForm({ navigate }) {
   const [errors,   setErrors]   = useState({});
   const [apiError, setApiError] = useState('');
 
-  const set = (e) => {
-    const { name, value } = e.target;
-    setForm(f => ({ ...f, [name]: value }));
-    if (errors[name]) setErrors(er => ({ ...er, [name]: '' }));
-  };
-
   const validate = () => {
     const errs = {};
-    if (!form.asset_name.trim())    errs.asset_name    = 'Required';
-    if (!form.serial_number.trim()) errs.serial_number = 'Required';
-    if (!form.category)             errs.category      = 'Required';
+    // Category is always required
+    if (!form.category) {
+      errs.category = 'Required';
+      return errs;
+    }
+    
+    // Check required fields based on FIELD_METADATA
+    const categoryFields = CATEGORY_FIELDS[form.category];
+    if (categoryFields) {
+      // Get all fields for this category
+      const allFields = [
+        ...(categoryFields.basic || []),
+        ...(categoryFields.specifications || []),
+        ...(categoryFields.purchase || []),
+        ...(categoryFields.assignment || []),
+        ...(categoryFields.other || [])
+      ];
+      
+      // Check each field for required validation
+      allFields.forEach(fieldName => {
+        const metadata = FIELD_METADATA[fieldName];
+        if (metadata && metadata.required) {
+          if (!form[fieldName]?.toString().trim()) {
+            errs[fieldName] = 'Required';
+          }
+        }
+      });
+    }
+    
     return errs;
   };
 
@@ -72,189 +239,288 @@ function NewDeviceForm({ navigate }) {
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setSaving(true); setApiError('');
     try {
-      await assetAPI.create({ ...form, emp_id: '', employee_name: '', mobile_number: '' });
+      // Generate asset_name from brand_name and model_name if not provided
+      const assetData = { ...form };
+      if (!assetData.asset_name && assetData.brand_name && assetData.model_name) {
+        assetData.asset_name = `${assetData.brand_name} ${assetData.model_name}`.trim();
+      } else if (!assetData.asset_name && assetData.brand_name) {
+        assetData.asset_name = assetData.brand_name;
+      } else if (!assetData.asset_name && assetData.model_name) {
+        assetData.asset_name = assetData.model_name;
+      }
+      
+      await assetAPI.create({ 
+        ...assetData, 
+        emp_id: '', 
+        employee_name: '', 
+        mobile_number: '', 
+        employee_email: '' 
+      });
       navigate('/assets', { state: { success: 'New device added to inventory!' } });
     } catch (err) {
       setApiError(err.response?.data?.error || 'Failed to save asset');
     } finally { setSaving(false); }
   };
 
-  const inp = (name, placeholder, type = 'text') => (
-    <input type={type} name={name} className={`form-control ${errors[name] ? 'is-invalid' : ''}`}
-      value={form[name]} onChange={set} placeholder={placeholder} />
-  );
-
   return (
-    <form onSubmit={handleSubmit}>
+    <>
       {apiError && <div className="alert alert-danger mb-3">{apiError}</div>}
-
-      {/* ── Basic Info ── */}
-      <div className="table-card mb-3">
-        <h6 className="fw-bold mb-3" style={{ color: 'var(--primary)' }}>
-          <i className="bi bi-box-seam me-2"></i>Asset Details
-        </h6>
-        <div className="row g-3">
-          <F label="Asset Name" required col="col-md-6" error={errors.asset_name}>
-            <input type="text" name="asset_name"
-              className={`form-control ${errors.asset_name ? 'is-invalid' : ''}`}
-              value={form.asset_name} onChange={set} placeholder="e.g. Dell Latitude 5540" />
-          </F>
-          <F label="Category" required col="col-md-3" error={errors.category}>
-            <select name="category"
-              className={`form-select ${errors.category ? 'is-invalid' : ''}`}
-              value={form.category} onChange={set}>
-              <option value="">Select…</option>
-              {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-            </select>
-          </F>
-          <F label="Status" col="col-md-3">
-            <select name="status" className="form-select" value={form.status} onChange={set}>
-              <option value="Available">Available</option>
-              <option value="Maintenance">Maintenance</option>
-              <option value="Retired">Retired</option>
-            </select>
-          </F>
-
-          <F label="Serial Number" required col="col-md-4" error={errors.serial_number}>
-            <input type="text" name="serial_number"
-              className={`form-control ${errors.serial_number ? 'is-invalid' : ''}`}
-              value={form.serial_number} onChange={set} placeholder="e.g. SN-DELL-001" />
-          </F>
-          <F label="Model Name" col="col-md-4">{inp('model_name', 'e.g. Latitude 5540')}</F>
-          <F label="Location" col="col-md-4">{inp('location', 'e.g. Hyderabad Office')}</F>
-
-          <F label="Operating System" col="col-md-3">
-            <select name="os" className="form-select" value={form.os} onChange={set}>
-              <option value="">Select…</option>
-              {OS_LIST.map(o => <option key={o}>{o}</option>)}
-            </select>
-          </F>
-          <F label="OS Version" col="col-md-3">{inp('version', 'e.g. 22H2')}</F>
-          <F label="RAM" col="col-md-3">
-            <select name="ram" className="form-select" value={form.ram} onChange={set}>
-              <option value="">Select…</option>
-              {RAM_LIST.map(r => <option key={r}>{r}</option>)}
-            </select>
-          </F>
-          <F label="Quantity" col="col-md-3">
-            <input type="number" name="quantity" className="form-control"
-              value={form.quantity} onChange={set} min="1" />
-          </F>
-        </div>
-      </div>
-
-      {/* ── Purchase & Warranty ── */}
-      <div className="table-card mb-3">
-        <h6 className="fw-bold mb-3" style={{ color: 'var(--primary)' }}>
-          <i className="bi bi-receipt me-2"></i>Purchase & Warranty
-        </h6>
-        <div className="row g-3">
-          <F label="Invoice Number" col="col-md-3">{inp('invoice_number', 'INV-2024-001')}</F>
-          <F label="Invoice Date" col="col-md-3">
-            <input type="date" name="invoice_date" className="form-control"
-              value={form.invoice_date} onChange={set} />
-          </F>
-          <F label="Warranty Expiry" col="col-md-3">
-            <input type="date" name="warranty_date" className="form-control"
-              value={form.warranty_date} onChange={set} />
-          </F>
-          <F label="Purchase Price (₹)" col="col-md-3">
-            <input type="number" name="purchase_price" className="form-control"
-              value={form.purchase_price} onChange={set} placeholder="0.00" step="0.01" />
-          </F>
-          <div className="col-12">
-            <label className="form-label fw-500">Configuration / Specifications</label>
-            <textarea name="configuration" className="form-control" rows={2}
-              value={form.configuration} onChange={set}
-              placeholder="e.g. Intel i7-12th Gen, 16GB RAM, 512GB SSD, NVIDIA GTX 1650" />
-          </div>
-        </div>
-      </div>
-
-      {/* ── Accessories ── */}
-      <div className="table-card mb-3">
-        <h6 className="fw-bold mb-3" style={{ color: 'var(--primary)' }}>
-          <i className="bi bi-bag me-2"></i>Accessories & Peripherals
-        </h6>
-        <div className="row g-3">
-          <F label="Charger Serial" col="col-md-4">{inp('charger_serial', 'CHG-001')}</F>
-          <F label="Laptop Bag Serial" col="col-md-4">{inp('laptop_bag_serial', 'BAG-001')}</F>
-          <div className="col-md-4"></div>
-
-          <F label="Hard Disk Serial" col="col-md-4">{inp('hard_disk_serial', 'HDD-001')}</F>
-          <F label="Hard Disk Capacity" col="col-md-4">{inp('hard_disk_capacity', 'e.g. 1TB, 2TB')}</F>
-          <div className="col-md-4"></div>
-
-          <F label="UPS Serial" col="col-md-4">{inp('ups_serial', 'UPS-001')}</F>
-          <F label="UPS Capacity" col="col-md-4">{inp('ups_capacity', 'e.g. 1000VA')}</F>
-          <div className="col-md-4"></div>
-
-          <F label="Printer Type" col="col-md-4">
-            <select name="printer_type" className="form-select" value={form.printer_type} onChange={set}>
-              <option value="">N/A</option>
-              <option>Inkjet</option><option>Laser</option>
-              <option>Dot Matrix</option><option>Thermal</option>
-            </select>
-          </F>
-          <F label="Printer Model" col="col-md-4">{inp('printer_model', 'e.g. HP LaserJet Pro')}</F>
-          <div className="col-md-4"></div>
-
-          <F label="Mobile IMEI" col="col-md-4">{inp('mobile_imei', 'IMEI number')}</F>
-          <F label="SIM Number" col="col-md-4">{inp('mobile_number_sim', 'SIM number')}</F>
-        </div>
-      </div>
-
-      {/* ── Notes ── */}
-      <div className="table-card mb-3">
-        <h6 className="fw-bold mb-3" style={{ color: 'var(--primary)' }}>
-          <i className="bi bi-chat-left-text me-2"></i>Notes
-        </h6>
-        <textarea name="comments" className="form-control" rows={3}
-          value={form.comments} onChange={set}
-          placeholder="Any additional notes about this device…" />
-      </div>
-
-      <div className="alert d-flex gap-2 mb-4"
-        style={{ background:'rgba(37,99,235,0.08)', border:'1px solid rgba(37,99,235,0.25)', borderRadius:'10px' }}>
-        <i className="bi bi-info-circle-fill text-primary mt-1"></i>
-        <div className="small">
-          This device will be added to inventory as <strong>Available</strong>.
-          Employee assignment can be done later by editing the asset.
-        </div>
-      </div>
-
-      <div className="d-flex gap-2">
-        <button type="submit" className="btn btn-primary px-4" disabled={saving}>
-          {saving
-            ? <><span className="spinner-border spinner-border-sm me-2"></span>Saving…</>
-            : <><i className="bi bi-plus-circle me-2"></i>Add to Inventory</>}
-        </button>
-        <button type="button" className="btn btn-outline-secondary px-4"
-          onClick={() => navigate('/assets')}>Cancel</button>
-      </div>
-    </form>
+      
+      <DynamicAssetForm
+        form={form}
+        setForm={setForm}
+        errors={errors}
+        onSubmit={handleSubmit}
+        saving={saving}
+        onCancel={() => navigate('/assets')}
+      />
+    </>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// EXISTING DEVICE TAB  (original full form — untouched)
+// EXISTING DEVICE TAB  (Asset lookup and update with employee fields)
 // ═══════════════════════════════════════════════════════════════════════════════
 function ExistingDeviceForm({ navigate }) {
-  const [form,     setForm]     = useState(EMPTY_EXISTING);
-  const [saving,   setSaving]   = useState(false);
-  const [errors,   setErrors]   = useState({});
-  const [apiError, setApiError] = useState('');
+  const [form,       setForm]       = useState(EMPTY_EXISTING);
+  const [saving,     setSaving]     = useState(false);
+  const [errors,     setErrors]     = useState({});
+  const [apiError,   setApiError]   = useState('');
+  const [sendAck,    setSendAck]    = useState(SEND_ACK_DEFAULT);
+  const [empSuggestions, setEmpSuggestions] = useState([]);
+  const [empLookup,  setEmpLookup]  = useState(false);
+  
+  // Asset search functionality
+  const [assetSearch, setAssetSearch] = useState('');
+  const [assetSuggestions, setAssetSuggestions] = useState([]);
+  const [assetLoaded, setAssetLoaded] = useState(false);
+  const [loadedAssetId, setLoadedAssetId] = useState(null);
+  const [assets, setAssets] = useState([]);
+  
+  // Employee search functionality for finding their assets
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [employeeSearchResults, setEmployeeSearchResults] = useState([]);
+  const [employeeAssets, setEmployeeAssets] = useState([]);
 
-  const set = (e) => {
-    const { name, value } = e.target;
-    setForm(f => ({ ...f, [name]: value }));
-    if (errors[name]) setErrors(er => ({ ...er, [name]: '' }));
+  // Load all assets on mount for dropdown
+  useEffect(() => {
+    const loadAssets = async () => {
+      try {
+        const res = await assetAPI.getAll({});
+        // Handle both paginated and non-paginated responses
+        const assetList = res.data.assets || res.data || [];
+        setAssets(assetList);
+      } catch (err) {
+        console.error('Failed to load assets:', err);
+        setAssets([]);
+      }
+    };
+    loadAssets();
+  }, []);
+
+  // Auto-populate asset details when selected
+  const handleAssetSelect = async (assetId) => {
+    if (!assetId) {
+      setAssetLoaded(false);
+      setLoadedAssetId(null);
+      setForm(EMPTY_EXISTING);
+      return;
+    }
+
+    try {
+      const res = await assetAPI.getById(assetId);
+      const asset = res.data;
+      
+      // Populate all asset fields
+      setForm(f => ({
+        ...f,
+        // Basic asset info
+        asset_name: asset.asset_name || '',
+        category: asset.category || '',
+        brand_name: asset.brand_name || '',
+        model_name: asset.model_name || '',
+        serial_number: asset.serial_number || '',
+        location: asset.location || '',
+        status: asset.status || 'Assigned',
+        
+        // Employee info (if assigned)
+        emp_id: asset.emp_id || '',
+        employee_name: asset.employee_name || '',
+        employee_email: asset.employee_email || '',
+        mobile_number: asset.mobile_number || '',
+        
+        // Specifications
+        processor: asset.processor || '',
+        ram: asset.ram || '',
+        storage_type: asset.storage_type || '',
+        storage_capacity: asset.storage_capacity || '',
+        graphics_card: asset.graphics_card || '',
+        os: asset.os || '',
+        os_version: asset.os_version || '',
+        screen_size: asset.screen_size || '',
+        
+        // Category-specific fields
+        imei_1: asset.imei_1 || '',
+        imei_2: asset.imei_2 || '',
+        printer_type: asset.printer_type || '',
+        color_or_mono: asset.color_or_mono || '',
+        network_enabled: asset.network_enabled || '',
+        resolution: asset.resolution || '',
+        refresh_rate: asset.refresh_rate || '',
+        cpu_count: asset.cpu_count || '',
+        raid_config: asset.raid_config || '',
+        ip_address: asset.ip_address || '',
+        rack_location: asset.rack_location || '',
+        interface_type: asset.interface_type || '',
+        capacity_va: asset.capacity_va || '',
+        battery_type: asset.battery_type || '',
+        backup_time: asset.backup_time || '',
+        connection_type: asset.connection_type || '',
+        noise_cancellation: asset.noise_cancellation || '',
+        size_compatibility: asset.size_compatibility || '',
+        color: asset.color || '',
+        
+        // Warranty and purchase (read-only, already in system)
+        purchase_vendor: asset.purchase_vendor || '',
+        purchase_price: asset.purchase_price || '',
+        purchase_date: asset.purchase_date || '',
+        warranty_start_date: asset.warranty_start_date || '',
+        warranty_end_date: asset.warranty_end_date || '',
+        warranty_period: asset.warranty_period || '',
+        
+        // Accessories (these can be updated)
+        charger_serial: asset.charger_serial || '',
+        
+        // Other fields
+        old_user: asset.old_user || '',
+        old_device: asset.old_device || '',
+        date: asset.date || '',
+        remarks: asset.remarks || '',
+        comments: asset.comments || '',
+        custom_description: asset.custom_description || '',
+      }));
+      
+      setAssetLoaded(true);
+      setLoadedAssetId(assetId);
+      setAssetSearch('');
+      setAssetSuggestions([]);
+    } catch (err) {
+      setApiError('Failed to load asset details');
+      console.error('Asset load error:', err);
+    }
+  };
+
+  // Search assets as user types
+  const handleAssetSearchChange = (val) => {
+    setAssetSearch(val);
+    if (val.length < 2) {
+      setAssetSuggestions([]);
+      return;
+    }
+    
+    const filtered = assets.filter(asset => 
+      asset.asset_name?.toLowerCase().includes(val.toLowerCase()) ||
+      asset.serial_number?.toLowerCase().includes(val.toLowerCase()) ||
+      asset.asset_id?.toString().includes(val)
+    ).slice(0, 10);
+    
+    setAssetSuggestions(filtered);
+  };
+
+  // Auto-fill employee details when EMP ID is entered
+  const handleEmpIdBlur = async () => {
+    if (!form.emp_id.trim()) return;
+    try {
+      const res = await employeeAPI.getById(form.emp_id.trim());
+      if (res.data.found) {
+        const e = res.data.employee;
+        setForm(f => ({
+          ...f,
+          employee_name:  e.employee_name || f.employee_name,
+          employee_email: e.email         || f.employee_email,
+          mobile_number:  e.mobile_number || f.mobile_number,
+          location:       e.location      || f.location,
+        }));
+        setEmpLookup(true);
+        setTimeout(() => setEmpLookup(false), 3000);
+      }
+    } catch {}
+  };
+
+  // Search employees as user types
+  const handleEmpSearch = async (val) => {
+    setForm(f => ({ ...f, emp_id: val }));
+    if (val.length < 2) { setEmpSuggestions([]); return; }
+    try {
+      const res = await employeeAPI.search(val);
+      setEmpSuggestions(res.data || []);
+    } catch {}
+  };
+  
+  // Search for employee and their assets
+  const handleEmployeeSearchForAssets = async (val) => {
+    setEmployeeSearch(val);
+    console.log('Employee search:', val);
+    if (val.length < 2) { 
+      setEmployeeSearchResults([]);
+      setEmployeeAssets([]);
+      return;
+    }
+    try {
+      console.log('Calling API with query:', val);
+      const res = await employeeAPI.search(val);
+      console.log('Employee search results:', res.data);
+      setEmployeeSearchResults(res.data || []);
+    } catch (err) {
+      console.error('Employee search error:', err);
+      setEmployeeSearchResults([]);
+    }
+  };
+  
+  // When employee is selected, show their assigned assets
+  const handleEmployeeSelect = (employee) => {
+    setEmployeeSearch(employee.employee_name);
+    setEmployeeSearchResults([]);
+    
+    // Filter assets assigned to this employee
+    const empAssets = assets.filter(asset => 
+      asset.emp_id === employee.emp_id || 
+      asset.employee_name === employee.employee_name
+    );
+    setEmployeeAssets(empAssets);
+  };
+
+  const selectEmployee = (emp) => {
+    setForm(f => ({
+      ...f,
+      emp_id:         emp.emp_id,
+      employee_name:  emp.employee_name,
+      employee_email: emp.email,
+      mobile_number:  emp.mobile_number,
+      location:       emp.location || f.location,
+    }));
+    setEmpSuggestions([]);
   };
 
   const validate = () => {
     const errs = {};
-    if (!form.asset_name.trim())    errs.asset_name    = 'Asset name is required';
-    if (!form.serial_number.trim()) errs.serial_number = 'Serial number is required';
+    
+    // If no asset loaded, require asset selection
+    if (!assetLoaded) {
+      errs.asset_search = 'Please select an existing asset first';
+      return errs;
+    }
+    
+    // Category is always required
+    if (!form.category) {
+      errs.category = 'Required';
+      return errs;
+    }
+    
+    if (sendAck && !form.employee_email) {
+      errs.employee_email = 'Email required to send acknowledgment';
+    }
+    
     return errs;
   };
 
@@ -263,150 +529,355 @@ function ExistingDeviceForm({ navigate }) {
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setSaving(true); setApiError('');
+    
     try {
-      await assetAPI.create(form);
-      navigate('/assets', { state: { success: 'Asset added successfully!' } });
+      // Save or update employee record permanently
+      if (form.emp_id && form.employee_name) {
+        await employeeAPI.createOrUpdate({
+          emp_id:        form.emp_id,
+          employee_name: form.employee_name,
+          email:         form.employee_email,
+          mobile_number: form.mobile_number,
+          location:      form.location,
+        });
+      }
+
+      // Update the existing asset
+      const assetData = { ...form };
+      await assetAPI.update(loadedAssetId, assetData);
+
+      // Send acknowledgment email if requested
+      if (sendAck && loadedAssetId && form.employee_email) {
+        try {
+          await ackAPI.sendEmail(loadedAssetId);
+        } catch (ackErr) {
+          console.warn('Ack email failed:', ackErr);
+        }
+      }
+
+      navigate('/assets', { state: { success: sendAck
+        ? 'Asset updated and acknowledgment email sent!'
+        : 'Asset updated successfully!' }});
     } catch (err) {
-      setApiError(err.response?.data?.error || 'Failed to save asset');
+      setApiError(err.response?.data?.error || 'Failed to update asset');
     } finally { setSaving(false); }
   };
 
-  const inp = (name, placeholder, type = 'text') => (
-    <input type={type} name={name}
-      className={`form-control ${errors[name] ? 'is-invalid' : ''}`}
-      value={form[name]} onChange={set} placeholder={placeholder} />
-  );
-
   return (
-    <form onSubmit={handleSubmit}>
+    <>
       {apiError && <div className="alert alert-danger mb-3">{apiError}</div>}
-
-      {/* ── Employee Info ── */}
-      <div className="table-card mb-3">
-        <h6 className="fw-bold mb-3" style={{ color: 'var(--primary)' }}>
-          <i className="bi bi-person me-2"></i>Employee Information
+      
+      {/* Asset Search/Selection Section */}
+      <div className="p-3 mb-4 rounded" style={{ background:'rgba(139,92,246,0.06)', border:'1px solid rgba(139,92,246,0.2)' }}>
+        <h6 className="fw-bold mb-3" style={{ color:'#8b5cf6' }}>
+          <i className="bi bi-search me-2"></i>Select Existing Asset
         </h6>
-        <div className="row g-3">
-          <F label="EMP ID" col="col-md-3">{inp('emp_id', 'e.g. TT001')}</F>
-          <F label="Employee Name" col="col-md-3">{inp('employee_name', 'Full name')}</F>
-          <F label="Employee Email" col="col-md-3">{inp('employee_email', 'email@company.com', 'email')}</F>
-          <F label="Mobile Number" col="col-md-3">{inp('mobile_number', '+91 XXXXX XXXXX', 'tel')}</F>
-        </div>
-      </div>
-
-      {/* ── Asset Info ── */}
-      <div className="table-card mb-3">
-        <h6 className="fw-bold mb-3" style={{ color: 'var(--primary)' }}>
-          <i className="bi bi-laptop me-2"></i>Asset Details
-        </h6>
-        <div className="row g-3">
-          <F label="Asset Name" required col="col-md-6" error={errors.asset_name}>
-            <input type="text" name="asset_name"
-              className={`form-control ${errors.asset_name ? 'is-invalid' : ''}`}
-              value={form.asset_name} onChange={set} placeholder="e.g. Dell Laptop XPS 15" />
-          </F>
-          <F label="Category" col="col-md-3">
-            <select name="category" className="form-select" value={form.category} onChange={set}>
-              <option value="">Select…</option>
-              {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-            </select>
-          </F>
-          <F label="Status" col="col-md-3">
-            <select name="status" className="form-select" value={form.status} onChange={set}>
-              {STATUSES.map(s => <option key={s}>{s}</option>)}
-            </select>
-          </F>
-
-          <F label="Serial Number" required col="col-md-4" error={errors.serial_number}>
-            <input type="text" name="serial_number"
-              className={`form-control ${errors.serial_number ? 'is-invalid' : ''}`}
-              value={form.serial_number} onChange={set} placeholder="e.g. SN-DELL-001" />
-          </F>
-          <F label="Model Name" col="col-md-4">{inp('model_name', 'e.g. XPS 15 9520')}</F>
-          <F label="Location" col="col-md-4">{inp('location', 'e.g. Hyderabad Office')}</F>
-
-          <F label="OS" col="col-md-3">
-            <select name="os" className="form-select" value={form.os} onChange={set}>
-              <option value="">Select…</option>
-              {OS_LIST.map(o => <option key={o}>{o}</option>)}
-            </select>
-          </F>
-          <F label="OS Version" col="col-md-3">{inp('version', 'e.g. 22H2')}</F>
-          <F label="RAM" col="col-md-3">
-            <select name="ram" className="form-select" value={form.ram} onChange={set}>
-              <option value="">Select…</option>
-              {RAM_LIST.map(r => <option key={r}>{r}</option>)}
-            </select>
-          </F>
-          <F label="Charger Serial" col="col-md-3">{inp('charger_serial', 'CHG-001')}</F>
-        </div>
-      </div>
-
-      {/* ── Invoice & Warranty ── */}
-      <div className="table-card mb-3">
-        <h6 className="fw-bold mb-3" style={{ color: 'var(--primary)' }}>
-          <i className="bi bi-receipt me-2"></i>Purchase & Warranty
-        </h6>
-        <div className="row g-3">
-          <F label="Invoice Number" col="col-md-3">{inp('invoice_number', 'INV-2024-001')}</F>
-          <F label="Invoice Date" col="col-md-3">
-            <input type="date" name="invoice_date" className="form-control"
-              value={form.invoice_date} onChange={set} />
-          </F>
-          <F label="Warranty Date" col="col-md-3">
-            <input type="date" name="warranty_date" className="form-control"
-              value={form.warranty_date} onChange={set} />
-          </F>
-          <F label="Purchase Price (₹)" col="col-md-3">
-            <input type="number" name="purchase_price" className="form-control"
-              value={form.purchase_price} onChange={set} placeholder="0.00" step="0.01" />
-          </F>
-          <div className="col-12">
-            <label className="form-label fw-500">Configuration / Specifications</label>
-            <textarea name="configuration" className="form-control" rows={2}
-              value={form.configuration} onChange={set}
-              placeholder="e.g. Intel i7, 16GB RAM, 512GB SSD" />
+        
+        {!assetLoaded ? (
+          <>
+            <div className="row g-3">
+              {/* Left Side: Search by Asset */}
+              <div className="col-md-6">
+                <label className="form-label fw-500">
+                  <i className="bi bi-laptop me-1"></i>Search by Asset <span className="text-danger">*</span>
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    className={`form-control ${errors.asset_search ? 'is-invalid' : ''}`}
+                    value={assetSearch}
+                    onChange={e => handleAssetSearchChange(e.target.value)}
+                    placeholder="Type asset name, serial number, or ID..."
+                    autoComplete="off"
+                  />
+                  {assetSuggestions.length > 0 && (
+                    <div style={{
+                      position:'absolute', top:'100%', left:0, right:0, zIndex:1000,
+                      background:'var(--card-bg, #fff)', 
+                      border:'1px solid var(--border-color, #e2e8f0)', 
+                      borderRadius:8,
+                      boxShadow:'0 4px 16px rgba(0,0,0,0.12)', maxHeight:300, overflowY:'auto',
+                      marginTop: 4
+                    }}>
+                      {assetSuggestions.map(asset => (
+                        <div key={asset.id || asset.asset_id}
+                          style={{ 
+                            padding:'12px 16px', 
+                            cursor:'pointer', 
+                            borderBottom:'1px solid var(--border-color, #f1f5f9)',
+                            background: 'var(--card-bg, #fff)'
+                          }}
+                          onClick={() => handleAssetSelect(asset.id || asset.asset_id)}
+                          onMouseEnter={e => e.currentTarget.style.background='var(--hover-bg, #f8fafc)'}
+                          onMouseLeave={e => e.currentTarget.style.background='var(--card-bg, #fff)'}
+                        >
+                          <div style={{ fontWeight:600, fontSize:14, marginBottom: 4 }}>
+                            {asset.asset_name || 'Unnamed Asset'}
+                          </div>
+                          <div style={{ fontSize:12, color:'var(--text-muted, #64748b)' }}>
+                            <span className="badge bg-secondary me-2">{asset.category}</span>
+                            Serial: {asset.serial_number || 'N/A'}
+                            {asset.emp_id && <> · Assigned to: {asset.employee_name}</>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {errors.asset_search && <div className="invalid-feedback d-block">{errors.asset_search}</div>}
+                </div>
+              </div>
+              
+              {/* Right Side: Search by Employee */}
+              <div className="col-md-6">
+                <label className="form-label fw-500">
+                  <i className="bi bi-person me-1"></i>Or Search by Employee/User
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    className="form-control"
+                    value={employeeSearch}
+                    onChange={e => handleEmployeeSearchForAssets(e.target.value)}
+                    placeholder="Type employee name or ID..."
+                    autoComplete="off"
+                  />
+                  {employeeSearchResults.length > 0 && (
+                    <div style={{
+                      position:'absolute', top:'100%', left:0, right:0, zIndex:1000,
+                      background:'var(--card-bg, #fff)', 
+                      border:'1px solid var(--border-color, #e2e8f0)', 
+                      borderRadius:8,
+                      boxShadow:'0 4px 16px rgba(0,0,0,0.12)', maxHeight:300, overflowY:'auto',
+                      marginTop: 4
+                    }}>
+                      {employeeSearchResults.map(emp => (
+                        <div key={emp.emp_id}
+                          style={{ 
+                            padding:'12px 16px', 
+                            cursor:'pointer', 
+                            borderBottom:'1px solid var(--border-color, #f1f5f9)',
+                            background: 'var(--card-bg, #fff)'
+                          }}
+                          onClick={() => handleEmployeeSelect(emp)}
+                          onMouseEnter={e => e.currentTarget.style.background='var(--hover-bg, #f8fafc)'}
+                          onMouseLeave={e => e.currentTarget.style.background='var(--card-bg, #fff)'}
+                        >
+                          <div style={{ fontWeight:600, fontSize:14, marginBottom: 4 }}>
+                            {emp.employee_name}
+                          </div>
+                          <div style={{ fontSize:12, color:'var(--text-muted, #64748b)' }}>
+                            {emp.emp_id} · {emp.email}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Show employee's assigned assets */}
+                {employeeAssets.length > 0 && (
+                  <div className="mt-3 p-3 rounded" style={{ background:'var(--hover-bg, #f8fafc)', border:'1px solid var(--border-color, #e5e7eb)' }}>
+                    <div className="small fw-600 mb-2 text-muted">
+                      <i className="bi bi-boxes me-1"></i>
+                      {employeeAssets.length} device(s) assigned to {employeeSearch}:
+                    </div>
+                    <div style={{ maxHeight:200, overflowY:'auto' }}>
+                      {employeeAssets.map(asset => (
+                        <div key={asset.id || asset.asset_id}
+                          className="p-2 mb-1 rounded"
+                          style={{ 
+                            background:'var(--card-bg, #fff)', 
+                            cursor:'pointer',
+                            border:'1px solid var(--border-color, #e5e7eb)'
+                          }}
+                          onClick={() => handleAssetSelect(asset.id || asset.asset_id)}
+                          onMouseEnter={e => e.currentTarget.style.borderColor='#3b82f6'}
+                          onMouseLeave={e => e.currentTarget.style.borderColor='var(--border-color, #e5e7eb)'}
+                        >
+                          <div style={{ fontSize:13, fontWeight:600 }}>
+                            {asset.asset_name}
+                          </div>
+                          <div style={{ fontSize:11, color:'var(--text-muted, #64748b)' }}>
+                            <span className="badge bg-secondary me-1" style={{ fontSize:10 }}>{asset.category}</span>
+                            {asset.serial_number}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="alert alert-info d-flex gap-2 mt-3 mb-0"
+              style={{ background:'rgba(59,130,246,0.08)', border:'1px solid rgba(59,130,246,0.25)' }}>
+              <i className="bi bi-info-circle-fill text-primary mt-1"></i>
+              <div className="small">
+                <strong>How it works:</strong> Search by asset name/serial OR search by employee to see all their assigned devices.
+                All device details will be auto-loaded, and you can update specific fields like accessories, 
+                employee assignment, or location without re-entering everything.
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="alert alert-success d-flex align-items-center justify-content-between mb-0">
+            <div className="d-flex align-items-center gap-2">
+              <i className="bi bi-check-circle-fill"></i>
+              <div>
+                <strong>Asset Loaded:</strong> {form.asset_name}
+                <span className="ms-2 badge bg-success">{form.category}</span>
+                <span className="ms-2 small text-muted">Serial: {form.serial_number}</span>
+              </div>
+            </div>
+            <button 
+              type="button" 
+              className="btn btn-sm btn-outline-secondary"
+              onClick={() => {
+                setAssetLoaded(false);
+                setLoadedAssetId(null);
+                setForm(EMPTY_EXISTING);
+              }}
+            >
+              <i className="bi bi-x-circle me-1"></i>Change Asset
+            </button>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* ── History ── */}
-      <div className="table-card mb-3">
-        <h6 className="fw-bold mb-3" style={{ color: 'var(--primary)' }}>
-          <i className="bi bi-clock-history me-2"></i>History
-        </h6>
-        <div className="row g-3">
-          <F label="Old User" col="col-md-4">{inp('old_user', 'Previous user name')}</F>
-          <F label="Old Device" col="col-md-4">{inp('old_device', 'Previous device serial')}</F>
-          <F label="Date" col="col-md-4">
-            <input type="date" name="date" className="form-control"
-              value={form.date} onChange={set} />
-          </F>
-          <div className="col-12">
-            <label className="form-label fw-500">Comments</label>
-            <textarea name="comments" className="form-control" rows={3}
-              value={form.comments} onChange={set}
-              placeholder="Any additional notes…" />
+      {/* Only show rest of form when asset is loaded */}
+      {assetLoaded && (
+        <>
+          {/* Employee Section */}
+          <div className="p-3 mb-4 rounded" style={{ background:'rgba(37,99,235,0.06)', border:'1px solid rgba(37,99,235,0.2)' }}>
+            <h6 className="fw-bold mb-3" style={{ color:'#2563eb' }}>
+              <i className="bi bi-person-fill me-2"></i>Employee Assignment (Update if needed)
+            </h6>
+            {empLookup && (
+              <div className="alert alert-success py-1 small mb-3">
+                ✅ Employee details auto-filled from records
+              </div>
+            )}
+            <div className="row g-3">
+              <div className="col-md-3">
+                <label className="form-label fw-500">EMP ID</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    className="form-control"
+                    name="emp_id"
+                    value={form.emp_id}
+                    onChange={e => handleEmpSearch(e.target.value)}
+                    onBlur={handleEmpIdBlur}
+                    placeholder="e.g. TT001"
+                    autoComplete="off"
+                  />
+                  {empSuggestions.length > 0 && (
+                    <div style={{
+                      position:'absolute', top:'100%', left:0, right:0, zIndex:1000,
+                      background:'var(--card-bg, #fff)', 
+                      border:'1px solid var(--border-color, #e2e8f0)', 
+                      borderRadius:8,
+                      boxShadow:'0 4px 16px rgba(0,0,0,0.12)', maxHeight:200, overflowY:'auto'
+                    }}>
+                      {empSuggestions.map(emp => (
+                        <div key={emp.emp_id}
+                          style={{ 
+                            padding:'10px 14px', 
+                            cursor:'pointer', 
+                            borderBottom:'1px solid var(--border-color, #f1f5f9)',
+                            background: 'var(--card-bg, #fff)'
+                          }}
+                          onMouseDown={() => selectEmployee(emp)}
+                          onMouseEnter={e => e.currentTarget.style.background='var(--hover-bg, #f8fafc)'}
+                          onMouseLeave={e => e.currentTarget.style.background='var(--card-bg, #fff)'}
+                        >
+                          <div style={{ fontWeight:600, fontSize:14 }}>{emp.emp_id} — {emp.employee_name}</div>
+                          <div style={{ fontSize:12, color:'var(--text-muted, #64748b)' }}>
+                            {emp.email} {emp.mobile_number ? `· ${emp.mobile_number}` : ''}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <F label="Employee Name" col="col-md-3" error={errors.employee_name}>
+                <input 
+                  type="text" 
+                  className={`form-control ${errors.employee_name ? 'is-invalid' : ''}`}
+                  name="employee_name" 
+                  value={form.employee_name ?? ''} 
+                  onChange={(e) => setForm(f => ({ ...f, employee_name: e.target.value }))} 
+                  placeholder="Full name" 
+                />
+              </F>
+              <F label="Employee Email" col="col-md-3" error={errors.employee_email}>
+                <input 
+                  type="email" 
+                  className={`form-control ${errors.employee_email ? 'is-invalid' : ''}`}
+                  name="employee_email" 
+                  value={form.employee_email ?? ''} 
+                  onChange={(e) => setForm(f => ({ ...f, employee_email: e.target.value }))} 
+                  placeholder="email@company.com" 
+                />
+              </F>
+              <F label="Phone Number" col="col-md-3">
+                <input 
+                  type="tel" 
+                  className="form-control"
+                  name="mobile_number" 
+                  value={form.mobile_number ?? ''} 
+                  onChange={(e) => setForm(f => ({ ...f, mobile_number: e.target.value }))} 
+                  placeholder="+91 9999999999" 
+                />
+              </F>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <div className="d-flex gap-2">
-        <button type="submit" className="btn btn-primary px-4" disabled={saving}>
-          {saving
-            ? <><span className="spinner-border spinner-border-sm me-2"></span>Saving…</>
-            : <><i className="bi bi-check-circle me-2"></i>Save Asset</>}
-        </button>
-        <button type="button" className="btn btn-outline-secondary px-4"
-          onClick={() => navigate('/assets')}>Cancel</button>
-      </div>
-    </form>
+          {/* Dynamic Asset Form - without purchase section */}
+          <DynamicAssetForm
+            form={form}
+            setForm={setForm}
+            errors={errors}
+            onSubmit={handleSubmit}
+            saving={saving}
+            onCancel={() => navigate('/assets')}
+            isExistingDevice={true}
+            hidePurchaseSection={true}
+            renderExtraButtons={() => (
+              <>
+                {/* Acknowledgment Option */}
+                {form.employee_email && (
+                  <div className="p-3 mb-4 rounded" style={{ background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.3)' }}>
+                    <div className="form-check form-switch d-flex align-items-center gap-3">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id="sendAckSwitch"
+                        style={{ width:48, height:24 }}
+                        checked={sendAck}
+                        onChange={e => setSendAck(e.target.checked)}
+                      />
+                      <label className="form-check-label" htmlFor="sendAckSwitch">
+                        <span className="fw-semibold">📧 Send Acknowledgment Email</span>
+                        <span className="text-muted small ms-2">
+                          to {form.employee_email}
+                        </span>
+                      </label>
+                    </div>
+                    {sendAck && (
+                      <div className="mt-2 small text-muted ms-5">
+                        ✅ Employee will receive an email with updated device details and an acknowledge button.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+            submitButtonText={sendAck ? 'Update & Send Email' : 'Update Asset'}
+          />
+        </>
+      )}
+    </>
   );
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT — Two Tabs
-// ═══════════════════════════════════════════════════════════════════════════════
 function AssetAdd() {
   const navigate = useNavigate();
   const [tab, setTab] = useState('new');

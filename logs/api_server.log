@@ -1,0 +1,78 @@
+nohup: ignoring input
+2026-07-24 11:40:40,541 [INFO] __main__: Database tables initialized (seed data disabled)
+============================================================
+🚀  IT Asset Management API
+============================================================
+✅  API:    http://0.0.0.0:3000
+✅  Health: http://localhost:3000/api/health
+⚛️   React:  Served from /frontend/build
+============================================================
+ * Serving Flask app 'api_server'
+ * Debug mode: on
+2026-07-24 11:40:40,549 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.20.180:5000
+2026-07-24 11:40:40,550 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-07-24 11:40:40,550 [INFO] werkzeug:  * Restarting with stat
+2026-07-24 11:40:40,924 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-24 11:40:40,931 [WARNING] werkzeug:  * Debugger is active!
+2026-07-24 11:40:40,931 [INFO] werkzeug:  * Debugger PIN: 229-721-639
+2026-07-24 11:40:54,314 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:40:54] "GET /api/health HTTP/1.1" 200 -
+2026-07-24 11:41:07,346 [INFO] __main__: Successful login: admin from 192.168.20.180
+2026-07-24 11:41:07,346 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "POST /api/auth/login HTTP/1.1" 200 -
+2026-07-24 11:41:07,460 [WARNING] __main__: Failed login attempt for username: admin from 192.168.20.180
+2026-07-24 11:41:07,461 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/auth/login HTTP/1.1[0m" 401 -
+2026-07-24 11:41:07,464 [WARNING] __main__: Failed login attempt for username: nonexistent from 192.168.20.180
+2026-07-24 11:41:07,464 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/auth/login HTTP/1.1[0m" 401 -
+2026-07-24 11:41:07,466 [WARNING] __main__: Login attempt with missing credentials from 192.168.20.180
+2026-07-24 11:41:07,466 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/auth/login HTTP/1.1[0m" 400 -
+2026-07-24 11:41:07,469 [WARNING] __main__: Login attempt with missing credentials from 192.168.20.180
+2026-07-24 11:41:07,469 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/auth/login HTTP/1.1[0m" 400 -
+2026-07-24 11:41:07,475 [INFO] flask-limiter: ratelimit 5 per 1 minute (192.168.20.180) exceeded at endpoint: login
+2026-07-24 11:41:07,475 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/auth/login HTTP/1.1[0m" 429 -
+2026-07-24 11:41:07,477 [INFO] flask-limiter: ratelimit 5 per 1 minute (192.168.20.180) exceeded at endpoint: login
+2026-07-24 11:41:07,478 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/auth/login HTTP/1.1[0m" 429 -
+2026-07-24 11:41:07,479 [INFO] flask-limiter: ratelimit 5 per 1 minute (192.168.20.180) exceeded at endpoint: login
+2026-07-24 11:41:07,480 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/auth/login HTTP/1.1[0m" 429 -
+2026-07-24 11:41:07,481 [INFO] flask-limiter: ratelimit 5 per 1 minute (192.168.20.180) exceeded at endpoint: login
+2026-07-24 11:41:07,481 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/auth/login HTTP/1.1[0m" 429 -
+2026-07-24 11:41:07,483 [INFO] flask-limiter: ratelimit 5 per 1 minute (192.168.20.180) exceeded at endpoint: login
+2026-07-24 11:41:07,484 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/auth/login HTTP/1.1[0m" 429 -
+2026-07-24 11:41:07,486 [INFO] flask-limiter: ratelimit 5 per 1 minute (192.168.20.180) exceeded at endpoint: login
+2026-07-24 11:41:07,486 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/auth/login HTTP/1.1[0m" 429 -
+2026-07-24 11:41:07,489 [INFO] flask-limiter: ratelimit 5 per 1 minute (192.168.20.180) exceeded at endpoint: login
+2026-07-24 11:41:07,490 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/auth/login HTTP/1.1[0m" 429 -
+2026-07-24 11:41:07,493 [INFO] flask-limiter: ratelimit 5 per 1 minute (192.168.20.180) exceeded at endpoint: login
+2026-07-24 11:41:07,494 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/auth/login HTTP/1.1[0m" 429 -
+2026-07-24 11:41:07,496 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mGET /api/assets HTTP/1.1[0m" 401 -
+2026-07-24 11:41:07,497 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mGET /api/assets HTTP/1.1[0m" 401 -
+2026-07-24 11:41:07,499 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mGET /api/assets HTTP/1.1[0m" 401 -
+2026-07-24 11:41:07,501 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mGET /api/assets HTTP/1.1[0m" 401 -
+2026-07-24 11:41:07,505 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mGET /api/assets HTTP/1.1[0m" 401 -
+/home/administrator/Desktop/asset-management/api_server.py:290: LegacyAPIWarning: The Query.get() method is considered legacy as of the 1.x series of SQLAlchemy and becomes a legacy construct in 2.0. The method is now available as Session.get() (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+  user = User.query.get(payload.get('user_id'))
+2026-07-24 11:41:07,512 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "POST /api/auth/refresh HTTP/1.1" 200 -
+2026-07-24 11:41:07,514 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mGET /api/assets HTTP/1.1[0m" 401 -
+2026-07-24 11:41:07,516 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mGET /api/employees HTTP/1.1[0m" 401 -
+2026-07-24 11:41:07,518 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mGET /api/users HTTP/1.1[0m" 401 -
+2026-07-24 11:41:07,521 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/assets HTTP/1.1[0m" 401 -
+2026-07-24 11:41:07,526 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPUT /api/assets/1 HTTP/1.1[0m" 401 -
+2026-07-24 11:41:07,528 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mDELETE /api/assets/1 HTTP/1.1[0m" 401 -
+2026-07-24 11:41:07,550 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "GET /api/assets HTTP/1.1" 200 -
+2026-07-24 11:41:07,556 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "GET /api/users HTTP/1.1" 200 -
+2026-07-24 11:41:07,560 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/users HTTP/1.1[0m" 400 -
+2026-07-24 11:41:07,563 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mDELETE /api/users/1 HTTP/1.1[0m" 400 -
+2026-07-24 11:41:07,565 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/users HTTP/1.1[0m" 400 -
+2026-07-24 11:41:07,568 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/users HTTP/1.1[0m" 400 -
+2026-07-24 11:41:07,572 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/users HTTP/1.1[0m" 400 -
+2026-07-24 11:41:07,575 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/users HTTP/1.1[0m" 400 -
+2026-07-24 11:41:07,578 [INFO] flask-limiter: ratelimit 5 per 1 minute (192.168.20.180) exceeded at endpoint: login
+2026-07-24 11:41:07,579 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/auth/login HTTP/1.1[0m" 429 -
+2026-07-24 11:41:07,580 [INFO] flask-limiter: ratelimit 5 per 1 minute (192.168.20.180) exceeded at endpoint: login
+2026-07-24 11:41:07,580 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "[31m[1mPOST /api/auth/login HTTP/1.1[0m" 429 -
+2026-07-24 11:41:07,582 [INFO] __main__: User logged out: admin
+2026-07-24 11:41:07,582 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "POST /api/auth/logout HTTP/1.1" 200 -
+2026-07-24 11:41:07,593 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "GET /api/assets HTTP/1.1" 200 -
+2026-07-24 11:41:07,595 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "OPTIONS /api/auth/login HTTP/1.1" 200 -
+2026-07-24 11:41:07,598 [INFO] werkzeug: 192.168.20.180 - - [24/Jul/2026 11:41:07] "GET /api/health HTTP/1.1" 200 -

@@ -44,6 +44,7 @@ def create_app():
 
     # ── Register Blueprints (route groups) ────────────────────────────────────
     from routes import auth_bp, main_bp, asset_bp, report_bp, api_bp
+    from api_lifecycle import lifecycle_bp
     from flask import send_from_directory
 
     @app.route('/', defaults={'path': ''})
@@ -68,11 +69,8 @@ def create_app():
     def serve_css(filename):
         return send_from_directory(os.path.join(os.path.dirname(__file__), 'frontend', 'build', 'static', 'css'), filename)
 
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(main_bp)
-    app.register_blueprint(asset_bp)
-    app.register_blueprint(report_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(lifecycle_bp)  # Lifecycle tracking API
 
     # ── Create tables and seed sample data ────────────────────────────────────
     with app.app_context():
@@ -135,5 +133,6 @@ def seed_data():
 app = create_app()
 
 if __name__ == '__main__':
+    # Serve on port 3000 - Frontend and Backend unified
     # debug=True means the server restarts when you change code (development only)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=3000)

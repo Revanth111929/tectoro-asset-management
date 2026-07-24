@@ -1,91 +1,74 @@
-// permissions.js - Role-based access control utilities
+// permissions.js – Role-based access control utility
+// Provides centralized permission checking for UI elements
 
 /**
- * Get current user from localStorage
+ * Check if current user can perform an action
+ * @param {string} action - Action to check (create, edit, delete, bulkActions)
+ * @returns {boolean} - True if user has permission
  */
-export const getCurrentUser = () => {
+export const canPerform = (action) => {
+  const userStr = localStorage.getItem('user');
+  if (!userStr) return false;
+
+  try {
+    const user = JSON.parse(userStr);
+    const role = user.role || 'viewer';
+
+    // Permission matrix
+    const permissions = {
+      admin: ['create', 'edit', 'delete', 'bulkActions', 'export', 'import', 'settings'],
+      user: ['create', 'edit', 'export', 'bulkActions'],
+      viewer: ['export']
+    };
+
+    return permissions[role]?.includes(action) || false;
+  } catch (error) {
+    console.error('Permission check error:', error);
+    return false;
+  }
+};
+
+/**
+ * Get current user role
+ * @returns {string} - User role (admin, user, viewer)
+ */
+export const getCurrentRole = () => {
   try {
     const userStr = localStorage.getItem('user');
-    return userStr ? JSON.parse(userStr) : null;
+    if (!userStr) return 'viewer';
+    const user = JSON.parse(userStr);
+    return user.role || 'viewer';
+  } catch {
+    return 'viewer';
+  }
+};
+
+/**
+ * Check if user is admin
+ * @returns {boolean}
+ */
+export const isAdmin = () => {
+  return getCurrentRole() === 'admin';
+};
+
+/**
+ * Get current user information
+ * @returns {object} - User object with username, email, role
+ */
+export const getUserInfo = () => {
+  try {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) return null;
+    return JSON.parse(userStr);
   } catch {
     return null;
   }
 };
 
 /**
- * Get current user's role
+ * Check if user is authenticated
+ * @returns {boolean}
  */
-export const getUserRole = () => {
-  const user = getCurrentUser();
-  return user?.role || 'viewer';
-};
-
-/**
- * Check if user is admin
- */
-export const isAdmin = () => {
-  return getUserRole() === 'admin';
-};
-
-/**
- * Check if user is viewer (read-only)
- */
-export const isViewer = () => {
-  return getUserRole() === 'viewer';
-};
-
-/**
- * Check if user can perform an action
- */
-export const canPerform = (action) => {
-  const role = getUserRole();
-  
-  const permissions = {
-    admin: {
-      view: true,
-      create: true,
-      edit: true,
-      delete: true,
-      import: true,
-      export: true,
-      bulkActions: true,
-    },
-    viewer: {
-      view: true,
-      create: false,
-      edit: false,
-      delete: false,
-      import: false,
-      export: true,
-      bulkActions: false,
-    },
-    standard: {
-      view: true,
-      create: false,
-      edit: false,
-      delete: false,
-      import: false,
-      export: true,
-      bulkActions: false,
-    },
-  };
-  
-  return permissions[role]?.[action] || false;
-};
-
-/**
- * Get user display info
- */
-export const getUserInfo = () => {
-  const user = getCurrentUser();
-  if (!user) return null;
-  
-  return {
-    username: user.username,
-    role: user.role,
-    roleLabel: user.role === 'admin' ? 'Administrator' : 'Viewer',
-    canEdit: canPerform('edit'),
-    canCreate: canPerform('create'),
-    canDelete: canPerform('delete'),
-  };
+export const isAuthenticated = () => {
+  return !!localStorage.getItem('token');
 };

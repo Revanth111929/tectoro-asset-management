@@ -19,14 +19,14 @@
   top: 0;
   z-index: 100;
 }
-.lp-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.lp-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
 .lp-logo-icon {
-  width: 36px; height: 36px; border-radius: 10px;
-  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  width: 40px; height: 40px; border-radius: 10px;
+  background: transparent;
   display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 18px;
+  overflow: hidden;
 }
-.lp-brand-name { font-size: 18px; font-weight: 700; color: #111827; }
+.lp-brand-name { font-size: 20px; font-weight: 600; color: #6b7280; letter-spacing: -0.3px; }
 .lp-nav-links { display: flex; align-items: center; gap: 28px; }
 .lp-nav-links a { color: #6b7280; text-decoration: none; font-size: 14px; font-weight: 500; transition: color .2s; }
 .lp-nav-links a:hover { color: #111827; }

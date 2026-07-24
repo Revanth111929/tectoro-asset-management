@@ -1,0 +1,911 @@
+#!/usr/bin/env python3
+"""
+api_server.py
+Flask REST API backend for the IT Asset Management React frontend.
+Handles all CRUD operations, authentication, and report exports.
+"""
+
+import os, csv, io
+from datetime import datetime, date, timedelta
+from flask import Flask, jsonify, request, send_file, send_from_directory
+from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import or_
+
+# ── App setup ─────────────────────────────────────────────────────────────────
+basedir = os.path.abspath(os.path.dirname(__file__))
+build_dir = os.path.join(basedir, 'frontend', 'build')
+
+app = Flask(__name__, static_folder=build_dir, static_url_path='')
+
+app.config['SECRET_KEY'] = 'assetmgmt-super-secret-2024'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'assets.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Allow React dev server (port 3000) and production
+CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+# Import models AFTER app is configured
+from models import db, Asset, ActivityLog, User
+from services.audit_service import AuditService, LifecycleService
+from flask_login import LoginManager
+
+db.init_app(app)
+
+# Initialize Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'auth.login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+# Import and register blueprints (API only - React handles frontend routes)
+from routes import auth_bp, asset_bp, report_bp
+app.register_blueprint(auth_bp, url_prefix='/api/auth')
+app.register_blueprint(asset_bp, url_prefix='/api/assets')
+app.register_blueprint(report_bp, url_prefix='/api/reports')
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+def parse_date(val):
+    """Parse YYYY-MM-DD string to date object"""
+    if val:
+        try:
+            return datetime.strptime(val, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+    return None
+
+def log_activity(action, module, description, user='admin'):
+    entry = ActivityLog(user=user, action=action, module=module, description=description)
+    db.session.add(entry)
+    # caller must commit
+
+def get_current_user():
+    """Get username from Authorization header token (simple demo auth)"""
+    auth = request.headers.get('Authorization', '')
+    if auth.startswith('Bearer '):
+        token = auth[7:]
+        # In production use JWT; here we store username in token
+        if ':' in token:
+            return token.split(':')[1]
+    return 'admin'
+
+# ── Seed sample data ──────────────────────────────────────────────────────────
+def seed_data():
+    if User.query.first():
+        return  # already seeded
+
+    print("🌱 Seeding sample data...")
+
+    # Admin user  (password: admin123)
+    admin = User(
+        username='admin',
+        email='admin@company.com',
+        password_hash=generate_password_hash('admin123'),
+        role='admin'
+    )
+    db.session.add(admin)
+
+    # Sample assets with all 20 columns
+    samples = [
+        Asset(
+            emp_id='EMP001', employee_name='Alice Johnson', mobile_number='9876543210',
+            asset_name='Dell Laptop XPS 15', category='Laptop',
+            serial_number='SN-DELL-001', model_name='XPS 15 9500',
+            os='Windows 11', version='23H2', ram='16GB',
+            location='HQ - Floor 2', invoice_number='INV-2023-001',
+            invoice_date=date(2023, 1, 15), warranty_date=date(2026, 1, 15),
+            charger_serial='CHG-DELL-001', old_user='', date=date(2023, 1, 20),
+            old_device='', comments='Primary work laptop', status='Assigned'
+        ),
+        Asset(
+            emp_id='EMP002', employee_name='Bob Williams', mobile_number='9876543211',
+            asset_name='HP EliteBook 840', category='Laptop',
+            serial_number='SN-HP-002', model_name='EliteBook 840 G9',
+            os='Windows 11', version='22H2', ram='8GB',
+            location='HQ - Floor 1', invoice_number='INV-2023-002',
+            invoice_date=date(2023, 3, 10), warranty_date=date(2026, 3, 10),
+            charger_serial='CHG-HP-002', old_user='Carol Davis', date=date(2023, 3, 15),
+            old_device='HP EliteBook 830', comments='Transferred from Carol', status='Assigned'
+        ),
+        Asset(
+            emp_id='', employee_name='', mobile_number='',
+            asset_name='Apple MacBook Pro 14"', category='Laptop',
+            serial_number='SN-APL-003', model_name='MacBook Pro M2',
+            os='macOS', version='Ventura 13.5', ram='16GB',
+            location='Store Room', invoice_number='INV-2023-003',
+            invoice_date=date(2023, 5, 5), warranty_date=date(2026, 5, 5),
+            charger_serial='CHG-APL-003', old_user='', date=date(2023, 5, 10),
+            old_device='', comments='Available for assignment', status='Available'
+        ),
+        Asset(
+            emp_id='EMP003', employee_name='Carol Davis', mobile_number='9876543212',
+            asset_name='Lenovo ThinkPad X1', category='Laptop',
+            serial_number='SN-LEN-004', model_name='ThinkPad X1 Carbon Gen 11',
+            os='Ubuntu', version='22.04 LTS', ram='16GB',
+            location='HQ - Floor 3', invoice_number='INV-2023-004',
+            invoice_date=date(2023, 7, 12), warranty_date=date(2026, 7, 12),
+            charger_serial='CHG-LEN-004', old_user='', date=date(2023, 7, 15),
+            old_device='', comments='Dev machine', status='Assigned'
+        ),
+        Asset(
+            emp_id='EMP004', employee_name='David Brown', mobile_number='9876543213',
+            asset_name='Dell Latitude 5540', category='Laptop',
+            serial_number='SN-DELL-005', model_name='Latitude 5540',
+            os='Windows 10', version='22H2', ram='8GB',
+            location='Branch Office', invoice_number='INV-2022-005',
+            invoice_date=date(2022, 9, 1), warranty_date=date(2025, 9, 1),
+            charger_serial='CHG-DELL-005', old_user='Eva Martinez', date=date(2022, 9, 5),
+            old_device='Dell Latitude 5430', comments='Warranty expiring soon', status='Assigned'
+        ),
+        Asset(
+            emp_id='', employee_name='', mobile_number='',
+            asset_name='HP ProBook 450', category='Laptop',
+            serial_number='SN-HP-006', model_name='ProBook 450 G10',
+            os='Windows 11', version='23H2', ram='8GB',
+            location='Store Room', invoice_number='INV-2024-006',
+            invoice_date=date(2024, 1, 20), warranty_date=date(2027, 1, 20),
+            charger_serial='CHG-HP-006', old_user='', date=date(2024, 1, 25),
+            old_device='', comments='New stock', status='Available'
+        ),
+        Asset(
+            emp_id='EMP005', employee_name='Eva Martinez', mobile_number='9876543214',
+            asset_name='Asus ZenBook 14', category='Laptop',
+            serial_number='SN-ASUS-007', model_name='ZenBook 14 OLED',
+            os='Windows 11', version='23H2', ram='16GB',
+            location='HQ - Floor 2', invoice_number='INV-2023-007',
+            invoice_date=date(2023, 11, 10), warranty_date=date(2026, 11, 10),
+            charger_serial='CHG-ASUS-007', old_user='', date=date(2023, 11, 15),
+            old_device='', comments='Design team laptop', status='Assigned'
+        ),
+        Asset(
+            emp_id='', employee_name='', mobile_number='',
+            asset_name='Lenovo IdeaPad 3', category='Laptop',
+            serial_number='SN-LEN-008', model_name='IdeaPad 3 Gen 8',
+            os='Windows 11', version='22H2', ram='4GB',
+            location='Maintenance', invoice_number='INV-2022-008',
+            invoice_date=date(2022, 4, 8), warranty_date=date(2025, 4, 8),
+            charger_serial='CHG-LEN-008', old_user='Bob Williams', date=date(2022, 4, 10),
+            old_device='', comments='Under repair - keyboard issue', status='Maintenance'
+        ),
+    ]
+
+    for s in samples:
+        db.session.add(s)
+
+    # Activity logs
+    logs = [
+        ActivityLog(user='admin', action='CREATE', module='Asset', description='Added Dell Laptop XPS 15 [SN-DELL-001]'),
+        ActivityLog(user='admin', action='ASSIGN', module='Asset', description='Assigned HP EliteBook 840 to Bob Williams'),
+        ActivityLog(user='admin', action='CREATE', module='Asset', description='Added Apple MacBook Pro 14"'),
+        ActivityLog(user='admin', action='UPDATE', module='Asset', description='Updated Lenovo IdeaPad 3 status to Maintenance'),
+    ]
+    db.session.add_all(logs)
+    db.session.commit()
+    print("✅ Sample data seeded!")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# AUTH ROUTES
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    data = request.get_json() or {}
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+
+    user = User.query.filter_by(username=username).first()
+    if user and check_password_hash(user.password_hash, password):
+        # Simple token: "demo:<username>"  (use JWT in production)
+        token = f'demo:{username}'
+        return jsonify({
+            'success': True,
+            'token': token,
+            'user': {'username': user.username, 'email': user.email, 'role': user.role}
+        }), 200
+
+    return jsonify({'success': False, 'message': 'Invalid username or password'}), 401
+
+@app.route('/api/auth/logout', methods=['POST'])
+def logout():
+    return jsonify({'success': True}), 200
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DASHBOARD ROUTES
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/dashboard/stats', methods=['GET'])
+def dashboard_stats():
+    total       = Asset.query.count()
+    assigned    = Asset.query.filter_by(status='Assigned').count()
+    available   = Asset.query.filter_by(status='Available').count()
+    maintenance = Asset.query.filter_by(status='Maintenance').count()
+
+    today = date.today()
+    soon  = today + timedelta(days=90)
+    expiring = Asset.query.filter(
+        Asset.warranty_date != None,
+        Asset.warranty_date <= soon,
+        Asset.warranty_date >= today
+    ).count()
+
+    # Category breakdown (only assigned assets)
+    from sqlalchemy import func
+    cat_rows = db.session.query(Asset.category, func.count(Asset.id))\
+                         .filter(Asset.status == 'Assigned')\
+                         .group_by(Asset.category).all()
+    categories = [{'name': r[0] or 'Unknown', 'count': r[1]} for r in cat_rows]
+
+    # Laptop status breakdown
+    laptop_total = Asset.query.filter_by(category='Laptop').count()
+    laptop_available = Asset.query.filter_by(category='Laptop', status='Available').count()
+    laptop_assigned = Asset.query.filter_by(category='Laptop', status='Assigned').count()
+    laptop_maintenance = Asset.query.filter_by(category='Laptop', status='Maintenance').count()
+    laptop_retired = Asset.query.filter_by(category='Laptop', status='Retired').count()
+
+    return jsonify({
+        'totalAssets':       total,
+        'assignedAssets':    assigned,
+        'availableAssets':   available,
+        'maintenanceAssets': maintenance,
+        'expiringWarranties': expiring,
+        'categories':        categories,
+        'laptopStats': {
+            'total': laptop_total,
+            'available': laptop_available,
+            'assigned': laptop_assigned,
+            'maintenance': laptop_maintenance,
+            'retired': laptop_retired
+        }
+    }), 200
+
+@app.route('/api/dashboard/activity', methods=['GET'])
+def dashboard_activity():
+    logs = ActivityLog.query.order_by(ActivityLog.timestamp.desc()).limit(10).all()
+    return jsonify({'logs': [l.to_dict() for l in logs]}), 200
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ASSET ROUTES  – full CRUD
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/assets', methods=['GET'])
+def get_assets():
+    search   = request.args.get('search', '').strip()
+    location = request.args.get('location', '').strip()
+    category = request.args.get('category', '').strip()
+    status   = request.args.get('status', '').strip()
+    page     = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+
+    q = Asset.query
+
+    if search:
+        q = q.filter(or_(
+            Asset.asset_name.ilike(f'%{search}%'),
+            Asset.serial_number.ilike(f'%{search}%'),
+            Asset.emp_id.ilike(f'%{search}%'),
+            Asset.employee_name.ilike(f'%{search}%'),
+            Asset.model_name.ilike(f'%{search}%'),
+        ))
+    if location:
+        q = q.filter(Asset.location.ilike(f'%{location}%'))
+    if category:
+        q = q.filter(Asset.category.ilike(f'%{category}%'))
+    if status:
+        q = q.filter_by(status=status)
+
+    total  = q.count()
+    assets = q.order_by(Asset.created_at.desc()).offset((page-1)*per_page).limit(per_page).all()
+
+    return jsonify({
+        'assets': [a.to_dict() for a in assets],
+        'total':  total,
+        'page':   page,
+        'pages':  (total + per_page - 1) // per_page,
+    }), 200
+
+@app.route('/api/assets/<int:asset_id>', methods=['GET'])
+def get_asset(asset_id):
+    asset = Asset.query.get_or_404(asset_id)
+    return jsonify(asset.to_dict()), 200
+
+@app.route('/api/assets', methods=['POST'])
+def create_asset():
+    data = request.get_json() or {}
+    current_user = get_current_user()
+
+    # Validate required fields
+    if not data.get('asset_name') or not data.get('serial_number'):
+        return jsonify({'error': 'asset_name and serial_number are required'}), 400
+
+    # Check duplicate serial number
+    if Asset.query.filter_by(serial_number=data['serial_number'].strip()).first():
+        return jsonify({'error': 'Serial number already exists'}), 409
+
+    # Handle employee_email field (accept both employee_email and email)
+    employee_email = data.get('employee_email') or data.get('email', '')
+
+    asset = Asset(
+        emp_id          = data.get('emp_id', ''),
+        employee_name   = data.get('employee_name', ''),
+        mobile_number   = data.get('mobile_number', ''),
+        employee_email  = employee_email,
+        asset_name      = data['asset_name'].strip(),
+        category        = data.get('category', ''),
+        serial_number   = data['serial_number'].strip(),
+        model_name      = data.get('model_name', ''),
+        os              = data.get('os', ''),
+        version         = data.get('version', ''),
+        ram             = data.get('ram', ''),
+        location        = data.get('location', ''),
+        invoice_number  = data.get('invoice_number', ''),
+        invoice_date    = parse_date(data.get('invoice_date')),
+        warranty_date   = parse_date(data.get('warranty_date')),
+        charger_serial  = data.get('charger_serial', ''),
+        old_user        = data.get('old_user', ''),
+        date            = parse_date(data.get('date')) or date.today(),
+        old_device      = data.get('old_device', ''),
+        comments        = data.get('comments', ''),
+        status          = data.get('status', 'Available'),
+        # Legacy inventory fields
+        purchase_price       = data.get('purchase_price'),
+        quantity             = data.get('quantity', 1),
+        configuration        = data.get('configuration', ''),
+        laptop_bag_serial    = data.get('laptop_bag_serial', ''),
+        hard_disk_serial     = data.get('hard_disk_serial', ''),
+        hard_disk_capacity   = data.get('hard_disk_capacity', ''),
+        ups_serial           = data.get('ups_serial', ''),
+        ups_capacity         = data.get('ups_capacity', ''),
+        printer_type         = data.get('printer_type', ''),
+        printer_model        = data.get('printer_model', ''),
+        mobile_imei          = data.get('mobile_imei', ''),
+        mobile_number_sim    = data.get('mobile_number_sim', ''),
+        testing_status       = data.get('testing_status', ''),
+        # New dynamic category-specific fields
+        brand_name           = data.get('brand_name', ''),
+        processor            = data.get('processor', ''),
+        storage_type         = data.get('storage_type', ''),
+        storage_capacity     = data.get('storage_capacity', ''),
+        graphics_card        = data.get('graphics_card', ''),
+        os_version           = data.get('os_version', ''),
+        screen_size          = data.get('screen_size', ''),
+        imei_1               = data.get('imei_1', ''),
+        imei_2               = data.get('imei_2', ''),
+        color_or_mono        = data.get('color_or_mono', ''),
+        network_enabled      = data.get('network_enabled', ''),
+        resolution           = data.get('resolution', ''),
+        refresh_rate         = data.get('refresh_rate', ''),
+        cpu_count            = data.get('cpu_count'),
+        raid_config          = data.get('raid_config', ''),
+        ip_address           = data.get('ip_address', ''),
+        rack_location        = data.get('rack_location', ''),
+        interface_type       = data.get('interface_type', ''),
+        capacity_va          = data.get('capacity_va', ''),
+        battery_type         = data.get('battery_type', ''),
+        backup_time          = data.get('backup_time', ''),
+        connection_type      = data.get('connection_type', ''),
+        noise_cancellation   = data.get('noise_cancellation', ''),
+        size_compatibility   = data.get('size_compatibility', ''),
+        color                = data.get('color', ''),
+        warranty_period      = data.get('warranty_period', ''),
+        purchase_vendor      = data.get('purchase_vendor', ''),
+        purchase_date        = parse_date(data.get('purchase_date')),
+        warranty_start_date  = parse_date(data.get('warranty_start_date')),
+        warranty_end_date    = parse_date(data.get('warranty_end_date')),
+        assigned_employee    = data.get('assigned_employee', ''),
+        custom_description   = data.get('custom_description', ''),
+        remarks              = data.get('remarks', ''),
+    )
+    db.session.add(asset)
+    log_activity('CREATE', 'Asset', f'Added asset: {asset.asset_name} [{asset.serial_number}]', current_user)
+    db.session.flush()  # Flush to get asset.id before commit
+
+    # Create comprehensive audit log
+    print(f"DEBUG: About to create audit log for asset {asset.id}")
+    audit_log = AuditService.log_asset_created(asset, current_user)
+    print(f"DEBUG: Audit log created: {audit_log}")
+    
+    # Create lifecycle event
+    print(f"DEBUG: About to create lifecycle event for asset {asset.id}")
+    lifecycle_event = LifecycleService.record_event(
+        asset_id=asset.id,
+        event_type='PROCURED',
+        to_status=asset.status,
+        reason='New asset added to inventory',
+        performed_by=current_user
+    )
+    print(f"DEBUG: Lifecycle event created: {lifecycle_event}")
+    
+    db.session.commit()  # Commit everything together
+    print(f"DEBUG: Committed to database")
+
+    return jsonify({'success': True, 'asset': asset.to_dict()}), 201
+
+@app.route('/api/assets/<int:asset_id>', methods=['PUT'])
+def update_asset(asset_id):
+    asset = Asset.query.get_or_404(asset_id)
+    data  = request.get_json() or {}
+    current_user = get_current_user()
+
+    # Track changes for audit log
+    changed_fields = {}
+    old_status = asset.status
+
+    # Check serial number uniqueness if changed
+    new_serial = data.get('serial_number', asset.serial_number).strip()
+    if new_serial != asset.serial_number:
+        if Asset.query.filter_by(serial_number=new_serial).first():
+            return jsonify({'error': 'Serial number already exists'}), 409
+        changed_fields['serial_number'] = (asset.serial_number, new_serial)
+
+    # Handle employee_email field (accept both employee_email and email)
+    if 'employee_email' in data or 'email' in data:
+        new_email = data.get('employee_email') or data.get('email', '')
+        if new_email != asset.employee_email:
+            changed_fields['employee_email'] = (asset.employee_email, new_email)
+        asset.employee_email = new_email
+
+    # Track all field changes
+    fields_to_track = {
+        'emp_id': 'emp_id',
+        'employee_name': 'employee_name',
+        'mobile_number': 'mobile_number',
+        'asset_name': 'asset_name',
+        'category': 'category',
+        'model_name': 'model_name',
+        'os': 'os',
+        'version': 'version',
+        'ram': 'ram',
+        'location': 'location',
+        'invoice_number': 'invoice_number',
+        'charger_serial': 'charger_serial',
+        'old_user': 'old_user',
+        'old_device': 'old_device',
+        'comments': 'comments',
+        'status': 'status',
+    }
+    
+    for field_key, field_name in fields_to_track.items():
+        if field_key in data:
+            old_val = getattr(asset, field_name)
+            new_val = data[field_key]
+            if field_key == 'asset_name':
+                new_val = new_val.strip()
+            if str(old_val) != str(new_val):
+                changed_fields[field_name] = (old_val, new_val)
+
+    asset.emp_id         = data.get('emp_id',         asset.emp_id)
+    asset.employee_name  = data.get('employee_name',  asset.employee_name)
+    asset.mobile_number  = data.get('mobile_number',  asset.mobile_number)
+    asset.asset_name     = data.get('asset_name',     asset.asset_name).strip()
+    asset.category       = data.get('category',       asset.category)
+    asset.serial_number  = new_serial
+    asset.model_name     = data.get('model_name',     asset.model_name)
+    asset.os             = data.get('os',             asset.os)
+    asset.version        = data.get('version',        asset.version)
+    asset.ram            = data.get('ram',            asset.ram)
+    asset.location       = data.get('location',       asset.location)
+    asset.invoice_number = data.get('invoice_number', asset.invoice_number)
+    asset.invoice_date   = parse_date(data.get('invoice_date')) or asset.invoice_date
+    asset.warranty_date  = parse_date(data.get('warranty_date')) or asset.warranty_date
+    asset.charger_serial = data.get('charger_serial', asset.charger_serial)
+    asset.old_user       = data.get('old_user',       asset.old_user)
+    asset.date           = parse_date(data.get('date')) or asset.date
+    asset.old_device     = data.get('old_device',     asset.old_device)
+    asset.comments       = data.get('comments',       asset.comments)
+    asset.status         = data.get('status',         asset.status)
+    asset.updated_at     = datetime.utcnow()
+    
+    # Legacy inventory fields
+    if 'purchase_price' in data:
+        asset.purchase_price = data.get('purchase_price')
+    if 'quantity' in data:
+        asset.quantity = data.get('quantity', 1)
+    if 'configuration' in data:
+        asset.configuration = data.get('configuration', '')
+    if 'laptop_bag_serial' in data:
+        asset.laptop_bag_serial = data.get('laptop_bag_serial', '')
+    if 'hard_disk_serial' in data:
+        asset.hard_disk_serial = data.get('hard_disk_serial', '')
+    if 'hard_disk_capacity' in data:
+        asset.hard_disk_capacity = data.get('hard_disk_capacity', '')
+    if 'ups_serial' in data:
+        asset.ups_serial = data.get('ups_serial', '')
+    if 'ups_capacity' in data:
+        asset.ups_capacity = data.get('ups_capacity', '')
+    if 'printer_type' in data:
+        asset.printer_type = data.get('printer_type', '')
+    if 'printer_model' in data:
+        asset.printer_model = data.get('printer_model', '')
+    if 'mobile_imei' in data:
+        asset.mobile_imei = data.get('mobile_imei', '')
+    if 'mobile_number_sim' in data:
+        asset.mobile_number_sim = data.get('mobile_number_sim', '')
+    if 'testing_status' in data:
+        asset.testing_status = data.get('testing_status', '')
+    
+    # New dynamic category-specific fields
+    if 'brand_name' in data:
+        asset.brand_name = data.get('brand_name', '')
+    if 'processor' in data:
+        asset.processor = data.get('processor', '')
+    if 'storage_type' in data:
+        asset.storage_type = data.get('storage_type', '')
+    if 'storage_capacity' in data:
+        asset.storage_capacity = data.get('storage_capacity', '')
+    if 'graphics_card' in data:
+        asset.graphics_card = data.get('graphics_card', '')
+    if 'os_version' in data:
+        asset.os_version = data.get('os_version', '')
+    if 'screen_size' in data:
+        asset.screen_size = data.get('screen_size', '')
+    if 'imei_1' in data:
+        asset.imei_1 = data.get('imei_1', '')
+    if 'imei_2' in data:
+        asset.imei_2 = data.get('imei_2', '')
+    if 'mobile_number' in data:
+        asset.mobile_number = data.get('mobile_number', '')
+    if 'color_or_mono' in data:
+        asset.color_or_mono = data.get('color_or_mono', '')
+    if 'network_enabled' in data:
+        asset.network_enabled = data.get('network_enabled', '')
+    if 'resolution' in data:
+        asset.resolution = data.get('resolution', '')
+    if 'refresh_rate' in data:
+        asset.refresh_rate = data.get('refresh_rate', '')
+    if 'cpu_count' in data:
+        asset.cpu_count = data.get('cpu_count')
+    if 'raid_config' in data:
+        asset.raid_config = data.get('raid_config', '')
+    if 'ip_address' in data:
+        asset.ip_address = data.get('ip_address', '')
+    if 'rack_location' in data:
+        asset.rack_location = data.get('rack_location', '')
+    if 'interface_type' in data:
+        asset.interface_type = data.get('interface_type', '')
+    if 'capacity_va' in data:
+        asset.capacity_va = data.get('capacity_va', '')
+    if 'battery_type' in data:
+        asset.battery_type = data.get('battery_type', '')
+    if 'backup_time' in data:
+        asset.backup_time = data.get('backup_time', '')
+    if 'connection_type' in data:
+        asset.connection_type = data.get('connection_type', '')
+    if 'noise_cancellation' in data:
+        asset.noise_cancellation = data.get('noise_cancellation', '')
+    if 'size_compatibility' in data:
+        asset.size_compatibility = data.get('size_compatibility', '')
+    if 'color' in data:
+        asset.color = data.get('color', '')
+    if 'warranty_period' in data:
+        asset.warranty_period = data.get('warranty_period', '')
+    if 'purchase_vendor' in data:
+        asset.purchase_vendor = data.get('purchase_vendor', '')
+    if 'purchase_date' in data:
+        asset.purchase_date = parse_date(data.get('purchase_date'))
+    if 'warranty_start_date' in data:
+        asset.warranty_start_date = parse_date(data.get('warranty_start_date'))
+    if 'warranty_end_date' in data:
+        asset.warranty_end_date = parse_date(data.get('warranty_end_date'))
+    if 'assigned_employee' in data:
+        asset.assigned_employee = data.get('assigned_employee', '')
+    if 'custom_description' in data:
+        asset.custom_description = data.get('custom_description', '')
+    if 'remarks' in data:
+        asset.remarks = data.get('remarks', '')
+
+    log_activity('UPDATE', 'Asset', f'Updated asset: {asset.asset_name} [{asset.serial_number}]', current_user)
+    db.session.commit()
+
+    # Create comprehensive audit logs for field changes
+    if changed_fields:
+        AuditService.log_asset_updated(asset, changed_fields, current_user)
+    
+    # If status changed, create additional status change log and lifecycle event
+    if 'status' in changed_fields:
+        new_status = changed_fields['status'][1]
+        AuditService.log_status_change(asset, old_status, new_status, current_user)
+        
+        LifecycleService.record_event(
+            asset_id=asset.id,
+            event_type='STATUS_CHANGED',
+            from_status=old_status,
+            to_status=new_status,
+            performed_by=current_user
+        )
+    
+    # If employee changed (assignment/return)
+    if 'emp_id' in changed_fields or 'employee_name' in changed_fields:
+        old_emp = changed_fields.get('emp_id', (asset.emp_id, asset.emp_id))[0]
+        new_emp = asset.emp_id
+        
+        if old_emp and not new_emp:  # Asset returned
+            AuditService.log_asset_returned(
+                asset, asset.employee_name or '', old_emp, current_user,
+                new_status=asset.status
+            )
+            LifecycleService.record_event(
+                asset_id=asset.id,
+                event_type='RETURNED',
+                from_employee_id=old_emp,
+                from_employee=changed_fields.get('employee_name', (asset.employee_name, ''))[0],
+                from_status='Assigned',
+                to_status=asset.status,
+                performed_by=current_user
+            )
+        elif new_emp and not old_emp:  # Asset assigned
+            AuditService.log_asset_assigned(
+                asset, asset.employee_name, new_emp, current_user,
+                old_status=old_status
+            )
+            LifecycleService.record_event(
+                asset_id=asset.id,
+                event_type='ASSIGNED',
+                to_employee_id=new_emp,
+                to_employee=asset.employee_name,
+                from_status=old_status,
+                to_status='Assigned',
+                performed_by=current_user
+            )
+        elif new_emp and old_emp and new_emp != old_emp:  # Reassignment
+            AuditService.log(
+                action_type='ASSET_REASSIGNED',
+                module='Asset',
+                asset_id=asset.id,
+                asset_name=asset.asset_name,
+                asset_serial=asset.serial_number,
+                category=asset.category,
+                employee_id=new_emp,
+                employee_name=asset.employee_name,
+                old_value=old_emp,
+                new_value=new_emp,
+                performed_by=current_user,
+                remarks=f"Reassigned from {old_emp} to {new_emp}"
+            )
+            LifecycleService.record_event(
+                asset_id=asset.id,
+                event_type='REASSIGNED',
+                from_employee_id=old_emp,
+                to_employee_id=new_emp,
+                to_employee=asset.employee_name,
+                from_status=old_status,
+                to_status=asset.status,
+                performed_by=current_user
+            )
+
+    return jsonify({'success': True, 'asset': asset.to_dict()}), 200
+
+@app.route('/api/assets/<int:asset_id>', methods=['DELETE'])
+def delete_asset(asset_id):
+    asset = Asset.query.get_or_404(asset_id)
+    current_user = get_current_user()
+    name = asset.asset_name
+    serial = asset.serial_number
+    category = asset.category
+    
+    # Create audit log before deletion
+    AuditService.log_asset_deleted(asset, current_user)
+    
+    db.session.delete(asset)
+    log_activity('DELETE', 'Asset', f'Deleted asset: {name} [{serial}]', current_user)
+    db.session.commit()
+    return jsonify({'success': True, 'message': f'Asset "{name}" deleted'}), 200
+
+# ══════════════════════════════════════════════════════════════════════════════
+# WARRANTY ALERTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/assets/warranty/expiring', methods=['GET'])
+def warranty_expiring():
+    days  = request.args.get('days', 90, type=int)
+    today = date.today()
+    soon  = today + timedelta(days=days)
+    assets = Asset.query.filter(
+        Asset.warranty_date != None,
+        Asset.warranty_date <= soon,
+        Asset.warranty_date >= today
+    ).order_by(Asset.warranty_date).all()
+    return jsonify({'assets': [a.to_dict() for a in assets]}), 200
+
+# ══════════════════════════════════════════════════════════════════════════════
+# REPORTS – CSV / Excel export
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/reports/export/csv', methods=['GET'])
+def export_csv():
+    assets = Asset.query.order_by(Asset.id).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Header – matches the 20 required columns
+    writer.writerow([
+        'Sl No', 'EMP ID', 'Employee Name', 'Mobile Number',
+        'Asset Name', 'Category', 'Serial Number', 'Model Name',
+        'OS', 'Version', 'RAM', 'Location',
+        'Invoice Number', 'Invoice Date', 'Warranty Date',
+        'Charger Serial Number', 'Old User', 'Date', 'Old Device',
+        'Comments', 'Status'
+    ])
+
+    for a in assets:
+        writer.writerow([
+            a.id, a.emp_id, a.employee_name, a.mobile_number,
+            a.asset_name, a.category, a.serial_number, a.model_name,
+            a.os, a.version, a.ram, a.location,
+            a.invoice_number, a.invoice_date, a.warranty_date,
+            a.charger_serial, a.old_user, a.date, a.old_device,
+            a.comments, a.status
+        ])
+
+    output.seek(0)
+    return send_file(
+        io.BytesIO(output.getvalue().encode('utf-8-sig')),  # utf-8-sig for Excel compatibility
+        mimetype='text/csv',
+        as_attachment=True,
+        download_name=f'IT_Assets_{date.today()}.csv'
+    )
+
+@app.route('/api/reports/export/excel', methods=['GET'])
+def export_excel():
+    """Export as Excel using openpyxl"""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        # Fallback to CSV if openpyxl not installed
+        return export_csv()
+
+    assets = Asset.query.order_by(Asset.id).all()
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'IT Assets'
+
+    headers = [
+        'Sl No', 'EMP ID', 'Employee Name', 'Mobile Number',
+        'Asset Name', 'Category', 'Serial Number', 'Model Name',
+        'OS', 'Version', 'RAM', 'Location',
+        'Invoice Number', 'Invoice Date', 'Warranty Date',
+        'Charger Serial Number', 'Old User', 'Date', 'Old Device',
+        'Comments', 'Status'
+    ]
+
+    # Style header row
+    header_fill = PatternFill(start_color='1e3a5f', end_color='1e3a5f', fill_type='solid')
+    header_font = Font(color='FFFFFF', bold=True, size=11)
+    thin_border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
+
+    for col_idx, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.fill   = header_fill
+        cell.font   = header_font
+        cell.border = thin_border
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+
+    ws.row_dimensions[1].height = 25
+
+    # Data rows
+    for row_idx, a in enumerate(assets, 2):
+        row_data = [
+            a.id, a.emp_id, a.employee_name, a.mobile_number,
+            a.asset_name, a.category, a.serial_number, a.model_name,
+            a.os, a.version, a.ram, a.location,
+            a.invoice_number,
+            a.invoice_date.strftime('%Y-%m-%d') if a.invoice_date else '',
+            a.warranty_date.strftime('%Y-%m-%d') if a.warranty_date else '',
+            a.charger_serial, a.old_user,
+            a.date.strftime('%Y-%m-%d') if a.date else '',
+            a.old_device, a.comments, a.status
+        ]
+        for col_idx, value in enumerate(row_data, 1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=value)
+            cell.border = thin_border
+            # Alternate row color
+            if row_idx % 2 == 0:
+                cell.fill = PatternFill(start_color='EEF2FF', end_color='EEF2FF', fill_type='solid')
+
+    # Auto-fit column widths
+    for col_idx, header in enumerate(headers, 1):
+        col_letter = get_column_letter(col_idx)
+        max_len = len(header)
+        for row_idx in range(2, len(assets) + 2):
+            val = ws.cell(row=row_idx, column=col_idx).value
+            if val:
+                max_len = max(max_len, len(str(val)))
+        ws.column_dimensions[col_letter].width = min(max_len + 4, 30)
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    return send_file(
+        buffer,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'IT_Assets_{date.today()}.xlsx'
+    )
+
+@app.route('/api/reports/activity', methods=['GET'])
+def activity_log():
+    page     = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    total    = ActivityLog.query.count()
+    logs     = ActivityLog.query.order_by(ActivityLog.timestamp.desc())\
+                                .offset((page-1)*per_page).limit(per_page).all()
+    return jsonify({
+        'logs':  [l.to_dict() for l in logs],
+        'total': total,
+        'page':  page,
+        'pages': (total + per_page - 1) // per_page,
+    }), 200
+
+# ── Serve React Frontend ─────────────────────────────────────────────────────
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_react(path):
+    """Serve React app for all non-API routes"""
+    # Don't intercept API routes
+    if path.startswith('api/'):
+        from flask import abort
+        abort(404)
+    
+    if path and os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
+    else:
+        return send_from_directory(app.static_folder, 'index.html')
+
+# ── Health check ──────────────────────────────────────────────────────────────
+@app.route('/api/health', methods=['GET'])
+def health():
+    return jsonify({'status': 'ok', 'message': 'IT Asset Management API running'}), 200
+
+# ── Init DB and run ───────────────────────────────────────────────────────────
+with app.app_context():
+    db.create_all()
+    seed_data()
+
+if __name__ == '__main__':
+    print("=" * 60)
+    print("🚀  IT Asset Management API")
+    print("=" * 60)
+    print("✅  API:    http://0.0.0.0:3000")
+    print("✅  Health: http://localhost:3000/api/health")
+    print("⚛️   React:  Served from /frontend/build")
+    print("=" * 60)
+    app.run(debug=True, host='0.0.0.0', port=3000)
+
+@app.route('/api/dashboard/lifecycle-stats', methods=['GET'])
+def lifecycle_stats():
+    from sqlalchemy import func
+    today = date.today()
+    month_start = today.replace(day=1)
+    
+    try:
+        from models import AssetLifecycleEvent
+        active_temp = AssetLifecycleEvent.query.filter_by(event_type='TEMP_ASSIGNED').count()
+        under_repair = Asset.query.filter_by(status='Maintenance').count()
+        replaced = AssetLifecycleEvent.query.filter(
+            AssetLifecycleEvent.event_type == 'REPLACED',
+            AssetLifecycleEvent.created_at >= month_start
+        ).count()
+        total_events = AssetLifecycleEvent.query.count()
+    except Exception:
+        active_temp = 0
+        under_repair = Asset.query.filter_by(status='Maintenance').count()
+        replaced = 0
+        total_events = 0
+
+    return jsonify({
+        'stats': {
+            'active_temp_assignments': active_temp,
+            'assets_under_repair': under_repair,
+            'assets_replaced_this_month': replaced,
+            'total_lifecycle_events': total_events,
+        }
+    }), 200

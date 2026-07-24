@@ -3,21 +3,66 @@ import os, csv, io
 from datetime import datetime, date, timedelta
 from flask import (Blueprint, render_template, redirect, url_for,
                    request, flash, send_file, jsonify, current_app)
-from flask_login import login_user, logout_user, login_required, current_user
+# flask_login session imports removed — app uses JWT token auth
+# from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import or_, func
 from models import db, User, Asset, ActivityLog
+from services.audit_service import AuditService, LifecycleService
+from email_service import send_acknowledgment_email
 from flask_cors import cross_origin
 from werkzeug.utils import secure_filename
+# ── RBAC helpers ──────────────────────────────────────────────────────────────
+def get_request_user():
+    """Extract user from Bearer token."""
+    auth = request.headers.get('Authorization', '')
+    token = auth.replace('Bearer ', '')
+    if token.startswith('user-'):
+        parts = token.split('-')
+        if len(parts) >= 3:
+            try:
+                return User.query.get(int(parts[1]))
+            except Exception:
+                pass
+    return None
+
+def require_role(*allowed_roles):
+    """Decorator: deny request if user role not in allowed_roles."""
+    from functools import wraps
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            user = get_request_user()
+            if not user:
+                return jsonify({'error': 'Authentication required'}), 401
+            if user.role not in allowed_roles:
+                return jsonify({'error': 'Access denied: insufficient permissions'}), 403
+            return f(*args, **kwargs)
+        return wrapped
+    return decorator
+
+def require_not_viewer(f):
+    """Decorator: deny if viewer role."""
+    from functools import wraps
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        user = get_request_user()
+        if user and user.role == 'viewer':
+            return jsonify({'error': 'Access denied: View Only users cannot perform this action'}), 403
+        return f(*args, **kwargs)
+    return wrapped
+
+
 
 # Helper: write to activity log
-def log_activity(action, module, description):
-    entry = ActivityLog(
-        user=current_user.username if current_user.is_authenticated else 'system',
-        action=action, module=module, description=description
-    )
-    db.session.add(entry)
-    db.session.commit()
+def log_activity(action, module, description, user='admin'):
+    """Write an activity log entry — no flask_login dependency."""
+    try:
+        entry = ActivityLog(user=user, action=action, module=module, description=description)
+        db.session.add(entry)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 def _parse_date(val):
     if val:
@@ -32,32 +77,14 @@ auth_bp = Blueprint('auth', __name__)
 
 @auth_bp.route('/')
 def landing():
-    return render_template('landing.html')
+    return jsonify({'message': 'Tectoro Asset Management API'}), 200
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
-    if current_user.is_authenticated:
-        return redirect(url_for('main.dashboard'))
-
-    if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '')
-        remember = request.form.get('remember') == 'on'
-
-        user = User.query.filter_by(username=username).first()
-
-        if user and check_password_hash(user.password_hash, password):
-            login_user(user, remember=remember)
-            flash(f'Welcome back, {user.username}!', 'success')
-            next_page = request.args.get('next')
-            return redirect(next_page or url_for('main.dashboard'))
-        else:
-            flash('Invalid username or password.', 'danger')
-
-    return render_template('login.html')
+    # HTML login replaced by React frontend + /api/auth/login JSON endpoint
+    return jsonify({'message': 'Use POST /api/auth/login'}), 200
 
 @auth_bp.route('/logout')
-@login_required
 def logout():
     logout_user()
     flash('You have been logged out.', 'info')
@@ -67,7 +94,6 @@ def logout():
 main_bp = Blueprint('main', __name__)
 
 @main_bp.route('/dashboard')
-@login_required
 def dashboard():
     total_assets     = Asset.query.count()
     assigned_assets  = Asset.query.filter_by(status='Assigned').count()
@@ -107,7 +133,6 @@ def dashboard():
 asset_bp = Blueprint('asset', __name__, url_prefix='/assets')
 
 @asset_bp.route('/')
-@login_required
 def list_assets():
     search   = request.args.get('search', '')
     category = request.args.get('category', '')
@@ -144,7 +169,6 @@ def list_assets():
     )
 
 @asset_bp.route('/add', methods=['GET', 'POST'])
-@login_required
 def add_asset():
     if request.method == 'POST':
         serial = request.form['serial_number'].strip()
@@ -180,7 +204,6 @@ def add_asset():
     return render_template('assets/add.html')
 
 @asset_bp.route('/edit/<int:id>', methods=['GET', 'POST'])
-@login_required
 def edit_asset(id):
     asset = Asset.query.get_or_404(id)
 
@@ -214,7 +237,6 @@ def edit_asset(id):
     return render_template('assets/edit.html', asset=asset)
 
 @asset_bp.route('/delete/<int:id>', methods=['POST'])
-@login_required
 def delete_asset(id):
     asset = Asset.query.get_or_404(id)
     name  = asset.asset_name
@@ -225,7 +247,6 @@ def delete_asset(id):
     return redirect(url_for('asset.list_assets'))
 
 @asset_bp.route('/view/<int:id>')
-@login_required
 def view_asset(id):
     asset = Asset.query.get_or_404(id)
     return render_template('assets/view.html', asset=asset)
@@ -234,12 +255,10 @@ def view_asset(id):
 report_bp = Blueprint('report', __name__, url_prefix='/reports')
 
 @report_bp.route('/')
-@login_required
 def reports():
     return render_template('reports/index.html')
 
 @report_bp.route('/export/csv')
-@login_required
 def export_csv():
     assets = Asset.query.all()
     output = io.StringIO()
@@ -269,14 +288,12 @@ def export_csv():
     )
 
 @report_bp.route('/activity')
-@login_required
 def activity_log():
     page = request.args.get('page', 1, type=int)
     logs = ActivityLog.query.order_by(ActivityLog.timestamp.desc()).paginate(page=page, per_page=20, error_out=False)
     return render_template('reports/activity.html', logs=logs)
 
 @report_bp.route('/warranty')
-@login_required
 def warranty_alerts():
     today = date.today()
     soon = today + timedelta(days=90)
@@ -395,10 +412,12 @@ def api_delete_asset(asset_id):
         asset_name = asset.asset_name
         serial = asset.serial_number
         
-        db.session.delete(asset)
-        db.session.commit()
+        # Create audit log before deletion
+        AuditService.log_asset_deleted(asset, 'admin')
         
-        # Log activity
+        db.session.delete(asset)
+        
+        # Log activity (legacy)
         log = ActivityLog(
             user='admin',
             action='DELETE',
@@ -415,7 +434,6 @@ def api_delete_asset(asset_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
-
 @api_bp.route('/assets/<int:asset_id>', methods=['PUT'])
 @cross_origin()
 def api_update_asset(asset_id):
@@ -426,6 +444,12 @@ def api_update_asset(asset_id):
         
         if not data:
             return jsonify({'error': 'No data provided'}), 400
+        
+        # Track changes for audit
+        changed_fields = {}
+        old_status = asset.status
+        old_emp_id = asset.emp_id
+        old_employee_name = asset.employee_name
         
         # Parse dates helper
         def parse_date(val):
@@ -443,51 +467,55 @@ def api_update_asset(asset_id):
                 existing = Asset.query.filter_by(serial_number=new_serial).first()
                 if existing:
                     return jsonify({'error': 'Serial number already exists'}), 409
+                changed_fields['serial_number'] = (asset.serial_number, new_serial)
                 asset.serial_number = new_serial
         
-        # Update only fields that are provided in the request
-        if 'emp_id' in data:
-            asset.emp_id = data['emp_id']
-        if 'employee_name' in data:
-            asset.employee_name = data['employee_name']
-        if 'employee_email' in data:
-            asset.employee_email = data['employee_email']
-        if 'mobile_number' in data:
-            asset.mobile_number = data['mobile_number']
-        if 'asset_name' in data:
-            asset.asset_name = data['asset_name']
-        if 'category' in data:
-            asset.category = data['category']
-        if 'model_name' in data:
-            asset.model_name = data['model_name']
-        if 'os' in data:
-            asset.os = data['os']
-        if 'version' in data:
-            asset.version = data['version']
-        if 'ram' in data:
-            asset.ram = data['ram']
-        if 'location' in data:
-            asset.location = data['location']
-        if 'invoice_number' in data:
-            asset.invoice_number = data['invoice_number']
+        # Track and update fields
+        field_map = {
+            'emp_id': 'emp_id',
+            'employee_name': 'employee_name',
+            'employee_email': 'employee_email',
+            'mobile_number': 'mobile_number',
+            'asset_name': 'asset_name',
+            'category': 'category',
+            'model_name': 'model_name',
+            'os': 'os',
+            'version': 'version',
+            'ram': 'ram',
+            'location': 'location',
+            'invoice_number': 'invoice_number',
+            'charger_serial': 'charger_serial',
+            'old_user': 'old_user',
+            'old_device': 'old_device',
+            'comments': 'comments',
+            'status': 'status',
+        }
+        
+        for data_key, attr_name in field_map.items():
+            if data_key in data:
+                old_val = getattr(asset, attr_name)
+                new_val = data[data_key]
+                if str(old_val) != str(new_val):
+                    changed_fields[attr_name] = (old_val, new_val)
+                    setattr(asset, attr_name, new_val)
+        
+        # Handle email alias
+        if 'email' in data:
+            old_val = asset.employee_email
+            new_val = data['email']
+            if str(old_val) != str(new_val):
+                changed_fields['employee_email'] = (old_val, new_val)
+                asset.employee_email = new_val
+        
+        # Date fields
         if 'invoice_date' in data:
             asset.invoice_date = parse_date(data['invoice_date'])
         if 'warranty_date' in data:
             asset.warranty_date = parse_date(data['warranty_date'])
-        if 'charger_serial' in data:
-            asset.charger_serial = data['charger_serial']
-        if 'old_user' in data:
-            asset.old_user = data['old_user']
         if 'date' in data:
             asset.date = parse_date(data['date'])
-        if 'old_device' in data:
-            asset.old_device = data['old_device']
-        if 'comments' in data:
-            asset.comments = data['comments']
-        if 'status' in data:
-            asset.status = data['status']
         
-        # Update all new fields
+        # Additional fields (not tracked for audit simplicity)
         if 'purchase_price' in data:
             asset.purchase_price = data['purchase_price']
         if 'quantity' in data:
@@ -517,9 +545,7 @@ def api_update_asset(asset_id):
         
         asset.updated_at = datetime.utcnow()
         
-        db.session.commit()
-        
-        # Log activity
+        # Log activity (legacy)
         log = ActivityLog(
             user='admin',
             action='UPDATE',
@@ -527,6 +553,72 @@ def api_update_asset(asset_id):
             description=f'Updated asset: {asset.asset_name} [{asset.serial_number}]'
         )
         db.session.add(log)
+        
+        # Create comprehensive audit logs
+        if changed_fields:
+            AuditService.log_asset_updated(asset, changed_fields, 'admin')
+        
+        # Handle status changes
+        if 'status' in changed_fields:
+            new_status = changed_fields['status'][1]
+            AuditService.log_status_change(asset, old_status, new_status, 'admin')
+            LifecycleService.record_event(
+                asset_id=asset.id,
+                event_type='STATUS_CHANGED',
+                from_status=old_status,
+                to_status=new_status,
+                performed_by='admin'
+            )
+        
+        # Handle employee assignment changes
+        new_emp_id = asset.emp_id
+        if old_emp_id != new_emp_id:
+            if old_emp_id and not new_emp_id:  # Returned
+                AuditService.log_asset_returned(asset, old_employee_name or '', old_emp_id, 'admin', new_status=asset.status)
+                LifecycleService.record_event(
+                    asset_id=asset.id,
+                    event_type='RETURNED',
+                    from_employee_id=old_emp_id,
+                    from_employee=old_employee_name,
+                    from_status='Assigned',
+                    to_status=asset.status,
+                    performed_by='admin'
+                )
+            elif new_emp_id and not old_emp_id:  # Assigned
+                AuditService.log_asset_assigned(asset, asset.employee_name, new_emp_id, 'admin', old_status=old_status)
+                LifecycleService.record_event(
+                    asset_id=asset.id,
+                    event_type='ASSIGNED',
+                    to_employee_id=new_emp_id,
+                    to_employee=asset.employee_name,
+                    from_status=old_status,
+                    to_status='Assigned',
+                    performed_by='admin'
+                )
+            elif new_emp_id and old_emp_id and new_emp_id != old_emp_id:  # Reassigned
+                AuditService.log(
+                    action_type='ASSET_REASSIGNED',
+                    module='Asset',
+                    asset_id=asset.id,
+                    asset_name=asset.asset_name,
+                    asset_serial=asset.serial_number,
+                    category=asset.category,
+                    employee_id=new_emp_id,
+                    employee_name=asset.employee_name,
+                    old_value=old_emp_id,
+                    new_value=new_emp_id,
+                    performed_by='admin',
+                    remarks=f"Reassigned from {old_emp_id} to {new_emp_id}"
+                )
+                LifecycleService.record_event(
+                    asset_id=asset.id,
+                    event_type='REASSIGNED',
+                    from_employee_id=old_emp_id,
+                    to_employee_id=new_emp_id,
+                    to_employee=asset.employee_name,
+                    performed_by='admin'
+                )
+        
         db.session.commit()
         
         return jsonify({
@@ -566,6 +658,7 @@ def api_create_asset():
         asset = Asset(
             emp_id          = data.get('emp_id', ''),
             employee_name   = data.get('employee_name', ''),
+            employee_email  = data.get('employee_email') or data.get('email', ''),
             mobile_number   = data.get('mobile_number', ''),
             asset_name      = data['asset_name'].strip(),
             category        = data.get('category', ''),
@@ -587,9 +680,9 @@ def api_create_asset():
         )
         
         db.session.add(asset)
-        db.session.commit()
+        db.session.flush()  # Get asset.id before full commit
         
-        # Log activity
+        # Log activity (legacy)
         log = ActivityLog(
             user='admin',
             action='CREATE',
@@ -597,7 +690,18 @@ def api_create_asset():
             description=f'Added asset: {asset.asset_name} [{asset.serial_number}]'
         )
         db.session.add(log)
-        db.session.commit()
+        
+        # Create comprehensive audit log and lifecycle event
+        AuditService.log_asset_created(asset, 'admin')
+        LifecycleService.record_event(
+            asset_id=asset.id,
+            event_type='PROCURED',
+            to_status=asset.status,
+            reason='New asset added to inventory',
+            performed_by='admin'
+        )
+        
+        db.session.commit()  # Commit everything together
         
         return jsonify({
             'success': True,
@@ -1098,3 +1202,292 @@ def api_reports_export_excel():
             download_name=f'assets_{date.today()}.xlsx')
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ACKNOWLEDGMENT & EMAIL CONFIG ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── Send acknowledgment email ─────────────────────────────────────────────────
+@api_bp.route('/assets/<int:asset_id>/send-ack-email', methods=['POST'])
+@require_not_viewer
+def send_ack_email(asset_id):
+    from email_service import send_acknowledgment_email
+    asset = Asset.query.get_or_404(asset_id)
+
+    if not asset.employee_email:
+        return jsonify({'success': False, 'error': 'No employee email on this asset'}), 400
+    if asset.ack_status == 'Acknowledged':
+        return jsonify({'success': False, 'error': 'Asset already acknowledged'}), 400
+
+    # Resolve sender name from Bearer token
+    auth_header  = request.headers.get('Authorization', '')
+    token_val    = auth_header.replace('Bearer ', '')
+    assigned_by  = 'IT Admin'
+    if token_val.startswith('user-'):
+        parts = token_val.split('-')
+        if len(parts) >= 3:
+            assigned_by = parts[2]
+
+    base_url = request.host_url.rstrip('/')
+    # Prefer env var for production
+    import os
+    base_url = os.environ.get('APP_BASE_URL', base_url)
+
+    success, error = send_acknowledgment_email(asset, assigned_by, base_url)
+    if success:
+        log_activity('EMAIL', 'Asset',
+                     f'Ack email sent to {asset.employee_email} for {asset.asset_name}')
+        return jsonify({'success': True,
+                        'message': f'Acknowledgment email sent to {asset.employee_email}'})
+    return jsonify({'success': False, 'error': error}), 500
+
+
+# ── Employee clicks ack link (public, no auth) ────────────────────────────────
+@api_bp.route('/acknowledge/<string:token>', methods=['GET'])
+def acknowledge_asset(token):
+    from email_service import get_ack_success_html
+    asset = Asset.query.filter_by(ack_token=token).first()
+
+    if not asset:
+        return ('''<!DOCTYPE html><html><body
+            style="font-family:Arial;text-align:center;padding:60px;background:#f1f5f9;">
+            <div style="max-width:420px;margin:0 auto;background:#fff;padding:48px;
+                        border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.1);">
+            <h2 style="color:#dc2626;">&#10007; Invalid Link</h2>
+            <p style="color:#475569;">This link is invalid or has already been used.</p>
+            </div></body></html>''', 404)
+
+    if asset.ack_status == 'Acknowledged':
+        acked_on = asset.ack_received_at.strftime('%B %d, %Y at %H:%M UTC') if asset.ack_received_at else '—'
+        return (f'''<!DOCTYPE html><html><body
+            style="font-family:Arial;text-align:center;padding:60px;background:#f1f5f9;">
+            <div style="max-width:420px;margin:0 auto;background:#fff;padding:48px;
+                        border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.1);">
+            <h2 style="color:#2563eb;">Already Acknowledged</h2>
+            <p style="color:#475569;">You confirmed receipt of
+               <strong>{asset.asset_name}</strong> on {acked_on}.</p>
+            </div></body></html>''')
+
+    now = datetime.utcnow()
+    if asset.ack_expires_at and now > asset.ack_expires_at:
+        return ('''<!DOCTYPE html><html><body
+            style="font-family:Arial;text-align:center;padding:60px;background:#f1f5f9;">
+            <div style="max-width:420px;margin:0 auto;background:#fff;padding:48px;
+                        border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.1);">
+            <h2 style="color:#f59e0b;">&#9888; Link Expired</h2>
+            <p style="color:#475569;">Please contact IT support to resend the acknowledgment.</p>
+            </div></body></html>''', 410)
+
+    asset.ack_status     = 'Acknowledged'
+    asset.ack_received_at = now
+    asset.ack_token      = None
+    db.session.commit()
+
+    log_activity('ACKNOWLEDGE', 'Asset',
+                 f'{asset.employee_name} acknowledged {asset.asset_name} (SN:{asset.serial_number})')
+    return get_ack_success_html(asset)
+
+
+# ── Get ack status ────────────────────────────────────────────────────────────
+@api_bp.route('/assets/<int:asset_id>/ack-status', methods=['GET'])
+def get_ack_status(asset_id):
+    asset = Asset.query.get_or_404(asset_id)
+    return jsonify({
+        'asset_id':        asset.id,
+        'ack_status':      asset.ack_status or 'Not Sent',
+        'ack_sent_at':     asset.ack_sent_at.isoformat() if asset.ack_sent_at else None,
+        'ack_received_at': asset.ack_received_at.isoformat() if asset.ack_received_at else None,
+        'ack_expires_at':  asset.ack_expires_at.isoformat() if asset.ack_expires_at else None,
+        'ack_sent_by':     asset.ack_sent_by or '',
+    })
+
+
+# ── Email Config CRUD ─────────────────────────────────────────────────────────
+@api_bp.route('/email-config', methods=['GET'])
+def get_email_config():
+    from models import EmailConfig
+    cfg = EmailConfig.query.filter_by(is_active=True).order_by(EmailConfig.id.desc()).first()
+    if not cfg:
+        return jsonify({'configured': False})
+    return jsonify({'configured': True, 'config': cfg.to_dict()})
+
+
+@api_bp.route('/email-config', methods=['POST'])
+@require_role('admin')
+def save_email_config():
+    from models import EmailConfig
+    from email_service import encrypt_password
+    data = request.get_json() or {}
+
+    required = ['sender_email', 'sender_name', 'smtp_server', 'smtp_port',
+                 'smtp_username', 'smtp_password']
+    for field in required:
+        if not data.get(field):
+            return jsonify({'success': False, 'error': f'{field} is required'}), 400
+
+    # Deactivate old configs
+    EmailConfig.query.update({'is_active': False})
+
+    cfg = EmailConfig(
+        sender_email      = data['sender_email'].strip(),
+        sender_name       = data.get('sender_name', 'IT Asset Management').strip(),
+        smtp_server       = data.get('smtp_server', 'smtp.office365.com').strip(),
+        smtp_port         = int(data.get('smtp_port', 587)),
+        smtp_username     = data['smtp_username'].strip(),
+        smtp_password_enc = encrypt_password(data['smtp_password']),
+        use_tls           = bool(data.get('use_tls', True)),
+        is_active         = True,
+        created_by        = data.get('created_by', 'admin'),
+    )
+    db.session.add(cfg)
+    db.session.commit()
+
+    log_activity('UPDATE', 'EmailConfig',
+                 f'Email config updated by admin — sender: {cfg.sender_email}')
+    return jsonify({'success': True, 'config': cfg.to_dict()})
+
+
+@api_bp.route('/email-config/test', methods=['POST'])
+@require_role('admin')
+def test_email_config():
+    from email_service import test_smtp_config, decrypt_password
+    from models import EmailConfig
+    data = request.get_json() or {}
+
+    if not data.get('test_recipient'):
+        return jsonify({'success': False, 'error': 'test_recipient is required'}), 400
+
+    # Load saved config and fill missing fields
+    cfg = EmailConfig.query.filter_by(is_active=True).first()
+    if not cfg:
+        return jsonify({'success': False, 'error': 'No email config saved yet'}), 400
+
+    smtp_server   = data.get('smtp_server')   or cfg.smtp_server
+    smtp_port     = int(data.get('smtp_port') or cfg.smtp_port)
+    smtp_username = data.get('smtp_username') or cfg.smtp_username
+    sender_email  = data.get('sender_email')  or cfg.sender_email
+    use_tls       = data.get('use_tls', cfg.use_tls)
+    password      = data.get('smtp_password') or decrypt_password(cfg.smtp_password_enc)
+
+    success, error = test_smtp_config(
+        smtp_server    = smtp_server,
+        smtp_port      = smtp_port,
+        smtp_username  = smtp_username,
+        plain_password = password,
+        use_tls        = use_tls,
+        sender_email   = sender_email,
+        test_recipient = data['test_recipient'],
+    )
+
+    if success:
+        # Update test timestamp if a config exists
+        from models import EmailConfig
+        cfg = EmailConfig.query.filter_by(is_active=True).first()
+        if cfg:
+            cfg.last_tested_at   = datetime.utcnow()
+            cfg.last_test_status = 'success'
+            db.session.commit()
+        return jsonify({'success': True, 'message': f'Test email sent to {data["test_recipient"]}'})
+
+    # Record failure
+    from models import EmailConfig
+    cfg = EmailConfig.query.filter_by(is_active=True).first()
+    if cfg:
+        cfg.last_tested_at   = datetime.utcnow()
+        cfg.last_test_status = 'failed'
+        db.session.commit()
+    return jsonify({'success': False, 'error': error}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EMPLOYEE ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@api_bp.route('/employees', methods=['GET'])
+def get_employees():
+    from models import Employee
+    q = request.args.get('q', '').strip()
+    query = Employee.query.filter_by(is_active=True)
+    if q:
+        query = query.filter(
+            or_(Employee.emp_id.ilike(f'%{q}%'),
+                Employee.employee_name.ilike(f'%{q}%'),
+                Employee.email.ilike(f'%{q}%'))
+        )
+    employees = query.order_by(Employee.employee_name).limit(20).all()
+    return jsonify([e.to_dict() for e in employees])
+
+@api_bp.route('/employees/<string:emp_id>', methods=['GET'])
+def get_employee(emp_id):
+    from models import Employee
+    emp = Employee.query.filter_by(emp_id=emp_id).first()
+    if not emp:
+        return jsonify({'found': False})
+    return jsonify({'found': True, 'employee': emp.to_dict()})
+
+@api_bp.route('/employees', methods=['POST'])
+@require_not_viewer
+def create_or_update_employee():
+    from models import Employee
+    data = request.get_json() or {}
+    if not data.get('emp_id') or not data.get('employee_name'):
+        return jsonify({'error': 'emp_id and employee_name are required'}), 400
+
+    emp = Employee.query.filter_by(emp_id=data['emp_id']).first()
+    if emp:
+        emp.employee_name = data.get('employee_name', emp.employee_name)
+        emp.email         = data.get('email', emp.email)
+        emp.mobile_number = data.get('mobile_number', emp.mobile_number)
+        emp.department    = data.get('department', emp.department)
+        emp.location      = data.get('location', emp.location)
+    else:
+        emp = Employee(
+            emp_id        = data['emp_id'],
+            employee_name = data['employee_name'],
+            email         = data.get('email', ''),
+            mobile_number = data.get('mobile_number', ''),
+            department    = data.get('department', ''),
+            location      = data.get('location', ''),
+        )
+        db.session.add(emp)
+    db.session.commit()
+    return jsonify({'success': True, 'employee': emp.to_dict()})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADMIN PROFILE ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@api_bp.route('/admin-profile', methods=['GET'])
+def get_admin_profile():
+    from models import AdminProfile
+    profile = AdminProfile.query.first()
+    if not profile:
+        return jsonify({'configured': False})
+    return jsonify({'configured': True, 'profile': profile.to_dict()})
+
+@api_bp.route('/admin-profile', methods=['POST'])
+@require_role('admin')
+def save_admin_profile():
+    from models import AdminProfile
+    data = request.get_json() or {}
+    profile = AdminProfile.query.first()
+    if profile:
+        profile.name        = data.get('name', profile.name)
+        profile.email       = data.get('email', profile.email)
+        profile.phone       = data.get('phone', profile.phone)
+        profile.department  = data.get('department', profile.department)
+        profile.designation = data.get('designation', profile.designation)
+        profile.updated_at  = datetime.utcnow()
+    else:
+        profile = AdminProfile(
+            name        = data.get('name', ''),
+            email       = data.get('email', ''),
+            phone       = data.get('phone', ''),
+            department  = data.get('department', ''),
+            designation = data.get('designation', ''),
+        )
+        db.session.add(profile)
+    db.session.commit()
+    log_activity('UPDATE', 'AdminProfile', f'Admin profile updated: {profile.name}')
+    return jsonify({'success': True, 'profile': profile.to_dict()})

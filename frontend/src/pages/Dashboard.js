@@ -10,15 +10,22 @@ ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarEle
 function Dashboard() {
   const navigate = useNavigate();
   const [stats, setStats]       = useState(null);
+  const [lifecycleStats, setLifecycleStats] = useState(null);
   const [activity, setActivity] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState('');
 
   useEffect(() => {
-    Promise.all([dashboardAPI.getStats(), dashboardAPI.getActivity()])
-      .then(([statsRes, actRes]) => {
+    Promise.all([
+      dashboardAPI.getStats(), 
+      dashboardAPI.getActivity(),
+      fetch('/api/dashboard/lifecycle-stats').then(r => r.json()).catch(() => ({ stats: {} }))
+    ])
+      .then(([statsRes, actRes, lifecycleRes]) => {
         setStats(statsRes.data);
         setActivity(actRes.data.logs || []);
+        // Extract stats from nested response
+        setLifecycleStats(lifecycleRes?.stats || lifecycleRes || {});
       })
       .catch(() => setError('Failed to load dashboard data'))
       .finally(() => setLoading(false));
@@ -134,6 +141,45 @@ function Dashboard() {
           </div>
         ))}
       </div>
+
+      {/* Lifecycle Tracking Stats */}
+      {lifecycleStats && (
+        <div className="row g-3 mb-4">
+          <div className="col-12">
+            <div className="table-card" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <h6 className="fw-bold mb-0" style={{ color: 'white' }}>
+                  <i className="bi bi-graph-up-arrow me-2"></i>Lifecycle Tracking Overview
+                </h6>
+                <Link to="/activity-history" className="btn btn-sm btn-light">
+                  View All Activity
+                </Link>
+              </div>
+              <div className="row g-3">
+                {[
+                  { label: 'Active Temp Assignments', value: lifecycleStats.active_temp_assignments || 0, icon: 'bi-arrow-repeat', desc: 'Loaner devices in use' },
+                  { label: 'Under Repair', value: lifecycleStats.assets_under_repair || 0, icon: 'bi-wrench', desc: 'Assets being repaired' },
+                  { label: 'Replaced This Month', value: lifecycleStats.assets_replaced_this_month || 0, icon: 'bi-arrow-left-right', desc: 'Asset upgrades/swaps' },
+                  { label: 'Total Lifecycle Events', value: lifecycleStats.total_lifecycle_events || 0, icon: 'bi-clock-history', desc: 'All tracked changes' },
+                ].map((stat, idx) => (
+                  <div className="col-6 col-md-3" key={idx}>
+                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '12px', padding: '16px', backdropFilter: 'blur(10px)' }}>
+                      <div className="d-flex align-items-center mb-2">
+                        <div style={{ width: '40px', height: '40px', background: 'rgba(255,255,255,0.25)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', marginRight: '12px' }}>
+                          <i className={`bi ${stat.icon}`}></i>
+                        </div>
+                        <div style={{ fontSize: '28px', fontWeight: 'bold' }}>{stat.value}</div>
+                      </div>
+                      <div style={{ fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>{stat.label}</div>
+                      <div style={{ fontSize: '11px', opacity: 0.85 }}>{stat.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Charts */}
       <div className="row g-3 mb-4">

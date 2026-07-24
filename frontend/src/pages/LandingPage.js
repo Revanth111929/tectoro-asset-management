@@ -8,7 +8,9 @@ function LandingPage() {
       {/* ── Navbar ── */}
       <nav className="lp-nav">
         <div className="lp-brand">
-          <div className="lp-logo-icon"><i className="bi bi-laptop"></i></div>
+          <div className="lp-logo-icon">
+            <img src="/tectoro-logo.svg" alt="Tectoro" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
           <span className="lp-brand-name">Tectoro</span>
         </div>
         <div className="lp-nav-links">
@@ -169,7 +171,7 @@ function LandingPage() {
 
       {/* ── Footer ── */}
       <footer className="lp-footer">
-        <p>© 2025 Tectoro Asset Management. All rights reserved.</p>
+        <p>© 2025 Tectoro. All rights reserved.</p>
       </footer>
     </div>
   );

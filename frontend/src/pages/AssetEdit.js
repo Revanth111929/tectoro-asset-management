@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { assetAPI } from '../services/api';
 
-const CATEGORIES = ['Laptop', 'Desktop', 'Monitor', 'Printer', 'Phone', 'Server', 'Furniture', 'Other'];
+const CATEGORIES = ['Laptop', 'CPU', 'Monitor', 'Printer', 'Phone', 'Server', 'Other'];
 const OS_LIST    = ['Windows 11', 'Windows 10', 'Ubuntu', 'macOS', 'Chrome OS', 'Other'];
 const RAM_LIST   = ['4GB', '8GB', '16GB', '32GB', '64GB', 'Other'];
 const STATUSES   = ['Available', 'Assigned', 'Maintenance', 'Retired'];
@@ -63,7 +63,7 @@ function AssetEdit() {
     if (!recipientEmail) { setEmailMsg('error:Please enter recipient email'); return; }
     setSendingEmail(true); setEmailMsg('');
     try {
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = '/api';  // Relative URL - same port as frontend
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       const token = localStorage.getItem('token');
       const res = await fetch(`${API_BASE_URL}/assets/${id}/send-assignment-email`, {

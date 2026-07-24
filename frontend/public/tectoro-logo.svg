@@ -1,0 +1,15 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rounded square background - Tectoro cyan -->
+  <rect width="200" height="200" rx="45" fill="#1DD3C0"/>
+  
+  <!-- Tectoro "T" symbol - dark/black whale tail -->
+  <g transform="translate(100, 100)">
+    <!-- Top curved part of the T (whale tail flukes) -->
+    <path d="M -35 -20 Q -30 -40, -10 -45 Q 0 -47, 10 -45 Q 30 -40, 35 -20 L 35 -15 Q 30 -30, 10 -35 Q 0 -37, -10 -35 Q -30 -30, -35 -15 Z" 
+          fill="#0A2540" 
+          fill-opacity="0.9"/>
+    
+    <!-- Vertical stem of the T -->
+    <rect x="-8" y="-15" width="16" height="60" rx="4" fill="#0A2540" fill-opacity="0.9"/>
+  </g>
+</svg>

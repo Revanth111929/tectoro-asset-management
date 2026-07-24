@@ -3,30 +3,85 @@
 api_server.py
 Flask REST API backend for the IT Asset Management React frontend.
 Handles all CRUD operations, authentication, and report exports.
+SECURITY: JWT authentication, rate limiting, CORS restrictions
 """
 
-import os, csv, io
+import os, csv, io, logging
 from datetime import datetime, date, timedelta
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request, send_file, send_from_directory
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import or_
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # ── App setup ─────────────────────────────────────────────────────────────────
-app = Flask(__name__)
-
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SECRET_KEY'] = 'assetmgmt-super-secret-2024'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'assets.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+build_dir = os.path.join(basedir, 'frontend', 'build')
 
-# Allow React dev server (port 3000) and production
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+app = Flask(__name__, static_folder=build_dir, static_url_path='')
+
+# Secure configuration from environment
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.urandom(32).hex())
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///' + os.path.join(basedir, 'assets.db'))
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_size': 10,
+    'pool_recycle': 3600,
+    'pool_pre_ping': True
+}
+
+# Secure CORS configuration
+allowed_origins = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000,http://192.168.20.180:3000').split(',')
+CORS(app, resources={
+    r"/api/*": {
+        "origins": allowed_origins,
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "expose_headers": ["Content-Range", "X-Content-Range"],
+        "supports_credentials": True,
+        "max_age": 3600
+    }
+})
+
+# Configure logging
+log_level = os.getenv('LOG_LEVEL', 'INFO')
+logging.basicConfig(
+    level=getattr(logging, log_level),
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    handlers=[
+        logging.FileHandler(os.path.join(basedir, 'logs', 'app.log')),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Import models AFTER app is configured
-from models import db, Asset, ActivityLog, User
+from models import db, Asset, ActivityLog, User, Employee, Onboarding, OnboardingAssetAssignment
+from services.audit_service import AuditService, LifecycleService
+from utils.auth import generate_access_token, generate_refresh_token, token_required, admin_required, get_current_user
+from utils.rate_limit import init_limiter, limit_login, limit_api, limit_expensive
+
 db.init_app(app)
+
+# Initialize rate limiter
+limiter = init_limiter(app)
+
+# Security Headers Middleware
+@app.after_request
+def add_security_headers(response):
+    """Add security headers to all responses"""
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    return response
+
+# NOTE: NOT registering routes.py blueprints as they are template-based, not API
+# All API routes are defined directly in this file
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def parse_date(val):
@@ -35,23 +90,17 @@ def parse_date(val):
         try:
             return datetime.strptime(val, '%Y-%m-%d').date()
         except ValueError:
-            pass
+            logger.warning(f"Invalid date format: {val}")
     return None
 
-def log_activity(action, module, description, user='admin'):
-    entry = ActivityLog(user=user, action=action, module=module, description=description)
-    db.session.add(entry)
-    # caller must commit
-
-def get_current_user():
-    """Get username from Authorization header token (simple demo auth)"""
-    auth = request.headers.get('Authorization', '')
-    if auth.startswith('Bearer '):
-        token = auth[7:]
-        # In production use JWT; here we store username in token
-        if ':' in token:
-            return token.split(':')[1]
-    return 'admin'
+def log_activity(action, module, description, user='system'):
+    """Legacy activity logging - kept for compatibility"""
+    try:
+        entry = ActivityLog(user=user, action=action, module=module, description=description)
+        db.session.add(entry)
+        # caller must commit
+    except Exception as e:
+        logger.error(f"Error logging activity: {e}")
 
 # ── Seed sample data ──────────────────────────────────────────────────────────
 def seed_data():
@@ -168,30 +217,569 @@ def seed_data():
     print("✅ Sample data seeded!")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# AUTH ROUTES
+# AUTH ROUTES (JWT-based secure authentication)
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.route('/api/auth/login', methods=['POST'])
+@limiter.limit(limit_login())
 def login():
+    """Authenticate user and return JWT tokens"""
     data = request.get_json() or {}
     username = data.get('username', '').strip()
     password = data.get('password', '')
 
+    if not username or not password:
+        logger.warning(f"Login attempt with missing credentials from {request.remote_addr}")
+        return jsonify({'error': 'Username and password are required'}), 400
+
     user = User.query.filter_by(username=username).first()
     if user and check_password_hash(user.password_hash, password):
-        # Simple token: "demo:<username>"  (use JWT in production)
-        token = f'demo:{username}'
+        # Generate secure JWT tokens
+        access_token = generate_access_token(user.id, user.username, user.role)
+        refresh_token = generate_refresh_token(user.id, user.username)
+        
+        logger.info(f"Successful login: {username} from {request.remote_addr}")
+        
         return jsonify({
             'success': True,
-            'token': token,
-            'user': {'username': user.username, 'email': user.email, 'role': user.role}
+            'access_token': access_token,
+            'refresh_token': refresh_token,
+            'token': access_token,  # For backward compatibility
+            'token_type': 'Bearer',
+            'expires_in': int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 3600)),
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'role': user.role
+            }
         }), 200
 
-    return jsonify({'success': False, 'message': 'Invalid username or password'}), 401
+    logger.warning(f"Failed login attempt for username: {username} from {request.remote_addr}")
+    return jsonify({'error': 'Invalid username or password'}), 401
 
 @app.route('/api/auth/logout', methods=['POST'])
+@token_required
 def logout():
+    """Logout user (client should discard tokens)"""
+    user = get_current_user()
+    if user:
+        logger.info(f"User logged out: {user.get('username')}")
+    return jsonify({'success': True, 'message': 'Logged out successfully'}), 200
+
+@app.route('/api/auth/refresh', methods=['POST'])
+@limiter.limit("10 per minute")
+def refresh_token():
+    """Refresh access token using refresh token"""
+    from utils.auth import decode_token
+    
+    data = request.get_json() or {}
+    refresh_token_str = data.get('refresh_token', '')
+    
+    if not refresh_token_str:
+        return jsonify({'error': 'Refresh token is required'}), 400
+    
+    payload = decode_token(refresh_token_str)
+    if 'error' in payload:
+        return jsonify({'error': payload['error']}), 401
+    
+    if payload.get('type') != 'refresh':
+        return jsonify({'error': 'Invalid token type'}), 401
+    
+    # Generate new access token
+    user = User.query.get(payload.get('user_id'))
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    new_access_token = generate_access_token(user.id, user.username, user.role)
+    
+    return jsonify({
+        'success': True,
+        'access_token': new_access_token,
+        'token': new_access_token,
+        'token_type': 'Bearer',
+        'expires_in': int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 3600))
+    }), 200
+
+@app.route('/api/auth/me', methods=['GET'])
+@token_required
+def get_current_user_info():
+    """Get current authenticated user info"""
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    user_obj = User.query.get(user.get('id'))
+    if not user_obj:
+        return jsonify({'error': 'User not found'}), 404
+    
+    return jsonify({
+        'id': user_obj.id,
+        'username': user_obj.username,
+        'email': user_obj.email,
+        'role': user_obj.role,
+        'created_at': user_obj.created_at.isoformat() if user_obj.created_at else None
+    }), 200
+
+# ══════════════════════════════════════════════════════════════════════════════
+# USER MANAGEMENT (Admin Users)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/users', methods=['GET'])
+@admin_required
+def get_users():
+    """Get all admin users"""
+    users = User.query.all()
+    return jsonify([{
+        'id': u.id,
+        'username': u.username,
+        'email': u.email,
+        'role': u.role,
+        'created_at': u.created_at.isoformat() if hasattr(u, 'created_at') and u.created_at else None
+    } for u in users]), 200
+
+@app.route('/api/users', methods=['POST'])
+@admin_required
+def create_user():
+    """Create new admin user"""
+    data = request.get_json() or {}
+    
+    username = data.get('username', '').strip()
+    email = data.get('email', '').strip()
+    password = data.get('password', '')
+    role = data.get('role', 'user')
+    
+    if not username or not password:
+        return jsonify({'error': 'Username and password are required'}), 400
+    
+    # Password strength validation
+    if len(password) < 8:
+        return jsonify({'error': 'Password must be at least 8 characters long'}), 400
+    
+    # Check if user exists
+    if User.query.filter_by(username=username).first():
+        return jsonify({'error': 'Username already exists'}), 409
+    
+    user = User(
+        username=username,
+        email=email,
+        password_hash=generate_password_hash(password),
+        role=role
+    )
+    db.session.add(user)
+    
+    current_user = get_current_user()
+    log_activity('CREATE', 'User', f'Created user: {username}', current_user.get('username') if current_user else 'system')
+    db.session.commit()
+    
+    logger.info(f"New user created: {username} by {current_user.get('username') if current_user else 'system'}")
+    
+    return jsonify({'success': True, 'user': {
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'role': user.role
+    }}), 201
+
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+@admin_required
+def update_user(user_id):
+    """Update admin user"""
+    user = User.query.get_or_404(user_id)
+    data = request.get_json() or {}
+    
+    if 'email' in data:
+        user.email = data['email']
+    if 'role' in data:
+        user.role = data['role']
+    if 'password' in data and data['password']:
+        if len(data['password']) < 8:
+            return jsonify({'error': 'Password must be at least 8 characters long'}), 400
+        user.password_hash = generate_password_hash(data['password'])
+    
+    current_user = get_current_user()
+    log_activity('UPDATE', 'User', f'Updated user: {user.username}', current_user.get('username') if current_user else 'system')
+    db.session.commit()
+    
+    logger.info(f"User updated: {user.username} by {current_user.get('username') if current_user else 'system'}")
+    
     return jsonify({'success': True}), 200
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+@admin_required
+def delete_user(user_id):
+    """Delete admin user"""
+    user = User.query.get_or_404(user_id)
+    current_user = get_current_user()
+    
+    # Prevent deleting yourself
+    if current_user and user.id == current_user.get('id'):
+        return jsonify({'error': 'Cannot delete your own account'}), 400
+    
+    # Prevent deleting last admin
+    if user.role == 'admin' and User.query.filter_by(role='admin').count() <= 1:
+        return jsonify({'error': 'Cannot delete the last admin user'}), 400
+    
+    username = user.username
+    db.session.delete(user)
+    log_activity('DELETE', 'User', f'Deleted user: {username}', current_user.get('username') if current_user else 'system')
+    db.session.commit()
+    
+    logger.info(f"User deleted: {username} by {current_user.get('username') if current_user else 'system'}")
+    
+    return jsonify({'success': True}), 200
+
+@app.route('/api/users/<int:user_id>/smtp-password', methods=['PUT'])
+@admin_required
+def update_smtp_password(user_id):
+    """Update user's SMTP password"""
+    user = User.query.get_or_404(user_id)
+    data = request.get_json() or {}
+    
+    smtp_password = data.get('smtp_password', '')
+    if smtp_password:
+        user.smtp_password = smtp_password
+        log_activity('UPDATE', 'User', f'Updated SMTP password for user: {user.username}', get_current_user())
+        db.session.commit()
+    
+    return jsonify({'success': True}), 200
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TEMPORARY ASSIGNMENTS (Loaner Devices)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/temporary-assignments', methods=['GET'])
+def get_temporary_assignments():
+    """Get all temporary assignments"""
+    from models import TemporaryAssignment
+    
+    status = request.args.get('status', '').strip()
+    
+    q = TemporaryAssignment.query
+    
+    if status:
+        q = q.filter_by(status=status)
+    
+    assignments = q.order_by(TemporaryAssignment.created_at.desc()).all()
+    
+    return jsonify({
+        'assignments': [{
+            'id': a.id,
+            'employee_id': a.employee_id,
+            'employee_name': a.employee_name,
+            'original_asset_id': a.original_asset_id,
+            'original_asset_name': a.original_asset_name,
+            'original_asset_serial': a.original_asset_serial,
+            'temp_asset_id': a.temp_asset_id,
+            'temp_asset_name': a.temp_asset_name,
+            'temp_asset_serial': a.temp_asset_serial,
+            'reason': a.reason,
+            'start_date': a.start_date.isoformat() if a.start_date else None,
+            'expected_return_date': a.expected_return_date.isoformat() if a.expected_return_date else None,
+            'actual_return_date': a.actual_return_date.isoformat() if a.actual_return_date else None,
+            'status': a.status,
+            'created_at': a.created_at.isoformat() if a.created_at else None,
+        } for a in assignments]
+    }), 200
+
+@app.route('/api/temporary-assignments', methods=['POST'])
+def create_temporary_assignment():
+    """Create new temporary assignment"""
+    from models import TemporaryAssignment
+    
+    data = request.get_json() or {}
+    current_user = get_current_user()
+    
+    # Validate required fields
+    required = ['employee_id', 'employee_name', 'original_asset_id', 'temp_asset_id', 'reason']
+    for field in required:
+        if not data.get(field):
+            return jsonify({'error': f'{field} is required'}), 400
+    
+    # Get asset details
+    original_asset = Asset.query.get(data['original_asset_id'])
+    temp_asset = Asset.query.get(data['temp_asset_id'])
+    
+    if not original_asset:
+        return jsonify({'error': 'Original asset not found'}), 404
+    if not temp_asset:
+        return jsonify({'error': 'Temporary asset not found'}), 404
+    
+    # Check if temp asset is available
+    if temp_asset.status != 'Available':
+        return jsonify({'error': 'Temporary asset is not available'}), 400
+    
+    # Create assignment
+    assignment = TemporaryAssignment(
+        employee_id=data['employee_id'],
+        employee_name=data['employee_name'],
+        original_asset_id=original_asset.id,
+        original_asset_name=original_asset.asset_name,
+        original_asset_serial=original_asset.serial_number,
+        temp_asset_id=temp_asset.id,
+        temp_asset_name=temp_asset.asset_name,
+        temp_asset_serial=temp_asset.serial_number,
+        reason=data['reason'],
+        start_date=parse_date(data.get('start_date')) or date.today(),
+        expected_return_date=parse_date(data.get('expected_return_date')),
+        status='Active'
+    )
+    db.session.add(assignment)
+    
+    # Update asset statuses
+    original_asset.status = 'Maintenance'
+    temp_asset.status = 'Assigned'
+    temp_asset.emp_id = data['employee_id']
+    temp_asset.employee_name = data['employee_name']
+    
+    # Create audit logs
+    AuditService.log(
+        action_type='TEMP_ASSIGNMENT_CREATED',
+        module='TemporaryAssignment',
+        asset_id=temp_asset.id,
+        asset_name=temp_asset.asset_name,
+        asset_serial=temp_asset.serial_number,
+        category=temp_asset.category,
+        employee_id=data['employee_id'],
+        employee_name=data['employee_name'],
+        old_value=f'Original: {original_asset.asset_name}',
+        new_value=f'Temp: {temp_asset.asset_name}',
+        performed_by=current_user,
+        remarks=f"Reason: {data['reason']}"
+    )
+    
+    # Create lifecycle events
+    LifecycleService.record_event(
+        asset_id=original_asset.id,
+        event_type='MAINTENANCE_STARTED',
+        from_status='Assigned',
+        to_status='Maintenance',
+        reason=data['reason'],
+        performed_by=current_user
+    )
+    
+    LifecycleService.record_event(
+        asset_id=temp_asset.id,
+        event_type='TEMP_ASSIGNED',
+        to_employee_id=data['employee_id'],
+        to_employee=data['employee_name'],
+        from_status='Available',
+        to_status='Assigned',
+        reason=f"Temporary replacement for {original_asset.asset_name}",
+        performed_by=current_user
+    )
+    
+    log_activity('CREATE', 'TemporaryAssignment', 
+                f'Created temporary assignment: {temp_asset.asset_name} for {data["employee_name"]}', 
+                current_user)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'assignment': assignment.id}), 201
+
+@app.route('/api/temporary-assignments/<int:assignment_id>/complete', methods=['POST'])
+def complete_temporary_assignment(assignment_id):
+    """Complete a temporary assignment and return assets to normal"""
+    from models import TemporaryAssignment
+    
+    assignment = TemporaryAssignment.query.get_or_404(assignment_id)
+    current_user = get_current_user()
+    
+    if assignment.status != 'Active':
+        return jsonify({'error': 'Assignment is not active'}), 400
+    
+    # Get assets
+    original_asset = Asset.query.get(assignment.original_asset_id)
+    temp_asset = Asset.query.get(assignment.temp_asset_id)
+    
+    # Update assignment
+    assignment.status = 'Completed'
+    assignment.actual_return_date = date.today()
+    
+    # Update asset statuses
+    if original_asset:
+        original_asset.status = 'Assigned'  # Back to assigned to employee
+    
+    if temp_asset:
+        temp_asset.status = 'Available'  # Return to inventory
+        temp_asset.emp_id = ''
+        temp_asset.employee_name = ''
+    
+    # Create audit logs
+    AuditService.log(
+        action_type='TEMP_ASSIGNMENT_COMPLETED',
+        module='TemporaryAssignment',
+        asset_id=temp_asset.id if temp_asset else None,
+        asset_name=temp_asset.asset_name if temp_asset else '',
+        asset_serial=temp_asset.serial_number if temp_asset else '',
+        employee_id=assignment.employee_id,
+        employee_name=assignment.employee_name,
+        performed_by=current_user,
+        remarks=f"Completed temporary assignment. Original asset restored."
+    )
+    
+    # Create lifecycle events
+    if original_asset:
+        LifecycleService.record_event(
+            asset_id=original_asset.id,
+            event_type='MAINTENANCE_COMPLETED',
+            from_status='Maintenance',
+            to_status='Assigned',
+            performed_by=current_user
+        )
+    
+    if temp_asset:
+        LifecycleService.record_event(
+            asset_id=temp_asset.id,
+            event_type='RETURNED',
+            from_employee_id=assignment.employee_id,
+            from_employee=assignment.employee_name,
+            from_status='Assigned',
+            to_status='Available',
+            performed_by=current_user
+        )
+    
+    log_activity('UPDATE', 'TemporaryAssignment', 
+                f'Completed temporary assignment for {assignment.employee_name}', 
+                current_user)
+    db.session.commit()
+    
+    return jsonify({'success': True}), 200
+
+@app.route('/api/temporary-assignments/<int:assignment_id>', methods=['DELETE'])
+def delete_temporary_assignment(assignment_id):
+    """Delete a temporary assignment"""
+    from models import TemporaryAssignment
+    
+    assignment = TemporaryAssignment.query.get_or_404(assignment_id)
+    current_user = get_current_user()
+    
+    employee_name = assignment.employee_name
+    db.session.delete(assignment)
+    log_activity('DELETE', 'TemporaryAssignment', 
+                f'Deleted temporary assignment for {employee_name}', 
+                current_user)
+    db.session.commit()
+    
+    return jsonify({'success': True}), 200
+
+@app.route('/api/assets/<int:asset_id>/details', methods=['GET'])
+def get_asset_details(asset_id):
+    """Get detailed asset information"""
+    asset = Asset.query.get_or_404(asset_id)
+    return jsonify({'asset': asset.to_dict()}), 200
+
+@app.route('/api/assets/by-employee/<emp_id>', methods=['GET'])
+def get_assets_by_employee(emp_id):
+    """Get all assets assigned to an employee"""
+    assets = Asset.query.filter_by(emp_id=emp_id).all()
+    
+    employee_name = ''
+    if assets:
+        employee_name = assets[0].employee_name
+    
+    return jsonify({
+        'assets': [a.to_dict() for a in assets],
+        'employee_name': employee_name
+    }), 200
+
+@app.route('/api/assets/<int:asset_id>/history', methods=['GET'])
+def get_asset_history(asset_id):
+    """Get complete lifecycle history for an asset"""
+    from models import AssetLifecycle, AuditLog, TemporaryAssignment
+    
+    asset = Asset.query.get_or_404(asset_id)
+    
+    # Get lifecycle events
+    lifecycle_events = AssetLifecycle.query.filter_by(asset_id=asset_id)\
+        .order_by(AssetLifecycle.created_at.desc()).all()
+    
+    # Get audit logs for this asset
+    audit_logs = AuditLog.query.filter_by(asset_id=asset_id)\
+        .order_by(AuditLog.timestamp.desc()).limit(50).all()
+    
+    # Get temporary assignments where this was original or temp asset
+    temp_assignments = TemporaryAssignment.query.filter(
+        or_(
+            TemporaryAssignment.original_asset_id == asset_id,
+            TemporaryAssignment.temp_asset_id == asset_id
+        )
+    ).order_by(TemporaryAssignment.created_at.desc()).all()
+    
+    # Combine and sort all events by date
+    all_events = []
+    
+    # Add lifecycle events
+    for event in lifecycle_events:
+        all_events.append({
+            'type': 'lifecycle',
+            'event_type': event.event_type,
+            'date': event.created_at.isoformat() if event.created_at else '',
+            'from_employee': event.from_employee,
+            'to_employee': event.to_employee,
+            'from_status': event.from_status,
+            'to_status': event.to_status,
+            'reason': event.reason,
+            'performed_by': event.performed_by,
+            'remarks': event.remarks,
+        })
+    
+    # Add key audit logs (assignments, returns, status changes)
+    for log in audit_logs:
+        if log.action_type in ['ASSET_CREATED', 'ASSET_ASSIGNED', 'ASSET_RETURNED', 
+                                'ASSET_REASSIGNED', 'STATUS_CHANGED', 'TEMP_ASSIGNMENT_CREATED',
+                                'TEMP_ASSIGNMENT_COMPLETED', 'ASSET_REPLACED']:
+            all_events.append({
+                'type': 'audit',
+                'action_type': log.action_type,
+                'date': log.timestamp.isoformat() if log.timestamp else '',
+                'employee_name': log.employee_name,
+                'field_name': log.field_name,
+                'old_value': log.old_value,
+                'new_value': log.new_value,
+                'performed_by': log.performed_by,
+                'remarks': log.remarks,
+            })
+    
+    # Add temporary assignments
+    for assignment in temp_assignments:
+        if assignment.original_asset_id == asset_id:
+            all_events.append({
+                'type': 'temp_assignment',
+                'sub_type': 'original',
+                'date': assignment.created_at.isoformat() if assignment.created_at else '',
+                'employee_name': assignment.employee_name,
+                'temp_asset_name': assignment.temp_asset_name,
+                'reason': assignment.reason,
+                'status': assignment.status,
+                'start_date': assignment.start_date.isoformat() if assignment.start_date else '',
+                'expected_return': assignment.expected_return_date.isoformat() if assignment.expected_return_date else '',
+                'actual_return': assignment.actual_return_date.isoformat() if assignment.actual_return_date else '',
+            })
+        else:
+            all_events.append({
+                'type': 'temp_assignment',
+                'sub_type': 'temporary',
+                'date': assignment.created_at.isoformat() if assignment.created_at else '',
+                'employee_name': assignment.employee_name,
+                'original_asset_name': assignment.original_asset_name,
+                'reason': assignment.reason,
+                'status': assignment.status,
+                'start_date': assignment.start_date.isoformat() if assignment.start_date else '',
+                'expected_return': assignment.expected_return_date.isoformat() if assignment.expected_return_date else '',
+                'actual_return': assignment.actual_return_date.isoformat() if assignment.actual_return_date else '',
+            })
+    
+    # Sort all events by date (newest first)
+    all_events.sort(key=lambda x: x['date'], reverse=True)
+    
+    return jsonify({
+        'asset': asset.to_dict(),
+        'history': all_events,
+        'total_events': len(all_events),
+        'lifecycle_events_count': len(lifecycle_events),
+        'audit_logs_count': len(audit_logs),
+        'temp_assignments_count': len(temp_assignments),
+    }), 200
 
 # ══════════════════════════════════════════════════════════════════════════════
 # DASHBOARD ROUTES
@@ -247,11 +835,42 @@ def dashboard_activity():
     logs = ActivityLog.query.order_by(ActivityLog.timestamp.desc()).limit(10).all()
     return jsonify({'logs': [l.to_dict() for l in logs]}), 200
 
+@app.route('/api/dashboard/lifecycle-stats', methods=['GET'])
+def lifecycle_stats():
+    from sqlalchemy import func
+    today = date.today()
+    month_start = today.replace(day=1)
+    
+    try:
+        from models import AssetLifecycleEvent
+        active_temp = AssetLifecycleEvent.query.filter_by(event_type='TEMP_ASSIGNED').count()
+        under_repair = Asset.query.filter_by(status='Maintenance').count()
+        replaced = AssetLifecycleEvent.query.filter(
+            AssetLifecycleEvent.event_type == 'REPLACED',
+            AssetLifecycleEvent.created_at >= month_start
+        ).count()
+        total_events = AssetLifecycleEvent.query.count()
+    except Exception:
+        active_temp = 0
+        under_repair = Asset.query.filter_by(status='Maintenance').count()
+        replaced = 0
+        total_events = 0
+
+    return jsonify({
+        'stats': {
+            'active_temp_assignments': active_temp,
+            'assets_under_repair': under_repair,
+            'assets_replaced_this_month': replaced,
+            'total_lifecycle_events': total_events,
+        }
+    }), 200
+
 # ══════════════════════════════════════════════════════════════════════════════
 # ASSET ROUTES  – full CRUD
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.route('/api/assets', methods=['GET'])
+@token_required
 def get_assets():
     search   = request.args.get('search', '').strip()
     location = request.args.get('location', '').strip()
@@ -288,11 +907,13 @@ def get_assets():
     }), 200
 
 @app.route('/api/assets/<int:asset_id>', methods=['GET'])
+@token_required
 def get_asset(asset_id):
     asset = Asset.query.get_or_404(asset_id)
     return jsonify(asset.to_dict()), 200
 
 @app.route('/api/assets', methods=['POST'])
+@token_required
 def create_asset():
     data = request.get_json() or {}
     current_user = get_current_user()
@@ -305,10 +926,14 @@ def create_asset():
     if Asset.query.filter_by(serial_number=data['serial_number'].strip()).first():
         return jsonify({'error': 'Serial number already exists'}), 409
 
+    # Handle employee_email field (accept both employee_email and email)
+    employee_email = data.get('employee_email') or data.get('email', '')
+
     asset = Asset(
         emp_id          = data.get('emp_id', ''),
         employee_name   = data.get('employee_name', ''),
         mobile_number   = data.get('mobile_number', ''),
+        employee_email  = employee_email,
         asset_name      = data['asset_name'].strip(),
         category        = data.get('category', ''),
         serial_number   = data['serial_number'].strip(),
@@ -326,24 +951,139 @@ def create_asset():
         old_device      = data.get('old_device', ''),
         comments        = data.get('comments', ''),
         status          = data.get('status', 'Available'),
+        # Legacy inventory fields
+        purchase_price       = data.get('purchase_price'),
+        quantity             = data.get('quantity', 1),
+        configuration        = data.get('configuration', ''),
+        laptop_bag_serial    = data.get('laptop_bag_serial', ''),
+        hard_disk_serial     = data.get('hard_disk_serial', ''),
+        hard_disk_capacity   = data.get('hard_disk_capacity', ''),
+        ups_serial           = data.get('ups_serial', ''),
+        ups_capacity         = data.get('ups_capacity', ''),
+        printer_type         = data.get('printer_type', ''),
+        printer_model        = data.get('printer_model', ''),
+        mobile_imei          = data.get('mobile_imei', ''),
+        mobile_number_sim    = data.get('mobile_number_sim', ''),
+        testing_status       = data.get('testing_status', ''),
+        # New dynamic category-specific fields
+        brand_name           = data.get('brand_name', ''),
+        processor            = data.get('processor', ''),
+        storage_type         = data.get('storage_type', ''),
+        storage_capacity     = data.get('storage_capacity', ''),
+        graphics_card        = data.get('graphics_card', ''),
+        os_version           = data.get('os_version', ''),
+        screen_size          = data.get('screen_size', ''),
+        imei_1               = data.get('imei_1', ''),
+        imei_2               = data.get('imei_2', ''),
+        color_or_mono        = data.get('color_or_mono', ''),
+        network_enabled      = data.get('network_enabled', ''),
+        resolution           = data.get('resolution', ''),
+        refresh_rate         = data.get('refresh_rate', ''),
+        cpu_count            = data.get('cpu_count'),
+        raid_config          = data.get('raid_config', ''),
+        ip_address           = data.get('ip_address', ''),
+        rack_location        = data.get('rack_location', ''),
+        interface_type       = data.get('interface_type', ''),
+        capacity_va          = data.get('capacity_va', ''),
+        battery_type         = data.get('battery_type', ''),
+        backup_time          = data.get('backup_time', ''),
+        connection_type      = data.get('connection_type', ''),
+        noise_cancellation   = data.get('noise_cancellation', ''),
+        size_compatibility   = data.get('size_compatibility', ''),
+        color                = data.get('color', ''),
+        warranty_period      = data.get('warranty_period', ''),
+        purchase_vendor      = data.get('purchase_vendor', ''),
+        purchase_date        = parse_date(data.get('purchase_date')),
+        warranty_start_date  = parse_date(data.get('warranty_start_date')),
+        warranty_end_date    = parse_date(data.get('warranty_end_date')),
+        assigned_employee    = data.get('assigned_employee', ''),
+        custom_description   = data.get('custom_description', ''),
+        remarks              = data.get('remarks', ''),
     )
     db.session.add(asset)
-    log_activity('CREATE', 'Asset', f'Added asset: {asset.asset_name} [{asset.serial_number}]', current_user)
-    db.session.commit()
+    
+    current_username = current_user.get('username') if current_user else 'system'
+    log_activity('CREATE', 'Asset', f'Added asset: {asset.asset_name} [{asset.serial_number}]', current_username)
+    db.session.flush()  # Flush to get asset.id before commit
+
+    # Create comprehensive audit log
+    try:
+        audit_log = AuditService.log_asset_created(asset, current_username)
+        logger.info(f"Asset created: {asset.asset_name} (ID: {asset.id}) by {current_username}")
+    except Exception as e:
+        logger.error(f"Error creating audit log for asset {asset.id}: {e}")
+    
+    # Create lifecycle event
+    try:
+        lifecycle_event = LifecycleService.record_event(
+            asset_id=asset.id,
+            event_type='PROCURED',
+            to_status=asset.status,
+            reason='New asset added to inventory',
+            performed_by=current_username
+        )
+        logger.info(f"Lifecycle event created for asset {asset.id}")
+    except Exception as e:
+        logger.error(f"Error creating lifecycle event for asset {asset.id}: {e}")
+    
+    db.session.commit()  # Commit everything together
+    logger.info(f"Asset {asset.id} successfully committed to database")
 
     return jsonify({'success': True, 'asset': asset.to_dict()}), 201
 
 @app.route('/api/assets/<int:asset_id>', methods=['PUT'])
+@token_required
 def update_asset(asset_id):
     asset = Asset.query.get_or_404(asset_id)
     data  = request.get_json() or {}
     current_user = get_current_user()
+
+    # Track changes for audit log
+    changed_fields = {}
+    old_status = asset.status
 
     # Check serial number uniqueness if changed
     new_serial = data.get('serial_number', asset.serial_number).strip()
     if new_serial != asset.serial_number:
         if Asset.query.filter_by(serial_number=new_serial).first():
             return jsonify({'error': 'Serial number already exists'}), 409
+        changed_fields['serial_number'] = (asset.serial_number, new_serial)
+
+    # Handle employee_email field (accept both employee_email and email)
+    if 'employee_email' in data or 'email' in data:
+        new_email = data.get('employee_email') or data.get('email', '')
+        if new_email != asset.employee_email:
+            changed_fields['employee_email'] = (asset.employee_email, new_email)
+        asset.employee_email = new_email
+
+    # Track all field changes
+    fields_to_track = {
+        'emp_id': 'emp_id',
+        'employee_name': 'employee_name',
+        'mobile_number': 'mobile_number',
+        'asset_name': 'asset_name',
+        'category': 'category',
+        'model_name': 'model_name',
+        'os': 'os',
+        'version': 'version',
+        'ram': 'ram',
+        'location': 'location',
+        'invoice_number': 'invoice_number',
+        'charger_serial': 'charger_serial',
+        'old_user': 'old_user',
+        'old_device': 'old_device',
+        'comments': 'comments',
+        'status': 'status',
+    }
+    
+    for field_key, field_name in fields_to_track.items():
+        if field_key in data:
+            old_val = getattr(asset, field_name)
+            new_val = data[field_key]
+            if field_key == 'asset_name':
+                new_val = new_val.strip()
+            if str(old_val) != str(new_val):
+                changed_fields[field_name] = (old_val, new_val)
 
     asset.emp_id         = data.get('emp_id',         asset.emp_id)
     asset.employee_name  = data.get('employee_name',  asset.employee_name)
@@ -366,22 +1106,464 @@ def update_asset(asset_id):
     asset.comments       = data.get('comments',       asset.comments)
     asset.status         = data.get('status',         asset.status)
     asset.updated_at     = datetime.utcnow()
+    
+    # Legacy inventory fields
+    if 'purchase_price' in data:
+        asset.purchase_price = data.get('purchase_price')
+    if 'quantity' in data:
+        asset.quantity = data.get('quantity', 1)
+    if 'configuration' in data:
+        asset.configuration = data.get('configuration', '')
+    if 'laptop_bag_serial' in data:
+        asset.laptop_bag_serial = data.get('laptop_bag_serial', '')
+    if 'hard_disk_serial' in data:
+        asset.hard_disk_serial = data.get('hard_disk_serial', '')
+    if 'hard_disk_capacity' in data:
+        asset.hard_disk_capacity = data.get('hard_disk_capacity', '')
+    if 'ups_serial' in data:
+        asset.ups_serial = data.get('ups_serial', '')
+    if 'ups_capacity' in data:
+        asset.ups_capacity = data.get('ups_capacity', '')
+    if 'printer_type' in data:
+        asset.printer_type = data.get('printer_type', '')
+    if 'printer_model' in data:
+        asset.printer_model = data.get('printer_model', '')
+    if 'mobile_imei' in data:
+        asset.mobile_imei = data.get('mobile_imei', '')
+    if 'mobile_number_sim' in data:
+        asset.mobile_number_sim = data.get('mobile_number_sim', '')
+    if 'testing_status' in data:
+        asset.testing_status = data.get('testing_status', '')
+    
+    # New dynamic category-specific fields
+    if 'brand_name' in data:
+        asset.brand_name = data.get('brand_name', '')
+    if 'processor' in data:
+        asset.processor = data.get('processor', '')
+    if 'storage_type' in data:
+        asset.storage_type = data.get('storage_type', '')
+    if 'storage_capacity' in data:
+        asset.storage_capacity = data.get('storage_capacity', '')
+    if 'graphics_card' in data:
+        asset.graphics_card = data.get('graphics_card', '')
+    if 'os_version' in data:
+        asset.os_version = data.get('os_version', '')
+    if 'screen_size' in data:
+        asset.screen_size = data.get('screen_size', '')
+    if 'imei_1' in data:
+        asset.imei_1 = data.get('imei_1', '')
+    if 'imei_2' in data:
+        asset.imei_2 = data.get('imei_2', '')
+    if 'mobile_number' in data:
+        asset.mobile_number = data.get('mobile_number', '')
+    if 'color_or_mono' in data:
+        asset.color_or_mono = data.get('color_or_mono', '')
+    if 'network_enabled' in data:
+        asset.network_enabled = data.get('network_enabled', '')
+    if 'resolution' in data:
+        asset.resolution = data.get('resolution', '')
+    if 'refresh_rate' in data:
+        asset.refresh_rate = data.get('refresh_rate', '')
+    if 'cpu_count' in data:
+        asset.cpu_count = data.get('cpu_count')
+    if 'raid_config' in data:
+        asset.raid_config = data.get('raid_config', '')
+    if 'ip_address' in data:
+        asset.ip_address = data.get('ip_address', '')
+    if 'rack_location' in data:
+        asset.rack_location = data.get('rack_location', '')
+    if 'interface_type' in data:
+        asset.interface_type = data.get('interface_type', '')
+    if 'capacity_va' in data:
+        asset.capacity_va = data.get('capacity_va', '')
+    if 'battery_type' in data:
+        asset.battery_type = data.get('battery_type', '')
+    if 'backup_time' in data:
+        asset.backup_time = data.get('backup_time', '')
+    if 'connection_type' in data:
+        asset.connection_type = data.get('connection_type', '')
+    if 'noise_cancellation' in data:
+        asset.noise_cancellation = data.get('noise_cancellation', '')
+    if 'size_compatibility' in data:
+        asset.size_compatibility = data.get('size_compatibility', '')
+    if 'color' in data:
+        asset.color = data.get('color', '')
+    if 'warranty_period' in data:
+        asset.warranty_period = data.get('warranty_period', '')
+    if 'purchase_vendor' in data:
+        asset.purchase_vendor = data.get('purchase_vendor', '')
+    if 'purchase_date' in data:
+        asset.purchase_date = parse_date(data.get('purchase_date'))
+    if 'warranty_start_date' in data:
+        asset.warranty_start_date = parse_date(data.get('warranty_start_date'))
+    if 'warranty_end_date' in data:
+        asset.warranty_end_date = parse_date(data.get('warranty_end_date'))
+    if 'assigned_employee' in data:
+        asset.assigned_employee = data.get('assigned_employee', '')
+    if 'custom_description' in data:
+        asset.custom_description = data.get('custom_description', '')
+    if 'remarks' in data:
+        asset.remarks = data.get('remarks', '')
 
     log_activity('UPDATE', 'Asset', f'Updated asset: {asset.asset_name} [{asset.serial_number}]', current_user)
     db.session.commit()
 
+    # Create comprehensive audit logs for field changes
+    if changed_fields:
+        AuditService.log_asset_updated(asset, changed_fields, current_user)
+    
+    # If status changed, create additional status change log and lifecycle event
+    if 'status' in changed_fields:
+        new_status = changed_fields['status'][1]
+        AuditService.log_status_change(asset, old_status, new_status, current_user)
+        
+        LifecycleService.record_event(
+            asset_id=asset.id,
+            event_type='STATUS_CHANGED',
+            from_status=old_status,
+            to_status=new_status,
+            performed_by=current_user
+        )
+    
+    # If employee changed (assignment/return)
+    if 'emp_id' in changed_fields or 'employee_name' in changed_fields:
+        old_emp = changed_fields.get('emp_id', (asset.emp_id, asset.emp_id))[0]
+        new_emp = asset.emp_id
+        
+        if old_emp and not new_emp:  # Asset returned
+            AuditService.log_asset_returned(
+                asset, asset.employee_name or '', old_emp, current_user,
+                new_status=asset.status
+            )
+            LifecycleService.record_event(
+                asset_id=asset.id,
+                event_type='RETURNED',
+                from_employee_id=old_emp,
+                from_employee=changed_fields.get('employee_name', (asset.employee_name, ''))[0],
+                from_status='Assigned',
+                to_status=asset.status,
+                performed_by=current_user
+            )
+        elif new_emp and not old_emp:  # Asset assigned
+            AuditService.log_asset_assigned(
+                asset, asset.employee_name, new_emp, current_user,
+                old_status=old_status
+            )
+            LifecycleService.record_event(
+                asset_id=asset.id,
+                event_type='ASSIGNED',
+                to_employee_id=new_emp,
+                to_employee=asset.employee_name,
+                from_status=old_status,
+                to_status='Assigned',
+                performed_by=current_user
+            )
+        elif new_emp and old_emp and new_emp != old_emp:  # Reassignment
+            AuditService.log(
+                action_type='ASSET_REASSIGNED',
+                module='Asset',
+                asset_id=asset.id,
+                asset_name=asset.asset_name,
+                asset_serial=asset.serial_number,
+                category=asset.category,
+                employee_id=new_emp,
+                employee_name=asset.employee_name,
+                old_value=old_emp,
+                new_value=new_emp,
+                performed_by=current_user,
+                remarks=f"Reassigned from {old_emp} to {new_emp}"
+            )
+            LifecycleService.record_event(
+                asset_id=asset.id,
+                event_type='REASSIGNED',
+                from_employee_id=old_emp,
+                to_employee_id=new_emp,
+                to_employee=asset.employee_name,
+                from_status=old_status,
+                to_status=asset.status,
+                performed_by=current_user
+            )
+
     return jsonify({'success': True, 'asset': asset.to_dict()}), 200
 
 @app.route('/api/assets/<int:asset_id>', methods=['DELETE'])
+@token_required
 def delete_asset(asset_id):
     asset = Asset.query.get_or_404(asset_id)
     current_user = get_current_user()
     name = asset.asset_name
     serial = asset.serial_number
+    category = asset.category
+    
+    # Create audit log before deletion
+    AuditService.log_asset_deleted(asset, current_user)
+    
     db.session.delete(asset)
     log_activity('DELETE', 'Asset', f'Deleted asset: {name} [{serial}]', current_user)
     db.session.commit()
     return jsonify({'success': True, 'message': f'Asset "{name}" deleted'}), 200
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EMPLOYEE ROUTES
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/employees', methods=['GET'])
+@token_required
+def get_employees():
+    """Get all employees or search by query"""
+    from models import Employee
+    
+    query = request.args.get('q', '').strip()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    
+    q = Employee.query
+    
+    if query:
+        q = q.filter(or_(
+            Employee.emp_id.ilike(f'%{query}%'),
+            Employee.employee_name.ilike(f'%{query}%'),
+            Employee.email.ilike(f'%{query}%'),
+            Employee.mobile_number.ilike(f'%{query}%')
+        ))
+    
+    total = q.count()
+    employees = q.order_by(Employee.created_at.desc()).offset((page-1)*per_page).limit(per_page).all()
+    
+    return jsonify([{
+        'emp_id': e.emp_id,
+        'employee_name': e.employee_name,
+        'email': e.email,
+        'mobile_number': e.mobile_number,
+        'location': e.location,
+        'department': e.department,
+        'designation': e.designation,
+        'created_at': e.created_at.isoformat() if e.created_at else None,
+    } for e in employees]), 200
+
+@app.route('/api/employees/<emp_id>', methods=['GET'])
+def get_employee(emp_id):
+    """Get employee by emp_id"""
+    from models import Employee
+    
+    employee = Employee.query.filter_by(emp_id=emp_id).first()
+    if not employee:
+        return jsonify({'found': False}), 404
+    
+    return jsonify({
+        'found': True,
+        'employee': {
+            'emp_id': employee.emp_id,
+            'employee_name': employee.employee_name,
+            'email': employee.email,
+            'mobile_number': employee.mobile_number,
+            'location': employee.location,
+            'department': employee.department,
+            'designation': employee.designation,
+            'status': getattr(employee, 'status', 'Active'),
+        }
+    }), 200
+
+@app.route('/api/employees/<emp_id>/assets', methods=['GET'])
+def get_employee_assets(emp_id):
+    """Get all assets assigned to an employee"""
+    from models import Asset
+    
+    assets = Asset.query.filter_by(emp_id=emp_id).all()
+    
+    return jsonify([{
+        'id': a.id,
+        'asset_name': a.asset_name,
+        'category': a.category,
+        'serial_number': a.serial_number,
+        'model_name': a.model_name,
+        'brand_name': a.brand_name,
+        'status': a.status,
+    } for a in assets]), 200
+
+@app.route('/api/employees/<emp_id>/exit', methods=['POST'])
+def employee_exit(emp_id):
+    """Process employee exit and asset recovery"""
+    from models import Employee, Asset, AuditLog
+    from datetime import datetime
+    
+    data = request.get_json()
+    assets_recovery = data.get('assets', [])  # List of {asset_id, recovery_status, notes}
+    exit_date_str = data.get('exit_date')
+    exit_notes = data.get('exit_notes', '')
+    
+    # Parse exit date
+    exit_date = None
+    if exit_date_str:
+        try:
+            exit_date = datetime.strptime(exit_date_str, '%Y-%m-%d').date()
+        except:
+            exit_date = datetime.utcnow().date()
+    else:
+        exit_date = datetime.utcnow().date()
+    
+    # Get employee
+    employee = Employee.query.filter_by(emp_id=emp_id).first()
+    if not employee:
+        return jsonify({'error': 'Employee not found'}), 404
+    
+    # Process each asset
+    recovered_count = 0
+    missing_count = 0
+    damaged_count = 0
+    
+    for asset_recovery in assets_recovery:
+        asset = Asset.query.get(asset_recovery['asset_id'])
+        if not asset:
+            continue
+        
+        recovery_status = asset_recovery['recovery_status']  # 'returned', 'missing', 'damaged'
+        notes = asset_recovery.get('notes', '')
+        
+        # Update asset based on recovery status
+        if recovery_status == 'returned':
+            asset.status = 'Available'
+            asset.emp_id = None
+            asset.employee_name = None
+            asset.employee_email = None
+            asset.mobile_number = None
+            recovered_count += 1
+            
+            # Log the return
+            audit = AuditLog(
+                asset_id=asset.id,
+                action_type='ASSET_RETURNED',
+                module='Asset',
+                employee_name=employee.employee_name,
+                old_value=f'Assigned to {employee.employee_name}',
+                new_value='Available',
+                remarks=f'Employee Exit: {notes}' if notes else 'Employee Exit - Asset Returned',
+                performed_by='admin'
+            )
+            db.session.add(audit)
+            
+        elif recovery_status == 'missing':
+            asset.status = 'Retired'  # Mark as retired since it's missing
+            asset.emp_id = None
+            asset.employee_name = None
+            asset.employee_email = None
+            asset.mobile_number = None
+            missing_count += 1
+            
+            # Log as missing
+            audit = AuditLog(
+                asset_id=asset.id,
+                action_type='ASSET_MISSING',
+                module='Asset',
+                employee_name=employee.employee_name,
+                old_value=f'Assigned to {employee.employee_name}',
+                new_value='Missing',
+                remarks=f'Employee Exit: {notes}' if notes else 'Employee Exit - Asset Missing',
+                performed_by='admin'
+            )
+            db.session.add(audit)
+            
+        elif recovery_status == 'damaged':
+            asset.status = 'Maintenance'
+            asset.emp_id = None
+            asset.employee_name = None
+            asset.employee_email = None
+            asset.mobile_number = None
+            damaged_count += 1
+            
+            # Log as damaged
+            audit = AuditLog(
+                asset_id=asset.id,
+                action_type='ASSET_DAMAGED',
+                module='Asset',
+                employee_name=employee.employee_name,
+                old_value=f'Assigned to {employee.employee_name}',
+                new_value='Maintenance - Damaged',
+                remarks=f'Employee Exit: {notes}' if notes else 'Employee Exit - Asset Damaged',
+                performed_by='admin'
+            )
+            db.session.add(audit)
+    
+    # Mark employee as exited
+    employee.status = 'Exited'
+    employee.exit_date = exit_date
+    
+    # Create employee exit audit log
+    exit_audit = AuditLog(
+        asset_id=None,
+        action_type='EMPLOYEE_EXIT',
+        module='Employee',
+        employee_name=employee.employee_name,
+        old_value='Active',
+        new_value='Exited',
+        remarks=f'Exit Notes: {exit_notes}. Recovered: {recovered_count}, Missing: {missing_count}, Damaged: {damaged_count}',
+        performed_by='admin'
+    )
+    db.session.add(exit_audit)
+    
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': 'Employee exit processed successfully',
+        'summary': {
+            'employee': employee.employee_name,
+            'emp_id': emp_id,
+            'recovered': recovered_count,
+            'missing': missing_count,
+            'damaged': damaged_count,
+            'total_assets': len(assets_recovery)
+        }
+    }), 200
+
+@app.route('/api/employees', methods=['POST'])
+def create_or_update_employee():
+    """Create or update employee"""
+    from models import Employee
+    
+    data = request.get_json() or {}
+    emp_id = data.get('emp_id', '').strip()
+    
+    if not emp_id:
+        return jsonify({'error': 'emp_id is required'}), 400
+    
+    employee = Employee.query.filter_by(emp_id=emp_id).first()
+    current_user = get_current_user()
+    
+    if employee:
+        # Update existing
+        employee.employee_name = data.get('employee_name', employee.employee_name)
+        employee.email = data.get('email', employee.email)
+        employee.mobile_number = data.get('mobile_number', employee.mobile_number)
+        employee.location = data.get('location', employee.location)
+        employee.department = data.get('department', employee.department)
+        employee.designation = data.get('designation', employee.designation)
+        employee.updated_at = datetime.utcnow()
+        action = 'UPDATE'
+    else:
+        # Create new
+        employee = Employee(
+            emp_id=emp_id,
+            employee_name=data.get('employee_name', ''),
+            email=data.get('email', ''),
+            mobile_number=data.get('mobile_number', ''),
+            location=data.get('location', ''),
+            department=data.get('department', ''),
+            designation=data.get('designation', '')
+        )
+        db.session.add(employee)
+        action = 'CREATE'
+    
+    log_activity(action, 'Employee', f'{action} employee: {employee.employee_name} [{emp_id}]', current_user)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'employee': {
+        'emp_id': employee.emp_id,
+        'employee_name': employee.employee_name,
+        'email': employee.email,
+        'mobile_number': employee.mobile_number,
+        'location': employee.location,
+    }}), 200 if action == 'UPDATE' else 201
 
 # ══════════════════════════════════════════════════════════════════════════════
 # WARRANTY ALERTS
@@ -534,22 +1716,818 @@ def activity_log():
         'pages': (total + per_page - 1) // per_page,
     }), 200
 
-# ── Health check ──────────────────────────────────────────────────────────────
+# ── Audit Logs (Complete Activity History) ───────────────────────────────────
+@app.route('/api/audit-logs', methods=['GET'])
+def get_audit_logs():
+    """Get audit logs with filters"""
+    from models import AuditLog
+    
+    # Get filters (accept both date_from/date_to and start_date/end_date)
+    action_type = request.args.get('action_type') or request.args.get('action')
+    asset_id = request.args.get('asset_id')
+    employee_id = request.args.get('employee_id')
+    start_date = request.args.get('date_from') or request.args.get('start_date')
+    end_date = request.args.get('date_to') or request.args.get('end_date')
+    search = request.args.get('search', '').strip()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    
+    q = AuditLog.query
+    
+    # Apply filters
+    if action_type:
+        q = q.filter_by(action_type=action_type)
+    if asset_id:
+        q = q.filter_by(asset_id=asset_id)
+    if employee_id:
+        q = q.filter_by(employee_id=employee_id)
+    if start_date:
+        try:
+            start = datetime.strptime(start_date, '%Y-%m-%d')
+            q = q.filter(AuditLog.timestamp >= start)
+        except:
+            pass
+    if end_date:
+        try:
+            end = datetime.strptime(end_date, '%Y-%m-%d')
+            end = end.replace(hour=23, minute=59, second=59)
+            q = q.filter(AuditLog.timestamp <= end)
+        except:
+            pass
+    if search:
+        q = q.filter(or_(
+            AuditLog.asset_name.ilike(f'%{search}%'),
+            AuditLog.asset_serial.ilike(f'%{search}%'),
+            AuditLog.employee_name.ilike(f'%{search}%'),
+            AuditLog.employee_id.ilike(f'%{search}%'),
+            AuditLog.remarks.ilike(f'%{search}%')
+        ))
+    
+    total = q.count()
+    logs = q.order_by(AuditLog.timestamp.desc()).offset((page-1)*per_page).limit(per_page).all()
+    
+    return jsonify({
+        'logs': [{
+            'id': log.id,
+            'action_type': log.action_type,
+            'module': log.module,
+            'asset_id': log.asset_id,
+            'asset_name': log.asset_name,
+            'asset_serial': log.asset_serial,
+            'category': log.category,
+            'employee_id': log.employee_id,
+            'employee_name': log.employee_name,
+            'field_name': log.field_name,
+            'old_value': log.old_value,
+            'new_value': log.new_value,
+            'performed_by': log.performed_by,
+            'ip_address': log.ip_address,
+            'remarks': log.remarks,
+            'timestamp': log.timestamp.isoformat() if log.timestamp else None,
+        } for log in logs],
+        'total': total,
+        'page': page,
+        'pages': (total + per_page - 1) // per_page,
+    }), 200
+
+@app.route('/api/audit-logs/export', methods=['GET'])
+def export_audit_logs():
+    """Export audit logs to CSV"""
+    from models import AuditLog
+    
+    # Get filters (same as get_audit_logs)
+    action_type = request.args.get('action_type') or request.args.get('action')
+    asset_id = request.args.get('asset_id')
+    employee_id = request.args.get('employee_id')
+    start_date = request.args.get('date_from') or request.args.get('start_date')
+    end_date = request.args.get('date_to') or request.args.get('end_date')
+    search = request.args.get('search', '').strip()
+    
+    q = AuditLog.query
+    
+    # Apply same filters
+    if action_type:
+        q = q.filter_by(action_type=action_type)
+    if asset_id:
+        q = q.filter_by(asset_id=asset_id)
+    if employee_id:
+        q = q.filter_by(employee_id=employee_id)
+    if start_date:
+        try:
+            start = datetime.strptime(start_date, '%Y-%m-%d')
+            q = q.filter(AuditLog.timestamp >= start)
+        except:
+            pass
+    if end_date:
+        try:
+            end = datetime.strptime(end_date, '%Y-%m-%d')
+            end = end.replace(hour=23, minute=59, second=59)
+            q = q.filter(AuditLog.timestamp <= end)
+        except:
+            pass
+    if search:
+        q = q.filter(or_(
+            AuditLog.asset_name.ilike(f'%{search}%'),
+            AuditLog.asset_serial.ilike(f'%{search}%'),
+            AuditLog.employee_name.ilike(f'%{search}%'),
+            AuditLog.employee_id.ilike(f'%{search}%'),
+            AuditLog.remarks.ilike(f'%{search}%')
+        ))
+    
+    logs = q.order_by(AuditLog.timestamp.desc()).all()
+    
+    # Create CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Header
+    writer.writerow([
+        'Timestamp', 'Action', 'Module', 'Asset Name', 'Serial Number',
+        'Employee', 'Field', 'Old Value', 'New Value', 'Performed By',
+        'IP Address', 'Remarks'
+    ])
+    
+    # Data rows
+    for log in logs:
+        writer.writerow([
+            log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else '',
+            log.action_type,
+            log.module,
+            log.asset_name or '',
+            log.asset_serial or '',
+            log.employee_name or '',
+            log.field_name or '',
+            log.old_value or '',
+            log.new_value or '',
+            log.performed_by,
+            log.ip_address or '',
+            log.remarks or ''
+        ])
+    
+    output.seek(0)
+    return send_file(
+        io.BytesIO(output.getvalue().encode('utf-8-sig')),
+        mimetype='text/csv',
+        as_attachment=True,
+        download_name=f'Activity_History_{date.today()}.csv'
+    )
+
+# ── Health check & version info ──────────────────────────────────────────────
 @app.route('/api/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok', 'message': 'IT Asset Management API running'}), 200
+    """Health check endpoint"""
+    db_status = 'healthy'
+    try:
+        # Check database connection with a simple query
+        with app.app_context():
+            result = db.session.execute(db.text('SELECT 1')).scalar()
+            if result != 1:
+                db_status = 'unhealthy'
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        db_status = 'unhealthy'
+    
+    return jsonify({
+        'status': 'ok' if db_status == 'healthy' else 'degraded',
+        'service': 'Tectoro Asset Management API',
+        'version': '2.0.0',
+        'database': db_status,
+        'timestamp': datetime.utcnow().isoformat()
+    }), 200
 
-# ── Init DB and run ───────────────────────────────────────────────────────────
+@app.route('/api/version', methods=['GET'])
+def version():
+    """API version information"""
+    return jsonify({
+        'version': '2.0.0',
+        'api_version': 'v1',
+        'name': 'Tectoro Asset Management API',
+        'description': 'Complete IT Asset Management System',
+        'security': 'JWT-based authentication',
+        'features': [
+            'Asset Management',
+            'Employee Management',
+            'Onboarding System',
+            'Lifecycle Tracking',
+            'Audit Logging',
+            'Reports & Export',
+            'Email Notifications'
+        ]
+    }), 200
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ASSET REPLACEMENT ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/asset-replacements', methods=['GET'])
+@token_required
+def get_asset_replacements():
+    """Get all asset replacements with optional filters"""
+    from models import AssetReplacement
+    
+    status = request.args.get('status', '').strip()
+    emp_id = request.args.get('employee_id', '').strip()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    
+    query = AssetReplacement.query
+    
+    if emp_id:
+        query = query.filter_by(employee_id=emp_id)
+    
+    replacements = query.order_by(AssetReplacement.created_at.desc()).all()
+    
+    return jsonify({
+        'success': True,
+        'replacements': [r.to_dict() for r in replacements],
+        'total': len(replacements)
+    }), 200
+
+@app.route('/api/asset-replacements', methods=['POST'])
+@token_required
+def create_asset_replacement():
+    """Create a new asset replacement record"""
+    from models import AssetReplacement
+    
+    data = request.get_json() or {}
+    current_user = get_current_user()
+    
+    # Validate required fields
+    required = ['employee_id', 'employee_name', 'old_asset_id', 'new_asset_id', 'reason']
+    for field in required:
+        if not data.get(field):
+            return jsonify({'error': f'{field} is required'}), 400
+    
+    # Get asset details
+    old_asset = Asset.query.get(data['old_asset_id'])
+    new_asset = Asset.query.get(data['new_asset_id'])
+    
+    if not old_asset:
+        return jsonify({'error': 'Old asset not found'}), 404
+    if not new_asset:
+        return jsonify({'error': 'New asset not found'}), 404
+    
+    # Create replacement record
+    replacement = AssetReplacement(
+        employee_id=data['employee_id'],
+        employee_name=data['employee_name'],
+        employee_email=data.get('employee_email'),
+        old_asset_id=old_asset.id,
+        old_asset_name=old_asset.asset_name,
+        old_asset_serial=old_asset.serial_number,
+        new_asset_id=new_asset.id,
+        new_asset_name=new_asset.asset_name,
+        new_asset_serial=new_asset.serial_number,
+        replacement_date=parse_date(data.get('replacement_date')) or date.today(),
+        reason=data['reason'],
+        old_asset_condition=data.get('old_asset_condition', 'Good'),
+        performed_by=current_user.get('username') if current_user else 'system',
+        remarks=data.get('remarks', '')
+    )
+    db.session.add(replacement)
+    
+    # Update asset statuses
+    old_asset.status = 'Retired'
+    old_asset.emp_id = ''
+    old_asset.employee_name = ''
+    
+    new_asset.status = 'Assigned'
+    new_asset.emp_id = data['employee_id']
+    new_asset.employee_name = data['employee_name']
+    
+    log_activity('CREATE', 'AssetReplacement', 
+                f'Replaced asset for {data["employee_name"]}: {old_asset.asset_name} -> {new_asset.asset_name}',
+                current_user.get('username') if current_user else 'system')
+    db.session.commit()
+    
+    return jsonify({'success': True, 'replacement': replacement.to_dict()}), 201
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EMPLOYEE EXIT ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/employee-exit', methods=['GET'])
+@token_required
+def get_employee_exits():
+    """Get all employee exit records"""
+    from models import EmployeeExit
+    
+    status = request.args.get('status', '').strip()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    
+    query = EmployeeExit.query
+    
+    if status:
+        query = query.filter_by(exit_status=status)
+    
+    exits = query.order_by(EmployeeExit.created_at.desc()).all()
+    
+    return jsonify({
+        'success': True,
+        'exits': [e.to_dict() for e in exits],
+        'total': len(exits)
+    }), 200
+
+@app.route('/api/employee-exit/<int:exit_id>', methods=['GET'])
+@token_required
+def get_employee_exit_details(exit_id):
+    """Get detailed employee exit information"""
+    from models import EmployeeExit
+    
+    exit_record = EmployeeExit.query.get_or_404(exit_id)
+    return jsonify({
+        'success': True,
+        'exit': exit_record.to_dict()
+    }), 200
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EMAIL CONFIGURATION ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/email-config', methods=['GET'])
+@admin_required
+def get_email_config():
+    """Get email configuration (admin only)"""
+    from models import EmailConfig
+    
+    config = EmailConfig.query.first()
+    if not config:
+        return jsonify({
+            'success': True,
+            'config': None,
+            'message': 'No email configuration found'
+        }), 200
+    
+    return jsonify({
+        'success': True,
+        'config': config.to_dict(include_password=False)
+    }), 200
+
+@app.route('/api/email-config', methods=['POST'])
+@admin_required
+def save_email_config():
+    """Save email configuration (admin only)"""
+    from models import EmailConfig
+    
+    data = request.get_json() or {}
+    current_user = get_current_user()
+    
+    # Validate required fields
+    required = ['sender_email', 'smtp_server', 'smtp_port', 'smtp_username', 'smtp_password']
+    for field in required:
+        if not data.get(field):
+            return jsonify({'error': f'{field} is required'}), 400
+    
+    config = EmailConfig.query.first()
+    if not config:
+        config = EmailConfig()
+        db.session.add(config)
+    
+    config.sender_email = data['sender_email']
+    config.sender_name = data.get('sender_name', 'IT Asset Management')
+    config.smtp_server = data['smtp_server']
+    config.smtp_port = data['smtp_port']
+    config.smtp_username = data['smtp_username']
+    # Note: In production, encrypt this password
+    config.smtp_password_enc = data['smtp_password']
+    config.use_tls = data.get('use_tls', True)
+    config.is_active = data.get('is_active', True)
+    config.created_by = current_user.get('username') if current_user else 'admin'
+    config.updated_at = datetime.utcnow()
+    
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': 'Email configuration saved successfully',
+        'config': config.to_dict(include_password=False)
+    }), 200
+
+@app.route('/api/email-config/test', methods=['POST'])
+@admin_required
+def test_email_config():
+    """Test email configuration by sending a test email"""
+    from models import EmailConfig
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    
+    data = request.get_json() or {}
+    test_recipient = data.get('test_recipient')
+    
+    if not test_recipient:
+        return jsonify({'error': 'test_recipient email is required'}), 400
+    
+    config = EmailConfig.query.first()
+    if not config:
+        return jsonify({'error': 'No email configuration found'}), 404
+    
+    try:
+        # Create test email
+        msg = MIMEMultipart()
+        msg['From'] = f"{config.sender_name} <{config.sender_email}>"
+        msg['To'] = test_recipient
+        msg['Subject'] = "Test Email from Asset Management System"
+        
+        body = """
+        <html>
+        <body>
+        <h2>Test Email Successful!</h2>
+        <p>This is a test email from your IT Asset Management System.</p>
+        <p>If you received this email, your email configuration is working correctly.</p>
+        </body>
+        </html>
+        """
+        msg.attach(MIMEText(body, 'html'))
+        
+        # Send email
+        server = smtplib.SMTP(config.smtp_server, config.smtp_port)
+        if config.use_tls:
+            server.starttls()
+        server.login(config.smtp_username, config.smtp_password_enc)
+        server.send_message(msg)
+        server.quit()
+        
+        # Update test status
+        config.last_tested_at = datetime.utcnow()
+        config.last_test_status = 'success'
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Test email sent successfully to {test_recipient}'
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Email test failed: {e}")
+        
+        # Update test status
+        if config:
+            config.last_tested_at = datetime.utcnow()
+            config.last_test_status = 'failed'
+            db.session.commit()
+        
+        return jsonify({
+            'success': False,
+            'error': f'Email test failed: {str(e)}'
+        }), 500
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LEGACY ENDPOINT ALIASES (for backward compatibility)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/activity-log', methods=['GET'])
+@token_required
+def get_activity_log_legacy():
+    """Legacy alias for /api/audit-logs"""
+    return get_audit_logs()
+
+@app.route('/api/audit-log', methods=['GET'])
+@token_required
+def get_audit_log_legacy():
+    """Legacy alias for /api/audit-logs"""
+    return get_audit_logs()
+
+# ── Serve React Frontend via 404 handler ────────────────────────────────────
+@app.errorhandler(404)
+def page_not_found(e):
+    """Serve React app for 404 errors (SPA routing)"""
+    path = request.path
+    
+    # If it's an API route, return actual 404
+    if path.startswith('/api/'):
+        logger.debug(f"API route not found: {path}")
+        return jsonify({'error': 'Endpoint not found', 'path': path}), 404
+    
+    # Otherwise serve React app with no-cache headers for SPA routing
+    logger.debug(f"Serving React SPA for path: {path}")
+    try:
+        response = send_from_directory(app.static_folder, 'index.html')
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
+    except Exception as e:
+        logger.error(f"Error serving index.html: {e}")
+        return jsonify({'error': 'Application not found'}), 404
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DATABASE INITIALIZATION (WITHOUT AUTO-SEEDING)
+# ══════════════════════════════════════════════════════════════════════════════
+# IMPORTANT: seed_data() has been PERMANENTLY DISABLED to prevent dummy data
+# from overwriting real user data. The application will only create tables,
+# not insert any test/dummy data.
+# ══════════════════════════════════════════════════════════════════════════════
+
 with app.app_context():
-    db.create_all()
-    seed_data()
+    db.create_all()  # Create tables if they don't exist
+    # seed_data()  # DISABLED: Do not seed dummy data
+    logger.info("Database tables initialized (seed data disabled)")
+
+# ONBOARDING API ROUTES — append this block to api_server.py
+# Paste this near your other @app.route('/api/...') definitions, AFTER the
+# imports at the top already bring in: app, db, jsonify, request, Asset,
+# Employee. Add the import line below if Onboarding/OnboardingAssetAssignment
+# aren't already imported.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Add this import near your other model imports at the top of api_server.py:
+# from models import Onboarding, OnboardingAssetAssignment
+
+from datetime import datetime
+
+
+def _validate_onboarding_payload(data, is_update=False, current_id=None):
+    """Returns (errors_dict, cleaned_data). errors_dict is empty if valid."""
+    errors = {}
+
+    name = (data.get('name') or '').strip()
+    email = (data.get('email') or '').strip()
+    phone = (data.get('phone_number') or '').strip()
+    designation = (data.get('designation') or '').strip()
+    team = (data.get('team') or '').strip()
+
+    if not name:
+        errors['name'] = 'Name is required'
+    if not email:
+        errors['email'] = 'Email is required'
+    if not phone:
+        errors['phone_number'] = 'Phone number is required'
+    if not designation:
+        errors['designation'] = 'Designation is required'
+    if not team:
+        errors['team'] = 'Team is required'
+
+    # Uniqueness check on email (excluding current record on update)
+    if email and not errors.get('email'):
+        existing = Onboarding.query.filter_by(email=email).first()
+        if existing and (not is_update or existing.id != current_id):
+            errors['email'] = 'An onboarding record with this email already exists'
+
+    application_access = data.get('application_access', [])
+    if isinstance(application_access, list):
+        application_access_str = ','.join(application_access)
+    else:
+        application_access_str = str(application_access or '')
+
+    cleaned = {
+        'name': name,
+        'email': email,
+        'phone_number': phone,
+        'designation': designation,
+        'team': team,
+        'application_access': application_access_str,
+    }
+    return errors, cleaned
+
+
+# ── CREATE ──────────────────────────────────────────────────────────────────
+@app.route('/api/onboarding', methods=['POST'])
+def create_onboarding():
+    data = request.get_json() or {}
+    errors, cleaned = _validate_onboarding_payload(data)
+    if errors:
+        return jsonify({'success': False, 'errors': errors}), 400
+
+    record = Onboarding(
+        name=cleaned['name'],
+        email=cleaned['email'],
+        phone_number=cleaned['phone_number'],
+        designation=cleaned['designation'],
+        team=cleaned['team'],
+        application_access=cleaned['application_access'],
+        status=data.get('status', 'Pending'),
+    )
+    db.session.add(record)
+    db.session.commit()
+
+    # Optional: assign assets at creation time
+    asset_ids = data.get('asset_ids', [])
+    for asset_id in asset_ids:
+        asset = Asset.query.get(asset_id)
+        if asset:
+            assignment = OnboardingAssetAssignment(
+                onboarding_id=record.id,
+                asset_id=asset.id,
+                asset_name=asset.asset_name,
+                asset_serial=asset.serial_number,
+                asset_category=asset.category,
+            )
+            db.session.add(assignment)
+    if asset_ids:
+        db.session.commit()
+
+    return jsonify({'success': True, 'onboarding': record.to_dict()}), 201
+
+
+# ── LIST (with search, filter, sort, pagination) ─────────────────────────────
+@app.route('/api/onboarding', methods=['GET'])
+def list_onboarding():
+    search = request.args.get('search', '').strip()
+    status = request.args.get('status', '').strip()
+    team = request.args.get('team', '').strip()
+    sort = request.args.get('sort', 'created_desc')
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+
+    query = Onboarding.query
+
+    if search:
+        like = f'%{search}%'
+        query = query.filter(
+            db.or_(
+                Onboarding.name.ilike(like),
+                Onboarding.email.ilike(like),
+                Onboarding.phone_number.ilike(like),
+            )
+        )
+    if status:
+        query = query.filter(Onboarding.status == status)
+    if team:
+        query = query.filter(Onboarding.team == team)
+
+    sort_map = {
+        'created_desc': Onboarding.created_at.desc(),
+        'created_asc': Onboarding.created_at.asc(),
+        'name_asc': Onboarding.name.asc(),
+        'name_desc': Onboarding.name.desc(),
+    }
+    query = query.order_by(sort_map.get(sort, Onboarding.created_at.desc()))
+
+    paginated = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    return jsonify({
+        'success': True,
+        'records': [r.to_dict() for r in paginated.items],
+        'total': paginated.total,
+        'pages': paginated.pages,
+        'current_page': page,
+    })
+
+
+# ── GET single record ────────────────────────────────────────────────────────
+@app.route('/api/onboarding/<int:onboarding_id>', methods=['GET'])
+def get_onboarding(onboarding_id):
+    record = Onboarding.query.get(onboarding_id)
+    if not record:
+        return jsonify({'success': False, 'error': 'Onboarding record not found'}), 404
+    return jsonify({'success': True, 'onboarding': record.to_dict()})
+
+
+# ── UPDATE ────────────────────────────────────────────────────────────────────
+@app.route('/api/onboarding/<int:onboarding_id>', methods=['PUT'])
+def update_onboarding(onboarding_id):
+    record = Onboarding.query.get(onboarding_id)
+    if not record:
+        return jsonify({'success': False, 'error': 'Onboarding record not found'}), 404
+
+    data = request.get_json() or {}
+    errors, cleaned = _validate_onboarding_payload(data, is_update=True, current_id=onboarding_id)
+    if errors:
+        return jsonify({'success': False, 'errors': errors}), 400
+
+    record.name = cleaned['name']
+    record.email = cleaned['email']
+    record.phone_number = cleaned['phone_number']
+    record.designation = cleaned['designation']
+    record.team = cleaned['team']
+    record.application_access = cleaned['application_access']
+    if 'status' in data:
+        record.status = data['status']
+    record.updated_at = datetime.utcnow()
+
+    # Replace asset assignments if asset_ids provided
+    if 'asset_ids' in data:
+        OnboardingAssetAssignment.query.filter_by(onboarding_id=record.id).delete()
+        for asset_id in data['asset_ids']:
+            asset = Asset.query.get(asset_id)
+            if asset:
+                db.session.add(OnboardingAssetAssignment(
+                    onboarding_id=record.id,
+                    asset_id=asset.id,
+                    asset_name=asset.asset_name,
+                    asset_serial=asset.serial_number,
+                    asset_category=asset.category,
+                ))
+
+    db.session.commit()
+    return jsonify({'success': True, 'onboarding': record.to_dict()})
+
+
+# ── DELETE ────────────────────────────────────────────────────────────────────
+@app.route('/api/onboarding/<int:onboarding_id>', methods=['DELETE'])
+def delete_onboarding(onboarding_id):
+    record = Onboarding.query.get(onboarding_id)
+    if not record:
+        return jsonify({'success': False, 'error': 'Onboarding record not found'}), 404
+
+    if record.status == 'Converted':
+        return jsonify({
+            'success': False,
+            'error': 'Cannot delete a converted onboarding record. It is linked to an active employee.'
+        }), 403
+
+    db.session.delete(record)
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Onboarding record deleted'})
+
+
+# ── CONVERT TO ACTIVE EMPLOYEE ───────────────────────────────────────────────
+# This satisfies: "Ensure a newly onboarded employee can be converted into an
+# active employee without duplicate data entry."
+@app.route('/api/onboarding/<int:onboarding_id>/convert', methods=['POST'])
+def convert_onboarding_to_employee(onboarding_id):
+    record = Onboarding.query.get(onboarding_id)
+    if not record:
+        return jsonify({'success': False, 'error': 'Onboarding record not found'}), 404
+
+    if record.status == 'Converted':
+        return jsonify({'success': False, 'error': 'This record has already been converted'}), 400
+
+    data = request.get_json() or {}
+    emp_id = (data.get('emp_id') or '').strip()
+    if not emp_id:
+        return jsonify({'success': False, 'error': 'emp_id is required to create the employee record'}), 400
+
+    if Employee.query.filter_by(emp_id=emp_id).first():
+        return jsonify({'success': False, 'error': f'Employee ID {emp_id} already exists'}), 400
+
+    # Create the real Employee record — no re-typing of name/email/phone/etc.
+    employee = Employee(
+        emp_id=emp_id,
+        employee_name=record.name,
+        email=record.email,
+        mobile_number=record.phone_number,
+        designation=record.designation,
+        department=record.team,
+        application_access=record.application_access,
+        onboarding_id=record.id,
+        status='Active',
+        is_active=True,
+    )
+    db.session.add(employee)
+
+    # Re-point asset assignments from onboarding -> the real employee
+    for assignment in record.asset_assignments:
+        asset = Asset.query.get(assignment.asset_id)
+        if asset:
+            asset.emp_id = emp_id
+            asset.employee_name = record.name
+            asset.employee_email = record.email
+            asset.status = 'Assigned'
+
+    record.status = 'Converted'
+    record.converted_emp_id = emp_id
+    record.converted_at = datetime.utcnow()
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': f'{record.name} converted to active employee {emp_id}',
+        'employee': employee.to_dict(),
+        'onboarding': record.to_dict(),
+    })
+
+
+# ── ASSET PICKER HELPER — search available assets to assign during onboarding
+@app.route('/api/onboarding/available-assets', methods=['GET'])
+def onboarding_available_assets():
+    search = request.args.get('search', '').strip()
+    category = request.args.get('category', '').strip()
+
+    query = Asset.query.filter(Asset.status == 'Available')
+    if search:
+        like = f'%{search}%'
+        query = query.filter(
+            db.or_(
+                Asset.asset_name.ilike(like),
+                Asset.serial_number.ilike(like),
+            )
+        )
+    if category:
+        query = query.filter(Asset.category == category)
+
+    assets = query.order_by(Asset.asset_name).limit(50).all()
+    return jsonify({
+        'success': True,
+        'assets': [{
+            'id': a.id,
+            'asset_name': a.asset_name,
+            'serial_number': a.serial_number,
+            'category': a.category,
+            'status': a.status,
+        } for a in assets]
+    })
 
 if __name__ == '__main__':
     print("=" * 60)
     print("🚀  IT Asset Management API")
     print("=" * 60)
-    print("✅  API:    http://0.0.0.0:5000")
-    print("✅  Health: http://localhost:5000/api/health")
-    print("⚛️   React:  http://localhost:3000")
+    print("✅  API:    http://0.0.0.0:3000")
+    print("✅  Health: http://localhost:3000/api/health")
+    print("⚛️   React:  Served from /frontend/build")
     print("=" * 60)
     app.run(debug=True, host='0.0.0.0', port=5000)
+# ─────────────────────────────────────────────────────────────────────────────

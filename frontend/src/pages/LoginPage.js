@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './LoginPage.css';
+import tectoroLoginLogo from '../assets/tectoro-login-logo.png';
 
 function LoginPage({ setAuth }) {
   const [username, setUsername] = useState('');
@@ -25,24 +26,39 @@ function LoginPage({ setAuth }) {
     setLoading(true);
 
     try {
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.20.180:5000/api';
       const response = await fetch(API_BASE_URL + '/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username, password: password })
       });
+      
       const data = await response.json();
+      
       if (response.ok && data.success) {
-        const expiry = new Date().getTime() + (8 * 60 * 60 * 1000);
-        localStorage.setItem('token', data.token);
+        // Store JWT tokens (support both old and new format)
+        const token = data.access_token || data.token;
+        const refreshToken = data.refresh_token;
+        
+        localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(data.user));
+        
+        if (refreshToken) {
+          localStorage.setItem('refresh_token', refreshToken);
+        }
+        
+        // Set token expiry (use expires_in from response or default to 1 hour)
+        const expiresIn = data.expires_in || 3600;
+        const expiry = new Date().getTime() + (expiresIn * 1000);
         localStorage.setItem('tokenExpiry', expiry.toString());
+        
         setAuth(true);
         navigate('/dashboard');
       } else {
-        setError(data.message || 'Invalid username or password');
+        setError(data.error || data.message || 'Invalid username or password');
       }
     } catch (err) {
+      console.error('Login error:', err);
       setError('Cannot connect to server. Please try again.');
     } finally {
       setLoading(false);
@@ -55,9 +71,9 @@ function LoginPage({ setAuth }) {
       <div className="login-panel">
         <div className="login-logo">
           <div className="logo-icon">
-            <i className="bi bi-boxes"></i>
+            <img src={tectoroLoginLogo} alt="Tectoro" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
-          <span>Tectoro Asset Management</span>
+          <span>Tectoro</span>
         </div>
 
         <h2 className="login-title">Welcome back</h2>

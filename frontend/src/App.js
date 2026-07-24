@@ -1,6 +1,6 @@
 // App.js – Root component with routing and auth guard
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import LoginPage    from './pages/LoginPage';
 import Dashboard    from './pages/Dashboard';
 import AssetList    from './pages/AssetList';
@@ -8,15 +8,25 @@ import AssetAdd     from './pages/AssetAdd';
 import AssetEdit    from './pages/AssetEdit';
 import AssetView    from './pages/AssetView';
 import AssetImport  from './pages/AssetImport';
+import AssetTimeline from './pages/AssetTimeline';
 import InventoryCategory from './pages/InventoryCategory';
 import Reports      from './pages/Reports';
 import Warranty    from './pages/Warranty';
 import Settings   from './pages/Settings';
+import ActivityHistory from './pages/ActivityHistory';
+import TemporaryAssignments from './pages/TemporaryAssignments';
+import AssetReplacements from './pages/AssetReplacements';
+import Employees from './pages/Employees';
+import OnboardingList from './pages/OnboardingList';
+import OnboardingAdd from './pages/OnboardingAdd';
+import OnboardingView from './pages/OnboardingView';
 import Layout       from './components/Layout';
+import ErrorBoundary from './components/ErrorBoundary';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import './App.css';
+import EmailConfig from './pages/EmailConfig';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -46,23 +56,28 @@ function App() {
     </div>
   );
 
-  // Helper: wrap a page in Layout and guard with auth
+  // Auth guard — no Layout here, Layout is shared at parent level
   const Protected = ({ children }) =>
-    isAuthenticated
-      ? <Layout>{children}</Layout>
-      : <Navigate to="/login" replace />;
+    isAuthenticated ? children : <Navigate to="/login" replace />;
 
   // Admin-only guard
   const AdminOnly = ({ children }) => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const u = JSON.parse(localStorage.getItem('user') || '{}');
     if (!isAuthenticated) return <Navigate to="/login" replace />;
-    if (user.role !== 'admin') return <Navigate to="/assets" replace />; // standard/viewer blocked
-    return <Layout>{children}</Layout>;
+    if (u.role !== 'admin') return <Navigate to="/dashboard" replace />;
+    return children;
+  };
+
+  // Persistent Layout wrapper for all protected routes
+  const AppLayout = () => {
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
+    return <Layout><Outlet /></Layout>;
   };
 
   return (
-    <Router>
-      <Routes>
+    <ErrorBoundary>
+      <Router>
+        <Routes>
         {/* Public */}
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={
@@ -71,22 +86,35 @@ function App() {
             : <LoginPage setAuth={setIsAuthenticated} />
         } />
 
-        {/* Protected */}
-        <Route path="/dashboard"       element={<Protected><Dashboard /></Protected>} />
-        <Route path="/assets"          element={<Protected><AssetList /></Protected>} />
-        <Route path="/assets/add"      element={<AdminOnly><AssetAdd /></AdminOnly>} />
-        <Route path="/assets/import"   element={<AdminOnly><AssetImport /></AdminOnly>} />
-        <Route path="/assets/edit/:id" element={<AdminOnly><AssetEdit /></AdminOnly>} />
-        <Route path="/assets/view/:id" element={<Protected><AssetView /></Protected>} />
-        <Route path="/inventory/:type" element={<Protected><InventoryCategory /></Protected>} />
-        <Route path="/reports"         element={<Protected><Reports /></Protected>} />
-        <Route path="/warranty"        element={<Protected><Warranty /></Protected>} />
-        <Route path="/settings"       element={<AdminOnly><Settings /></AdminOnly>} />
+        {/* All protected routes share ONE persistent Layout */}
+        <Route element={<AppLayout />}>
+          <Route path="/dashboard"       element={<Protected><Dashboard /></Protected>} />
+          <Route path="/assets"          element={<Protected><AssetList /></Protected>} />
+          <Route path="/assets/add"      element={<AdminOnly><AssetAdd /></AdminOnly>} />
+          <Route path="/assets/import"   element={<AdminOnly><AssetImport /></AdminOnly>} />
+          <Route path="/assets/edit/:id" element={<AdminOnly><AssetEdit /></AdminOnly>} />
+          <Route path="/assets/view/:id" element={<Protected><AssetView /></Protected>} />
+          <Route path="/assets/timeline/:assetId" element={<Protected><AssetTimeline /></Protected>} />
+          <Route path="/inventory/:type" element={<Protected><InventoryCategory /></Protected>} />
+          <Route path="/reports"         element={<Protected><Reports /></Protected>} />
+          <Route path="/warranty"        element={<Protected><Warranty /></Protected>} />
+          <Route path="/activity-history" element={<Protected><ActivityHistory /></Protected>} />
+          <Route path="/temporary-assignments" element={<Protected><TemporaryAssignments /></Protected>} />
+          <Route path="/asset-replacements" element={<Protected><AssetReplacements /></Protected>} />
+          <Route path="/employees" element={<AdminOnly><Employees /></AdminOnly>} />
+          <Route path="/onboarding"          element={<Protected><OnboardingList /></Protected>} />
+          <Route path="/onboarding/add"      element={<AdminOnly><OnboardingAdd /></AdminOnly>} />
+          <Route path="/onboarding/edit/:id" element={<AdminOnly><OnboardingAdd /></AdminOnly>} />
+          <Route path="/onboarding/view/:id" element={<Protected><OnboardingView /></Protected>} />
+          <Route path="/settings"        element={<AdminOnly><Settings /></AdminOnly>} />
+          <Route path="/email-config"    element={<AdminOnly><EmailConfig /></AdminOnly>} />
+        </Route>
 
         {/* Catch-all */}
-        <Route path="*" element={isAuthenticated ? <Navigate to="/login" replace /> : <Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
       </Routes>
     </Router>
+    </ErrorBoundary>
   );
 }
 
