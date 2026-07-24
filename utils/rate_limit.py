@@ -11,7 +11,7 @@ def init_limiter(app):
         app=app,
         key_func=get_remote_address,
         storage_uri=os.getenv('RATELIMIT_STORAGE_URL', 'memory://'),
-        default_limits=["200 per day", "50 per hour"] if enabled else [],
+        default_limits=["10000 per day", "1000 per hour"] if enabled else [],
         enabled=enabled,
         headers_enabled=True,
     )

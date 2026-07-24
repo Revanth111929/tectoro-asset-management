@@ -93,9 +93,32 @@ def parse_date(val):
             logger.warning(f"Invalid date format: {val}")
     return None
 
+def safe_float(val):
+    """Helper to safely convert to float, returning None for empty strings"""
+    if val == '' or val is None:
+        return None
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        logger.warning(f"Invalid float value: {val}")
+        return None
+
+def safe_int(val, default=None):
+    """Helper to safely convert to int, returning default for empty strings"""
+    if val == '' or val is None:
+        return default
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        logger.warning(f"Invalid int value: {val}")
+        return default
+
 def log_activity(action, module, description, user='system'):
     """Legacy activity logging - kept for compatibility"""
     try:
+        # Handle both string and dict user parameter
+        if isinstance(user, dict):
+            user = user.get('username', 'system')
         entry = ActivityLog(user=user, action=action, module=module, description=description)
         db.session.add(entry)
         # caller must commit
@@ -1037,6 +1060,7 @@ def update_asset(asset_id):
     asset = Asset.query.get_or_404(asset_id)
     data  = request.get_json() or {}
     current_user = get_current_user()
+    current_username = current_user.get('username') if current_user else 'system'
 
     # Track changes for audit log
     changed_fields = {}
@@ -1109,9 +1133,9 @@ def update_asset(asset_id):
     
     # Legacy inventory fields
     if 'purchase_price' in data:
-        asset.purchase_price = data.get('purchase_price')
+        asset.purchase_price = safe_float(data.get('purchase_price'))
     if 'quantity' in data:
-        asset.quantity = data.get('quantity', 1)
+        asset.quantity = safe_int(data.get('quantity'), 1)
     if 'configuration' in data:
         asset.configuration = data.get('configuration', '')
     if 'laptop_bag_serial' in data:
@@ -1165,7 +1189,7 @@ def update_asset(asset_id):
     if 'refresh_rate' in data:
         asset.refresh_rate = data.get('refresh_rate', '')
     if 'cpu_count' in data:
-        asset.cpu_count = data.get('cpu_count')
+        asset.cpu_count = safe_int(data.get('cpu_count'))
     if 'raid_config' in data:
         asset.raid_config = data.get('raid_config', '')
     if 'ip_address' in data:
@@ -1205,24 +1229,23 @@ def update_asset(asset_id):
     if 'remarks' in data:
         asset.remarks = data.get('remarks', '')
 
-    log_activity('UPDATE', 'Asset', f'Updated asset: {asset.asset_name} [{asset.serial_number}]', current_user)
-    db.session.commit()
+    log_activity('UPDATE', 'Asset', f'Updated asset: {asset.asset_name} [{asset.serial_number}]', current_username)
 
     # Create comprehensive audit logs for field changes
     if changed_fields:
-        AuditService.log_asset_updated(asset, changed_fields, current_user)
+        AuditService.log_asset_updated(asset, changed_fields, current_username)
     
     # If status changed, create additional status change log and lifecycle event
     if 'status' in changed_fields:
         new_status = changed_fields['status'][1]
-        AuditService.log_status_change(asset, old_status, new_status, current_user)
+        AuditService.log_status_change(asset, old_status, new_status, current_username)
         
         LifecycleService.record_event(
             asset_id=asset.id,
             event_type='STATUS_CHANGED',
             from_status=old_status,
             to_status=new_status,
-            performed_by=current_user
+            performed_by=current_username
         )
     
     # If employee changed (assignment/return)
@@ -1232,7 +1255,7 @@ def update_asset(asset_id):
         
         if old_emp and not new_emp:  # Asset returned
             AuditService.log_asset_returned(
-                asset, asset.employee_name or '', old_emp, current_user,
+                asset, asset.employee_name or '', old_emp, current_username,
                 new_status=asset.status
             )
             LifecycleService.record_event(
@@ -1242,11 +1265,11 @@ def update_asset(asset_id):
                 from_employee=changed_fields.get('employee_name', (asset.employee_name, ''))[0],
                 from_status='Assigned',
                 to_status=asset.status,
-                performed_by=current_user
+                performed_by=current_username
             )
         elif new_emp and not old_emp:  # Asset assigned
             AuditService.log_asset_assigned(
-                asset, asset.employee_name, new_emp, current_user,
+                asset, asset.employee_name, new_emp, current_username,
                 old_status=old_status
             )
             LifecycleService.record_event(
@@ -1256,7 +1279,7 @@ def update_asset(asset_id):
                 to_employee=asset.employee_name,
                 from_status=old_status,
                 to_status='Assigned',
-                performed_by=current_user
+                performed_by=current_username
             )
         elif new_emp and old_emp and new_emp != old_emp:  # Reassignment
             AuditService.log(
@@ -1270,7 +1293,7 @@ def update_asset(asset_id):
                 employee_name=asset.employee_name,
                 old_value=old_emp,
                 new_value=new_emp,
-                performed_by=current_user,
+                performed_by=current_username,
                 remarks=f"Reassigned from {old_emp} to {new_emp}"
             )
             LifecycleService.record_event(
@@ -1281,8 +1304,11 @@ def update_asset(asset_id):
                 to_employee=asset.employee_name,
                 from_status=old_status,
                 to_status=asset.status,
-                performed_by=current_user
+                performed_by=current_username
             )
+
+    # Commit all changes (asset updates + activity log + audit logs + lifecycle events)
+    db.session.commit()
 
     return jsonify({'success': True, 'asset': asset.to_dict()}), 200
 
