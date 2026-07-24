@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api, { employeeAPI } from '../services/api';
 import { Link } from 'react-router-dom';
 import AssetDetailsCard from '../components/AssetDetailsCard';
 import './TemporaryAssignments.css';
@@ -39,7 +39,7 @@ function TemporaryAssignments() {
   const fetchAssignments = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/temporary-assignments');
+      const response = await api.get('/temporary-assignments');
       setAssignments(response.data.assignments || []);
     } catch (error) {
       console.error('Error fetching assignments:', error);
@@ -50,7 +50,7 @@ function TemporaryAssignments() {
 
   const fetchAvailableAssets = async () => {
     try {
-      const response = await axios.get('/api/assets?status=Available');
+      const response = await api.get('/assets?status=Available');
       setAvailableAssets(response.data.assets || []);
     } catch (error) {
       console.error('Error fetching available assets:', error);
@@ -59,7 +59,7 @@ function TemporaryAssignments() {
 
   const fetchAllAssets = async () => {
     try {
-      const response = await axios.get('/api/assets');
+      const response = await api.get('/assets');
       setAllAssets(response.data.assets || []);
     } catch (error) {
       console.error('Error fetching all assets:', error);
@@ -119,7 +119,7 @@ function TemporaryAssignments() {
   const fetchOriginalAssetDetails = async (assetId) => {
     setLoadingOriginalAsset(true);
     try {
-      const response = await axios.get(`/api/assets/${assetId}/details`);
+      const response = await api.get(`/assets/${assetId}/details`);
       setOriginalAssetDetails(response.data.asset);
     } catch (error) {
       console.error('Error fetching original asset details:', error);
@@ -131,7 +131,7 @@ function TemporaryAssignments() {
   const fetchTempAssetDetails = async (assetId) => {
     setLoadingTempAsset(true);
     try {
-      const response = await axios.get(`/api/assets/${assetId}/details`);
+      const response = await api.get(`/assets/${assetId}/details`);
       setTempAssetDetails(response.data.asset);
     } catch (error) {
       console.error('Error fetching temp asset details:', error);
@@ -148,7 +148,7 @@ function TemporaryAssignments() {
 
     setSearchingEmployee(true);
     try {
-      const response = await axios.get(`/api/assets/by-employee/${formData.employee_id}`);
+      const response = await api.get(`/assets/by-employee/${formData.employee_id}`);
       if (response.data.assets && response.data.assets.length > 0) {
         setEmployeeAssets(response.data.assets);
         setFormData(prev => ({
@@ -176,7 +176,7 @@ function TemporaryAssignments() {
 
     setSearchingEmployees(true);
     try {
-      const response = await axios.get(`/api/employees?q=${encodeURIComponent(searchTerm)}`);
+      const response = await employeeAPI.search(searchTerm);
       setEmployeeSuggestions(response.data || []);
       setShowSuggestions(true);
     } catch (error) {
@@ -205,7 +205,7 @@ function TemporaryAssignments() {
   const searchEmployeeAssetsByEmployeeId = async (empId) => {
     setSearchingEmployee(true);
     try {
-      const response = await axios.get(`/api/assets/by-employee/${empId}`);
+      const response = await api.get(`/assets/by-employee/${empId}`);
       if (response.data.assets && response.data.assets.length > 0) {
         setEmployeeAssets(response.data.assets);
       } else {
@@ -224,10 +224,10 @@ function TemporaryAssignments() {
     try {
       if (selectedAssignment) {
         // Complete assignment
-        await axios.post(`/api/temporary-assignments/${selectedAssignment.id}/complete`);
+        await api.post(`/temporary-assignments/${selectedAssignment.id}/complete`);
       } else {
         // Create new assignment
-        await axios.post('/api/temporary-assignments', formData);
+        await api.post('/temporary-assignments', formData);
       }
       setShowModal(false);
       fetchAssignments();
@@ -239,7 +239,7 @@ function TemporaryAssignments() {
 
   const handleComplete = (assignment) => {
     if (window.confirm(`Complete temporary assignment for ${assignment.employee_name}?\n\nThis will:\n- Return temporary asset to inventory\n- Update original asset status\n- Mark assignment as completed`)) {
-      axios.post(`/api/temporary-assignments/${assignment.id}/complete`)
+      api.post(`/temporary-assignments/${assignment.id}/complete`)
         .then(() => {
           fetchAssignments();
           alert('Assignment completed successfully!');
@@ -253,7 +253,7 @@ function TemporaryAssignments() {
 
   const handleDelete = (assignment) => {
     if (window.confirm(`Delete temporary assignment for ${assignment.employee_name}?\n\nThis action cannot be undone.\n\nWarning: This will permanently delete the assignment record but will NOT automatically update asset statuses.`)) {
-      axios.delete(`/api/temporary-assignments/${assignment.id}`)
+      api.delete(`/temporary-assignments/${assignment.id}`)
         .then(() => {
           fetchAssignments();
           alert('Assignment deleted successfully!');
