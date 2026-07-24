@@ -692,6 +692,7 @@ def get_asset_details(asset_id):
     return jsonify({'asset': asset.to_dict()}), 200
 
 @app.route('/api/assets/by-employee/<emp_id>', methods=['GET'])
+@token_required
 def get_assets_by_employee(emp_id):
     """Get all assets assigned to an employee"""
     assets = Asset.query.filter_by(emp_id=emp_id).all()
