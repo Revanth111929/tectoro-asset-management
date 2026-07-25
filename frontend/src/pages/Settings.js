@@ -2,12 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 
-const EMPTY = { username: '', email: '', password: '', role: 'standard', smtp_password: '' };
+const EMPTY = { username: '', email: '', password: '', role: 'user', smtp_password: '' };
 
 const ROLES = [
   { value: 'admin',    label: 'Admin',           desc: 'Full access — manage assets, users, settings',         color: '#dc2626' },
-  { value: 'standard', label: 'Standard User',   desc: 'Can create and edit assets. Cannot delete or manage users', color: '#2563eb' },
-  { value: 'viewer',   label: 'View Only',        desc: 'Read-only access. Cannot create, edit, or delete anything', color: '#64748b' },
+  { value: 'user',     label: 'Standard User',   desc: 'Can create and edit assets. Cannot delete or manage users', color: '#2563eb' },
+  { value: 'viewer',   label: 'View Only',       desc: 'Read-only access. Cannot create, edit, or delete anything', color: '#64748b' },
 ];
 
 function Settings() {
@@ -21,6 +21,10 @@ function Settings() {
   const [error,    setError]    = useState('');
   const [success,  setSuccess]  = useState('');
   const [showPwd,  setShowPwd]  = useState(false);
+  
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
 
@@ -56,6 +60,10 @@ function Settings() {
     e.preventDefault();
     if (!form.username.trim()) { setError('Username is required'); return; }
     if (!editing && !form.password) { setError('Password is required'); return; }
+    if (form.password && form.password.length < 8) { 
+      setError('Password must be at least 8 characters long'); 
+      return; 
+    }
 
     setSaving(true); setError('');
     try {
@@ -82,23 +90,105 @@ function Settings() {
   const handleDelete = async (u) => {
     if (!window.confirm(`Delete user "${u.username}"? This cannot be undone.`)) return;
     setDeleting(u.id);
+    setError(''); // Clear any previous errors
     try {
       await api.delete(`/users/${u.id}`);
-      setSuccess('User deleted');
+      setSuccess('User deleted successfully');
       fetchUsers();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to delete user');
-    } finally { setDeleting(null); }
+      const errorMsg = err.response?.data?.error || 'Failed to delete user';
+      setError(errorMsg);
+      console.error('Delete user error:', err);
+      setTimeout(() => setError(''), 5000);
+    } finally { 
+      setDeleting(null); 
+    }
+  };
+  
+  // Bulk selection handlers
+  const toggleSelectAll = () => {
+    if (selectedIds.length === users.length) {
+      setSelectedIds([]);
+    } else {
+      // Select all except admin and current user
+      setSelectedIds(users.filter(u => u.username !== 'admin' && u.id !== currentUser.id).map(u => u.id));
+    }
+  };
+
+  const toggleSelect = (userId) => {
+    setSelectedIds(prev =>
+      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) {
+      setError('No users selected');
+      return;
+    }
+    
+    const selectedUsers = users.filter(u => selectedIds.includes(u.id));
+    const usernames = selectedUsers.map(u => u.username).join(', ');
+    
+    if (!window.confirm(`Delete ${selectedIds.length} users?\n\nUsers: ${usernames}\n\nThis cannot be undone.`)) {
+      return;
+    }
+    
+    setBulkDeleting(true);
+    setError('');
+    
+    let successCount = 0;
+    let failCount = 0;
+    const errors = [];
+    
+    try {
+      // Delete users one by one
+      for (const userId of selectedIds) {
+        try {
+          await api.delete(`/users/${userId}`);
+          successCount++;
+        } catch (error) {
+          failCount++;
+          const user = users.find(u => u.id === userId);
+          const errorMsg = error.response?.data?.error || error.message;
+          errors.push(`${user?.username || userId}: ${errorMsg}`);
+          console.error(`Failed to delete user ${userId}:`, error);
+        }
+      }
+      
+      // Clear selection
+      setSelectedIds([]);
+      
+      // Refresh user list
+      fetchUsers();
+      
+      // Show result message
+      if (failCount === 0) {
+        setSuccess(`✓ Successfully deleted ${successCount} user${successCount !== 1 ? 's' : ''}`);
+        setTimeout(() => setSuccess(''), 3000);
+      } else {
+        const errorSummary = errors.slice(0, 3).join('\n');
+        const moreErrors = errors.length > 3 ? `\n... and ${errors.length - 3} more` : '';
+        setError(`Deleted ${successCount} users. ${failCount} failed:\n${errorSummary}${moreErrors}`);
+        setTimeout(() => setError(''), 10000);
+      }
+    } catch (error) {
+      setError('Bulk deletion failed. Please try again.');
+      console.error('Bulk delete error:', error);
+      setTimeout(() => setError(''), 5000);
+    } finally {
+      setBulkDeleting(false);
+    }
   };
 
   const RoleBadge = ({ role }) => (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: '4px',
       padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600',
-      background: role === 'admin' ? 'rgba(37,99,235,0.12)' : 'rgba(22,163,74,0.10)',
-      color: role === 'admin' ? '#2563eb' : '#16a34a',
-      border: `1px solid ${role === 'admin' ? 'rgba(37,99,235,0.25)' : 'rgba(22,163,74,0.25)'}`,
+      background: role === 'admin' ? 'rgba(37,99,235,0.12)' : role === 'viewer' ? 'rgba(100,116,139,0.12)' : 'rgba(22,163,74,0.10)',
+      color: role === 'admin' ? '#2563eb' : role === 'viewer' ? '#64748b' : '#16a34a',
+      border: `1px solid ${role === 'admin' ? 'rgba(37,99,235,0.25)' : role === 'viewer' ? 'rgba(100,116,139,0.25)' : 'rgba(22,163,74,0.25)'}`,
     }}>
       <i className={`bi bi-${role==='admin' ? 'shield-fill' : role==='viewer' ? 'eye-fill' : 'person-fill'}`}></i>
       {role==='admin' ? 'Administrator' : role==='viewer' ? 'View Only' : 'Standard User'}
@@ -207,7 +297,7 @@ function Settings() {
                     <input type={showPwd ? 'text' : 'password'} className="form-control"
                       value={form.password}
                       onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                      placeholder={editing ? 'Leave blank to keep' : 'Min. 6 characters'} />
+                      placeholder={editing ? 'Leave blank to keep' : 'Min. 8 characters'} />
                     <button type="button" className="btn btn-outline-secondary"
                       onClick={() => setShowPwd(!showPwd)}>
                       <i className={`bi bi-eye${showPwd ? '-slash' : ''}`}></i>
@@ -240,11 +330,10 @@ function Settings() {
                     border: `1px solid ${ROLES.find(r=>r.value===form.role)?.color || '#e2e8f0'}40`,
                     fontSize: '13px'
                   }}>
-                    <i className={`bi bi-${form.role === 'admin' ? 'shield-fill text-primary' : 'person-fill text-success'} me-2`}></i>
-                    {form.role === 'admin'
-                      ? <><strong>Admin:</strong> Full access — manage assets, users, reports, import/export, delete records.</>
-                      : <><strong>Standard:</strong> Can view and edit assets, run reports. Cannot manage users or delete records.</>
-                    }
+                    <i className={`bi bi-${form.role === 'admin' ? 'shield-fill text-danger' : form.role === 'viewer' ? 'eye-fill text-secondary' : 'person-fill text-primary'} me-2`}></i>
+                    {form.role === 'admin' && <><strong>Admin:</strong> Full access — manage assets, users, reports, import/export, delete records.</>}
+                    {form.role === 'user' && <><strong>Standard User:</strong> Can create and edit assets, run reports, export data. Cannot manage users or delete records.</>}
+                    {form.role === 'viewer' && <><strong>View Only:</strong> Read-only access. Can view assets and export data. Cannot create, edit, or delete anything.</>}
                   </div>
                 </div>
               </div>
@@ -271,26 +360,77 @@ function Settings() {
             <div className="spinner-border text-primary"></div>
           </div>
         ) : (
-          <div className="table-responsive">
-            <table className="table table-hover mb-0">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Username</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Permissions</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.length === 0 && (
-                  <tr><td colSpan={6} className="text-center py-5 text-muted">
-                    <i className="bi bi-people fs-2 d-block mb-2"></i>No users found
-                  </td></tr>
-                )}
-                {users.map((u, i) => (
-                  <tr key={u.id}>
+          <>
+            {/* Bulk Actions Bar */}
+            {selectedIds.length > 0 && (
+              <div className="d-flex justify-content-between align-items-center mb-3 p-3 rounded-3"
+                style={{ background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)' }}>
+                <span className="fw-600">
+                  <i className="bi bi-check-square me-2 text-primary"></i>
+                  {selectedIds.length} user{selectedIds.length !== 1 ? 's' : ''} selected
+                </span>
+                <div className="d-flex gap-2">
+                  <button 
+                    className="btn btn-sm btn-danger" 
+                    onClick={handleBulkDelete}
+                    disabled={bulkDeleting}>
+                    {bulkDeleting ? (
+                      <><span className="spinner-border spinner-border-sm me-2"></span>Deleting...</>
+                    ) : (
+                      <><i className="bi bi-trash me-2"></i>Delete Selected</>
+                    )}
+                  </button>
+                  <button 
+                    className="btn btn-sm btn-outline-secondary" 
+                    onClick={() => setSelectedIds([])}>
+                    Clear Selection
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            <div className="table-responsive">
+              <table className="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th style={{ width: '40px' }}>
+                      <input
+                        type="checkbox"
+                        className="form-check-input"
+                        checked={selectedIds.length > 0 && selectedIds.length === users.filter(u => u.username !== 'admin' && u.id !== currentUser.id).length}
+                        onChange={toggleSelectAll}
+                      />
+                    </th>
+                    <th>#</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Permissions</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.length === 0 && (
+                    <tr><td colSpan={7} className="text-center py-5 text-muted">
+                      <i className="bi bi-people fs-2 d-block mb-2"></i>No users found
+                    </td></tr>
+                  )}
+                  {users.map((u, i) => {
+                    const canSelect = u.username !== 'admin' && u.id !== currentUser.id;
+                    return (
+                      <tr key={u.id}>
+                        <td>
+                          {canSelect ? (
+                            <input
+                              type="checkbox"
+                              className="form-check-input"
+                              checked={selectedIds.includes(u.id)}
+                              onChange={() => toggleSelect(u.id)}
+                            />
+                          ) : (
+                            <span className="text-muted">—</span>
+                          )}
+                        </td>
                     <td className="text-muted small">{i + 1}</td>
                     <td>
                       <div className="d-flex align-items-center gap-2">
@@ -318,8 +458,10 @@ function Settings() {
                       <div style={{ fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>
                         {u.role === 'admin' ? (
                           <span><i className="bi bi-check-circle-fill text-success me-1"></i>Full Access</span>
+                        ) : u.role === 'viewer' ? (
+                          <span><i className="bi bi-eye-fill text-secondary me-1"></i>View Only</span>
                         ) : (
-                          <span><i className="bi bi-eye-fill text-primary me-1"></i>View & Edit Only</span>
+                          <span><i className="bi bi-pencil-fill text-primary me-1"></i>Create & Edit</span>
                         )}
                       </div>
                     </td>
@@ -329,21 +471,23 @@ function Settings() {
                           onClick={() => openEdit(u)}>
                           <i className="bi bi-pencil"></i>
                         </button>
-                        <button className="btn btn-outline-danger" title="Delete"
+                        <button className="btn btn-outline-danger"
+                          title={u.username === 'admin' ? 'Cannot delete main admin' : 'Delete user'}
                           disabled={deleting === u.id || u.username === 'admin'}
-                          onClick={() => handleDelete(u)}
-                          title={u.username === 'admin' ? 'Cannot delete main admin' : 'Delete user'}>
+                          onClick={() => handleDelete(u)}>
                           {deleting === u.id
                             ? <span className="spinner-border spinner-border-sm"></span>
                             : <i className="bi bi-trash"></i>}
                         </button>
                       </div>
                     </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>

@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import { dashboardAPI } from '../services/api';
+import { canPerform } from '../utils/permissions';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
 
@@ -116,9 +117,11 @@ function Dashboard() {
           <h2 className="fw-bold mb-1">Dashboard</h2>
           <p className="text-muted mb-0">IT Asset Management Overview</p>
         </div>
-        <Link to="/assets/add" className="btn btn-primary">
-          <i className="bi bi-plus-circle me-2"></i>Add Asset
-        </Link>
+        {canPerform('create') && (
+          <Link to="/assets/add" className="btn btn-primary">
+            <i className="bi bi-plus-circle me-2"></i>Add Asset
+          </Link>
+        )}
       </div>
 
       {/* Stat Cards */}
@@ -143,7 +146,7 @@ function Dashboard() {
       </div>
 
       {/* Lifecycle Tracking Stats */}
-      {lifecycleStats && (
+      {canPerform('create') && lifecycleStats && (
         <div className="row g-3 mb-4">
           <div className="col-12">
             <div className="table-card" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>

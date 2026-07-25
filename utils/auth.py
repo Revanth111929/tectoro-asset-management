@@ -145,3 +145,16 @@ def role_required(*roles):
             return f(*args, **kwargs)
         return decorated
     return decorator
+
+
+def non_viewer_required(f):
+    """Decorator to block viewer role (allows admin and user)"""
+    @wraps(f)
+    @token_required
+    def decorated(*args, **kwargs):
+        user = request.current_user
+        if user.get('role') == 'viewer':
+            return jsonify({'error': 'Access denied. Viewers cannot perform this action.'}), 403
+        return f(*args, **kwargs)
+    
+    return decorated

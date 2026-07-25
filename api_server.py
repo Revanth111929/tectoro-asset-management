@@ -8,7 +8,7 @@ SECURITY: JWT authentication, rate limiting, CORS restrictions
 
 import os, csv, io, logging
 from datetime import datetime, date, timedelta
-from flask import Flask, jsonify, request, send_file, send_from_directory
+from flask import Flask, jsonify, request, send_file, send_from_directory, make_response
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -62,7 +62,7 @@ logger = logging.getLogger(__name__)
 # Import models AFTER app is configured
 from models import db, Asset, ActivityLog, User, Employee, Onboarding, OnboardingAssetAssignment
 from services.audit_service import AuditService, LifecycleService
-from utils.auth import generate_access_token, generate_refresh_token, token_required, admin_required, get_current_user
+from utils.auth import generate_access_token, generate_refresh_token, token_required, admin_required, get_current_user, non_viewer_required
 from utils.rate_limit import init_limiter, limit_login, limit_api, limit_expensive
 
 db.init_app(app)
@@ -372,6 +372,10 @@ def create_user():
     password = data.get('password', '')
     role = data.get('role', 'user')
     
+    # Convert empty email to None to avoid unique constraint violation
+    if not email:
+        email = None
+    
     if not username or not password:
         return jsonify({'error': 'Username and password are required'}), 400
     
@@ -379,9 +383,18 @@ def create_user():
     if len(password) < 8:
         return jsonify({'error': 'Password must be at least 8 characters long'}), 400
     
+    # Validate role
+    valid_roles = ['admin', 'user', 'viewer']
+    if role not in valid_roles:
+        return jsonify({'error': f'Invalid role. Must be one of: {", ".join(valid_roles)}'}), 400
+    
     # Check if user exists
     if User.query.filter_by(username=username).first():
         return jsonify({'error': 'Username already exists'}), 409
+    
+    # Check if email exists (only if email is provided)
+    if email and User.query.filter_by(email=email).first():
+        return jsonify({'error': 'Email already exists'}), 409
     
     user = User(
         username=username,
@@ -392,10 +405,10 @@ def create_user():
     db.session.add(user)
     
     current_user = get_current_user()
-    log_activity('CREATE', 'User', f'Created user: {username}', current_user.get('username') if current_user else 'system')
+    log_activity('CREATE', 'User', f'Created user: {username} with role {role}', current_user.get('username') if current_user else 'system')
     db.session.commit()
     
-    logger.info(f"New user created: {username} by {current_user.get('username') if current_user else 'system'}")
+    logger.info(f"New user created: {username} (role: {role}) by {current_user.get('username') if current_user else 'system'}")
     
     return jsonify({'success': True, 'user': {
         'id': user.id,
@@ -412,19 +425,31 @@ def update_user(user_id):
     data = request.get_json() or {}
     
     if 'email' in data:
-        user.email = data['email']
+        email = data['email'].strip() if data['email'] else None
+        # Check if email is being changed and already exists
+        if email and email != user.email:
+            existing = User.query.filter_by(email=email).first()
+            if existing and existing.id != user_id:
+                return jsonify({'error': 'Email already exists'}), 409
+        user.email = email
+    
     if 'role' in data:
-        user.role = data['role']
+        role = data['role']
+        valid_roles = ['admin', 'user', 'viewer']
+        if role not in valid_roles:
+            return jsonify({'error': f'Invalid role. Must be one of: {", ".join(valid_roles)}'}), 400
+        user.role = role
+    
     if 'password' in data and data['password']:
         if len(data['password']) < 8:
             return jsonify({'error': 'Password must be at least 8 characters long'}), 400
         user.password_hash = generate_password_hash(data['password'])
     
     current_user = get_current_user()
-    log_activity('UPDATE', 'User', f'Updated user: {user.username}', current_user.get('username') if current_user else 'system')
+    log_activity('UPDATE', 'User', f'Updated user: {user.username} (role: {user.role})', current_user.get('username') if current_user else 'system')
     db.session.commit()
     
-    logger.info(f"User updated: {user.username} by {current_user.get('username') if current_user else 'system'}")
+    logger.info(f"User updated: {user.username} (role: {user.role}) by {current_user.get('username') if current_user else 'system'}")
     
     return jsonify({'success': True}), 200
 
@@ -472,6 +497,7 @@ def update_smtp_password(user_id):
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.route('/api/temporary-assignments', methods=['GET'])
+@token_required
 def get_temporary_assignments():
     """Get all temporary assignments"""
     from models import TemporaryAssignment
@@ -506,12 +532,14 @@ def get_temporary_assignments():
     }), 200
 
 @app.route('/api/temporary-assignments', methods=['POST'])
+@token_required
 def create_temporary_assignment():
     """Create new temporary assignment"""
     from models import TemporaryAssignment
     
     data = request.get_json() or {}
     current_user = get_current_user()
+    current_username = current_user.get('username') if current_user else 'system'
     
     # Validate required fields
     required = ['employee_id', 'employee_name', 'original_asset_id', 'temp_asset_id', 'reason']
@@ -567,7 +595,7 @@ def create_temporary_assignment():
         employee_name=data['employee_name'],
         old_value=f'Original: {original_asset.asset_name}',
         new_value=f'Temp: {temp_asset.asset_name}',
-        performed_by=current_user,
+        performed_by=current_username,
         remarks=f"Reason: {data['reason']}"
     )
     
@@ -578,7 +606,7 @@ def create_temporary_assignment():
         from_status='Assigned',
         to_status='Maintenance',
         reason=data['reason'],
-        performed_by=current_user
+        performed_by=current_username
     )
     
     LifecycleService.record_event(
@@ -589,23 +617,25 @@ def create_temporary_assignment():
         from_status='Available',
         to_status='Assigned',
         reason=f"Temporary replacement for {original_asset.asset_name}",
-        performed_by=current_user
+        performed_by=current_username
     )
     
     log_activity('CREATE', 'TemporaryAssignment', 
                 f'Created temporary assignment: {temp_asset.asset_name} for {data["employee_name"]}', 
-                current_user)
+                current_username)
     db.session.commit()
     
     return jsonify({'success': True, 'assignment': assignment.id}), 201
 
 @app.route('/api/temporary-assignments/<int:assignment_id>/complete', methods=['POST'])
+@token_required
 def complete_temporary_assignment(assignment_id):
     """Complete a temporary assignment and return assets to normal"""
     from models import TemporaryAssignment
     
     assignment = TemporaryAssignment.query.get_or_404(assignment_id)
     current_user = get_current_user()
+    current_username = current_user.get('username') if current_user else 'system'
     
     if assignment.status != 'Active':
         return jsonify({'error': 'Assignment is not active'}), 400
@@ -636,7 +666,7 @@ def complete_temporary_assignment(assignment_id):
         asset_serial=temp_asset.serial_number if temp_asset else '',
         employee_id=assignment.employee_id,
         employee_name=assignment.employee_name,
-        performed_by=current_user,
+        performed_by=current_username,
         remarks=f"Completed temporary assignment. Original asset restored."
     )
     
@@ -647,7 +677,7 @@ def complete_temporary_assignment(assignment_id):
             event_type='MAINTENANCE_COMPLETED',
             from_status='Maintenance',
             to_status='Assigned',
-            performed_by=current_user
+            performed_by=current_username
         )
     
     if temp_asset:
@@ -658,29 +688,31 @@ def complete_temporary_assignment(assignment_id):
             from_employee=assignment.employee_name,
             from_status='Assigned',
             to_status='Available',
-            performed_by=current_user
+            performed_by=current_username
         )
     
     log_activity('UPDATE', 'TemporaryAssignment', 
                 f'Completed temporary assignment for {assignment.employee_name}', 
-                current_user)
+                current_username)
     db.session.commit()
     
     return jsonify({'success': True}), 200
 
 @app.route('/api/temporary-assignments/<int:assignment_id>', methods=['DELETE'])
+@token_required
 def delete_temporary_assignment(assignment_id):
     """Delete a temporary assignment"""
     from models import TemporaryAssignment
     
     assignment = TemporaryAssignment.query.get_or_404(assignment_id)
     current_user = get_current_user()
+    current_username = current_user.get('username') if current_user else 'system'
     
     employee_name = assignment.employee_name
     db.session.delete(assignment)
     log_activity('DELETE', 'TemporaryAssignment', 
                 f'Deleted temporary assignment for {employee_name}', 
-                current_user)
+                current_username)
     db.session.commit()
     
     return jsonify({'success': True}), 200
@@ -860,6 +892,7 @@ def dashboard_activity():
     return jsonify({'logs': [l.to_dict() for l in logs]}), 200
 
 @app.route('/api/dashboard/lifecycle-stats', methods=['GET'])
+@non_viewer_required
 def lifecycle_stats():
     from sqlalchemy import func
     today = date.today()
@@ -900,6 +933,7 @@ def get_assets():
     location = request.args.get('location', '').strip()
     category = request.args.get('category', '').strip()
     status   = request.args.get('status', '').strip()
+    sort     = request.args.get('sort', 'id_desc').strip()
     page     = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
 
@@ -920,8 +954,24 @@ def get_assets():
     if status:
         q = q.filter_by(status=status)
 
+    # Apply sorting - "Last Added" now sorts by updated_at DESC to show recently updated items first
+    sort_column = Asset.updated_at.desc()  # Default: most recently updated first
+    
+    if sort == 'id_asc':
+        sort_column = Asset.id.asc()
+    elif sort == 'id_desc':
+        sort_column = Asset.updated_at.desc()  # Changed from created_at to updated_at
+    elif sort == 'emp_asc':
+        sort_column = Asset.emp_id.asc()
+    elif sort == 'emp_desc':
+        sort_column = Asset.emp_id.desc()
+    elif sort == 'name_asc':
+        sort_column = Asset.asset_name.asc()
+    elif sort == 'name_desc':
+        sort_column = Asset.asset_name.desc()
+    
     total  = q.count()
-    assets = q.order_by(Asset.created_at.desc()).offset((page-1)*per_page).limit(per_page).all()
+    assets = q.order_by(sort_column).offset((page-1)*per_page).limit(per_page).all()
 
     return jsonify({
         'assets': [a.to_dict() for a in assets],
@@ -937,7 +987,7 @@ def get_asset(asset_id):
     return jsonify(asset.to_dict()), 200
 
 @app.route('/api/assets', methods=['POST'])
-@token_required
+@non_viewer_required
 def create_asset():
     data = request.get_json() or {}
     current_user = get_current_user()
@@ -1056,7 +1106,7 @@ def create_asset():
     return jsonify({'success': True, 'asset': asset.to_dict()}), 201
 
 @app.route('/api/assets/<int:asset_id>', methods=['PUT'])
-@token_required
+@non_viewer_required
 def update_asset(asset_id):
     asset = Asset.query.get_or_404(asset_id)
     data  = request.get_json() or {}
@@ -1316,26 +1366,313 @@ def update_asset(asset_id):
 @app.route('/api/assets/<int:asset_id>', methods=['DELETE'])
 @token_required
 def delete_asset(asset_id):
+    from models import AssetLifecycle, AssetReplacement, TemporaryAssignment, ExitAssetCollection, OnboardingAssetAssignment
+    
     asset = Asset.query.get_or_404(asset_id)
     current_user = get_current_user()
     name = asset.asset_name
     serial = asset.serial_number
     category = asset.category
     
-    # Create audit log before deletion
-    AuditService.log_asset_deleted(asset, current_user)
+    # Get username from current_user dict
+    username = current_user.get('username') if current_user else 'system'
     
+    # Create audit log before deletion
+    AuditService.log_asset_deleted(asset, username)
+    
+    # Delete ALL related records first to avoid foreign key constraints
+    # 1. Delete lifecycle events
+    AssetLifecycle.query.filter_by(asset_id=asset_id).delete()
+    
+    # 2. Delete asset replacements where this asset is involved (old or new)
+    AssetReplacement.query.filter(
+        (AssetReplacement.old_asset_id == asset_id) | 
+        (AssetReplacement.new_asset_id == asset_id)
+    ).delete(synchronize_session=False)
+    
+    # 3. Delete temporary assignments where this asset is involved (original or temp)
+    TemporaryAssignment.query.filter(
+        (TemporaryAssignment.original_asset_id == asset_id) |
+        (TemporaryAssignment.temp_asset_id == asset_id)
+    ).delete(synchronize_session=False)
+    
+    # 4. Delete exit asset collection records
+    ExitAssetCollection.query.filter_by(asset_id=asset_id).delete()
+    
+    # 5. Delete onboarding asset assignments
+    OnboardingAssetAssignment.query.filter_by(asset_id=asset_id).delete()
+    
+    # Delete the asset
     db.session.delete(asset)
-    log_activity('DELETE', 'Asset', f'Deleted asset: {name} [{serial}]', current_user)
+    log_activity('DELETE', 'Asset', f'Deleted asset: {name} [{serial}]', username)
     db.session.commit()
+    
+    logger.info(f"Asset deleted: {name} [{serial}] (ID: {asset_id}) by {username}")
+    
     return jsonify({'success': True, 'message': f'Asset "{name}" deleted'}), 200
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ASSET IMPORT/EXPORT
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/assets/template', methods=['GET'])
+def download_asset_template():
+    """Download Excel template for bulk asset import"""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill
+        from io import BytesIO
+        
+        # Create workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Assets"
+        
+        # Define headers - matching user's Excel format exactly
+        headers = [
+            'Sl no.', 'EMP ID', 'EMPLOYEE NAME', 'MOBILE NUMBER', 'Asset NAME',
+            'CATEGORY', 'SERIAL NUMBER', 'MODEL NAME', 'OS', 'Version', 'Ram',
+            'LOCATION', 'INVOICE NUMBER', 'INVOICE DATE', 'WARRANTY DATE',
+            'Charger Serial Number', 'Old User', 'Date', 'Old Device', 'Comments'
+        ]
+        
+        # Style header row
+        header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+        header_font = Font(color='FFFFFF', bold=True)
+        
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num)
+            cell.value = header
+            cell.fill = header_fill
+            cell.font = header_font
+        
+        # Add sample data rows matching user's format
+        sample_data = [
+            ['1', 'EMP001', 'John Doe', '1234567890', 'Dell Laptop XPS 15',
+             'Laptop', 'SN-DELL-001', 'XPS 15 9500', 'Windows', '11', '16GB',
+             'HQ Office', 'INV-001', '2024-01-15', '2027-01-15',
+             'CHG-001', '', '2024-01-15', '', 'Primary work laptop'],
+            ['2', '', '', '', 'HP Monitor 27"',
+             'Monitor', 'SN-MON-002', 'HP E27', '', '', '',
+             'HQ Office', 'INV-002', '2024-02-20', '2027-02-20',
+             '', '', '2024-02-20', '', 'External display']
+        ]
+        
+        for row_num, row_data in enumerate(sample_data, 2):
+            for col_num, value in enumerate(row_data, 1):
+                ws.cell(row=row_num, column=col_num, value=value)
+        
+        # Adjust column widths
+        for col in ws.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(cell.value)
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 30)
+            ws.column_dimensions[column].width = adjusted_width
+        
+        # Save to BytesIO
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        from flask import send_file
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name='asset_import_template.xlsx'
+        )
+    except ImportError:
+        return jsonify({
+            'error': 'openpyxl library not installed. Please install it: pip install openpyxl'
+        }), 500
+    except Exception as e:
+        logger.error(f"Error generating template: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/assets/import', methods=['POST'])
+@token_required
+def import_assets():
+    """Bulk import assets from Excel file"""
+    try:
+        import openpyxl
+        from datetime import datetime
+        
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            return jsonify({'error': 'Invalid file format. Please upload .xlsx or .xls file'}), 400
+        
+        current_user = get_current_user()
+        current_username = current_user.get('username') if current_user else 'system'
+        
+        # Read Excel file
+        wb = openpyxl.load_workbook(file)
+        ws = wb.active
+        
+        # Get headers from first row
+        headers = [cell.value for cell in ws[1]]
+        
+        imported_count = 0
+        error_count = 0
+        error_details = []
+        imported_ids = []  # Track imported asset IDs
+        
+        # Process each row (skip header)
+        for row_num, row in enumerate(ws.iter_rows(min_row=2, values_only=True), 2):
+            try:
+                # Create dict from row data
+                data = dict(zip(headers, row))
+                
+                # Skip empty rows
+                if not data.get('Asset NAME') and not data.get('SERIAL NUMBER'):
+                    continue
+                
+                # Validate required fields
+                if not data.get('Asset NAME'):
+                    error_details.append(f"Row {row_num}: Missing Asset NAME")
+                    error_count += 1
+                    continue
+                
+                if not data.get('SERIAL NUMBER'):
+                    error_details.append(f"Row {row_num}: Missing SERIAL NUMBER")
+                    error_count += 1
+                    continue
+                
+                # Check for duplicate serial number
+                if Asset.query.filter_by(serial_number=str(data['SERIAL NUMBER']).strip()).first():
+                    error_details.append(f"Row {row_num}: Serial number '{data['SERIAL NUMBER']}' already exists")
+                    error_count += 1
+                    continue
+                
+                # Parse dates
+                invoice_date = None
+                if data.get('INVOICE DATE'):
+                    if isinstance(data['INVOICE DATE'], datetime):
+                        invoice_date = data['INVOICE DATE'].date()
+                    else:
+                        try:
+                            invoice_date = parse_date(str(data['INVOICE DATE']))
+                        except:
+                            pass
+                
+                warranty_date = None
+                if data.get('WARRANTY DATE'):
+                    if isinstance(data['WARRANTY DATE'], datetime):
+                        warranty_date = data['WARRANTY DATE'].date()
+                    else:
+                        try:
+                            warranty_date = parse_date(str(data['WARRANTY DATE']))
+                        except:
+                            pass
+                
+                assignment_date = None
+                if data.get('Date'):
+                    if isinstance(data['Date'], datetime):
+                        assignment_date = data['Date'].date()
+                    else:
+                        try:
+                            assignment_date = parse_date(str(data['Date']))
+                        except:
+                            pass
+                
+                # Determine status - default to Assigned if employee info exists, otherwise Available
+                emp_id = str(data.get('EMP ID', '')).strip() if data.get('EMP ID') else ''
+                emp_name = str(data.get('EMPLOYEE NAME', '')).strip() if data.get('EMPLOYEE NAME') else ''
+                
+                # If either EMP ID or EMPLOYEE NAME is filled, mark as Assigned
+                # Otherwise, mark as Available
+                if emp_id or emp_name:
+                    asset_status = 'Assigned'
+                else:
+                    asset_status = 'Available'
+                
+                # Create asset - mapping user's columns to database fields
+                asset = Asset(
+                    asset_name=str(data.get('Asset NAME', '')).strip(),
+                    serial_number=str(data.get('SERIAL NUMBER', '')).strip(),
+                    category=str(data.get('CATEGORY', '')).strip() if data.get('CATEGORY') else '',
+                    model_name=str(data.get('MODEL NAME', '')).strip() if data.get('MODEL NAME') else '',
+                    os=str(data.get('OS', '')).strip() if data.get('OS') else '',
+                    version=str(data.get('Version', '')).strip() if data.get('Version') else '',
+                    ram=str(data.get('Ram', '')).strip() if data.get('Ram') else '',
+                    location=str(data.get('LOCATION', '')).strip() if data.get('LOCATION') else '',
+                    invoice_number=str(data.get('INVOICE NUMBER', '')).strip() if data.get('INVOICE NUMBER') else '',
+                    invoice_date=invoice_date,
+                    warranty_date=warranty_date,
+                    charger_serial=str(data.get('Charger Serial Number', '')).strip() if data.get('Charger Serial Number') else '',
+                    old_user=str(data.get('Old User', '')).strip() if data.get('Old User') else '',
+                    date=assignment_date or date.today(),
+                    old_device=str(data.get('Old Device', '')).strip() if data.get('Old Device') else '',
+                    comments=str(data.get('Comments', '')).strip() if data.get('Comments') else '',
+                    emp_id=emp_id,
+                    employee_name=emp_name,
+                    mobile_number=str(data.get('MOBILE NUMBER', '')).strip() if data.get('MOBILE NUMBER') else '',
+                    status=asset_status
+                )
+                
+                db.session.add(asset)
+                db.session.flush()  # Flush to get the asset ID
+                imported_ids.append(asset.asset_id)  # Track the ID
+                imported_count += 1
+                
+                # Create audit log
+                AuditService.log(
+                    action_type='ASSET_IMPORTED',
+                    module='Asset',
+                    asset_id=None,
+                    asset_name=asset.asset_name,
+                    asset_serial=asset.serial_number,
+                    category=asset.category,
+                    performed_by=current_username,
+                    remarks=f'Imported from Excel (Row {row_num})'
+                )
+                
+            except Exception as e:
+                error_details.append(f"Row {row_num}: {str(e)}")
+                error_count += 1
+                logger.error(f"Error importing row {row_num}: {e}")
+        
+        db.session.commit()
+        
+        message = f'Successfully imported {imported_count} assets'
+        if error_count > 0:
+            message += f', {error_count} rows had errors'
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'imported': imported_count,
+            'errors': error_count,
+            'error_details': error_details[:10],  # Limit to first 10 errors
+            'imported_ids': imported_ids  # Return imported asset IDs
+        }), 200
+        
+    except ImportError:
+        return jsonify({
+            'error': 'openpyxl library not installed. Please install it: pip install openpyxl'
+        }), 500
+    except Exception as e:
+        logger.error(f"Error importing assets: {e}")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 # ══════════════════════════════════════════════════════════════════════════════
 # EMPLOYEE ROUTES
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.route('/api/employees', methods=['GET'])
-@token_required
+@admin_required
 def get_employees():
     """Get all employees or search by query"""
     from models import Employee
@@ -1369,6 +1706,7 @@ def get_employees():
     } for e in employees]), 200
 
 @app.route('/api/employees/<emp_id>', methods=['GET'])
+@admin_required
 def get_employee(emp_id):
     """Get employee by emp_id"""
     from models import Employee
@@ -1392,6 +1730,7 @@ def get_employee(emp_id):
     }), 200
 
 @app.route('/api/employees/<emp_id>/assets', methods=['GET'])
+@admin_required
 def get_employee_assets(emp_id):
     """Get all assets assigned to an employee"""
     from models import Asset
@@ -1409,6 +1748,7 @@ def get_employee_assets(emp_id):
     } for a in assets]), 200
 
 @app.route('/api/employees/<emp_id>/exit', methods=['POST'])
+@admin_required
 def employee_exit(emp_id):
     """Process employee exit and asset recovery"""
     from models import Employee, Asset, AuditLog
@@ -1544,6 +1884,7 @@ def employee_exit(emp_id):
     }), 200
 
 @app.route('/api/employees', methods=['POST'])
+@admin_required
 def create_or_update_employee():
     """Create or update employee"""
     from models import Employee
@@ -1899,6 +2240,271 @@ def export_audit_logs():
         download_name=f'Activity_History_{date.today()}.csv'
     )
 
+# ══════════════════════════════════════════════════════════════════════════════
+# ASSET LIFECYCLE TIMELINE ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/lifecycle/asset/<int:asset_id>', methods=['GET'])
+@non_viewer_required
+def get_asset_lifecycle(asset_id):
+    """Get complete lifecycle timeline for an asset"""
+    from models import AssetLifecycle
+    
+    try:
+        # Get all lifecycle events for this asset
+        timeline = AssetLifecycle.query.filter_by(asset_id=asset_id).order_by(
+            AssetLifecycle.event_date.desc()
+        ).all()
+        
+        events = []
+        for event in timeline:
+            events.append({
+                'id': event.id,
+                'asset_id': event.asset_id,
+                'event_type': event.event_type,
+                'event_date': event.event_date.isoformat() if event.event_date else None,
+                'from_employee_id': event.from_employee_id,
+                'from_employee': event.from_employee,
+                'to_employee_id': event.to_employee_id,
+                'to_employee': event.to_employee,
+                'from_status': event.from_status,
+                'to_status': event.to_status,
+                'reason': event.reason,
+                'location': event.location,
+                'performed_by': event.performed_by,
+                'remarks': event.remarks,
+                'created_at': event.created_at.isoformat() if event.created_at else None
+            })
+        
+        return jsonify({
+            'asset_id': asset_id,
+            'events': events,
+            'total': len(events)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error fetching asset lifecycle: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/lifecycle/holders/<int:asset_id>', methods=['GET'])
+@non_viewer_required
+def get_asset_holders(asset_id):
+    """Get all employees who have held this asset"""
+    from models import AssetLifecycle
+    
+    try:
+        # Get unique employees who have held this asset
+        holders_query = db.session.query(
+            AssetLifecycle.to_employee_id,
+            AssetLifecycle.to_employee,
+            db.func.min(AssetLifecycle.event_date).label('first_assigned'),
+            db.func.max(AssetLifecycle.event_date).label('last_event')
+        ).filter(
+            AssetLifecycle.asset_id == asset_id,
+            AssetLifecycle.to_employee_id.isnot(None)
+        ).group_by(
+            AssetLifecycle.to_employee_id,
+            AssetLifecycle.to_employee
+        ).all()
+        
+        holders = []
+        for holder in holders_query:
+            holders.append({
+                'employee_id': holder.to_employee_id,
+                'employee_name': holder.to_employee,
+                'first_assigned': holder.first_assigned.isoformat() if holder.first_assigned else None,
+                'last_event': holder.last_event.isoformat() if holder.last_event else None
+            })
+        
+        return jsonify({
+            'asset_id': asset_id,
+            'holders': holders,
+            'total': len(holders)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error fetching asset holders: {e}")
+        return jsonify({'error': str(e)}), 500
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PDF GENERATION ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/assets/<int:asset_id>/assignment-form', methods=['GET'])
+@token_required
+def generate_assignment_form_pdf(asset_id):
+    """Generate PDF assignment form for a single asset"""
+    from models import Asset, Employee
+    from services.pdf_generator import create_pdf_generator
+    
+    try:
+        # Get asset details
+        asset = Asset.query.get(asset_id)
+        if not asset:
+            return jsonify({'error': 'Asset not found'}), 404
+        
+        # Prepare asset data for PDF
+        asset_data = {
+            'asset_id': asset.id,
+            'asset_name': asset.asset_name or 'N/A',
+            'category': asset.category or 'N/A',
+            'serial_number': asset.serial_number or 'N/A',
+            'model': asset.model_name or 'N/A',
+            'status': asset.status or 'N/A',
+            'processor': asset.processor or 'N/A',
+            'ram': asset.ram or 'N/A',
+            'storage_capacity': asset.storage_capacity or 'N/A',
+            'operating_system': asset.os or 'N/A',
+            'invoice_number': asset.invoice_number or 'N/A',
+            'invoice_date': asset.invoice_date.strftime('%d-%m-%Y') if asset.invoice_date else 'N/A',
+            'warranty_date': asset.warranty_date.strftime('%d-%m-%Y') if asset.warranty_date else 'N/A',
+            'charger_serial': asset.charger_serial or 'N/A',
+            'assignment_date': asset.date.strftime('%d-%m-%Y') if asset.date else datetime.now().strftime('%d-%m-%Y'),
+            'issued_by': 'Admin',
+        }
+        
+        # Get employee details if assigned
+        if asset.emp_id:
+            employee = Employee.query.filter_by(emp_id=asset.emp_id).first()
+            if employee:
+                asset_data['employee_id'] = employee.emp_id
+                asset_data['employee_name'] = employee.employee_name
+                asset_data['department'] = employee.department or 'N/A'
+                asset_data['mobile'] = employee.mobile_number or 'N/A'
+                asset_data['email'] = employee.email or 'N/A'
+                asset_data['location'] = employee.location or 'N/A'
+            else:
+                # Use data from asset if employee not in Employee table
+                asset_data['employee_id'] = asset.emp_id
+                asset_data['employee_name'] = asset.employee_name or 'N/A'
+                asset_data['department'] = 'N/A'
+                asset_data['mobile'] = asset.mobile_number or 'N/A'
+                asset_data['email'] = asset.employee_email or 'N/A'
+                asset_data['location'] = asset.location or 'N/A'
+        else:
+            asset_data['employee_id'] = 'N/A'
+            asset_data['employee_name'] = 'Unassigned'
+            asset_data['department'] = 'N/A'
+            asset_data['mobile'] = 'N/A'
+            asset_data['email'] = 'N/A'
+            asset_data['location'] = asset.location or 'N/A'
+        
+        # Generate PDF
+        pdf_generator = create_pdf_generator()
+        pdf_bytes = pdf_generator.generate_assignment_form(asset_data)
+        
+        # Return PDF as response using send_file with BytesIO
+        from flask import send_file
+        pdf_buffer = io.BytesIO(pdf_bytes)
+        pdf_buffer.seek(0)
+        
+        return send_file(
+            pdf_buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'Assignment_Form_{asset_id}_{asset.asset_name or "Asset"}.pdf'.replace(' ', '_')
+        )
+        
+    except Exception as e:
+        logger.error(f"Error generating assignment form PDF: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/assets/assignment-forms/bulk', methods=['POST'])
+@token_required
+def generate_bulk_assignment_forms():
+    """Generate PDF assignment forms for multiple assets and return as ZIP"""
+    from models import Asset, Employee
+    from services.pdf_generator import create_pdf_generator
+    
+    try:
+        data = request.json
+        asset_ids = data.get('asset_ids', [])
+        
+        if not asset_ids:
+            return jsonify({'error': 'No asset IDs provided'}), 400
+        
+        # Collect asset data
+        assets_data = []
+        for asset_id in asset_ids:
+            asset = Asset.query.get(asset_id)
+            if not asset:
+                continue
+            
+            # Prepare asset data
+            asset_data = {
+                'asset_id': asset.id,
+                'asset_name': asset.asset_name or 'N/A',
+                'category': asset.category or 'N/A',
+                'serial_number': asset.serial_number or 'N/A',
+                'model': asset.model_name or 'N/A',
+                'status': asset.status or 'N/A',
+                'processor': asset.processor or 'N/A',
+                'ram': asset.ram or 'N/A',
+                'storage_capacity': asset.storage_capacity or 'N/A',
+                'operating_system': asset.os or 'N/A',
+                'invoice_number': asset.invoice_number or 'N/A',
+                'invoice_date': asset.invoice_date.strftime('%d-%m-%Y') if asset.invoice_date else 'N/A',
+                'warranty_date': asset.warranty_date.strftime('%d-%m-%Y') if asset.warranty_date else 'N/A',
+                'charger_serial': asset.charger_serial or 'N/A',
+                'assignment_date': asset.date.strftime('%d-%m-%Y') if asset.date else datetime.now().strftime('%d-%m-%Y'),
+                'issued_by': 'Admin',
+            }
+            
+            # Get employee details if assigned
+            if asset.emp_id:
+                employee = Employee.query.filter_by(emp_id=asset.emp_id).first()
+                if employee:
+                    asset_data['employee_id'] = employee.emp_id
+                    asset_data['employee_name'] = employee.employee_name
+                    asset_data['department'] = employee.department or 'N/A'
+                    asset_data['mobile'] = employee.mobile_number or 'N/A'
+                    asset_data['email'] = employee.email or 'N/A'
+                    asset_data['location'] = employee.location or 'N/A'
+                else:
+                    # Use data from asset if employee not in Employee table
+                    asset_data['employee_id'] = asset.emp_id
+                    asset_data['employee_name'] = asset.employee_name or 'N/A'
+                    asset_data['department'] = 'N/A'
+                    asset_data['mobile'] = asset.mobile_number or 'N/A'
+                    asset_data['email'] = asset.employee_email or 'N/A'
+                    asset_data['location'] = asset.location or 'N/A'
+            else:
+                asset_data['employee_id'] = 'N/A'
+                asset_data['employee_name'] = 'Unassigned'
+                asset_data['department'] = 'N/A'
+                asset_data['mobile'] = 'N/A'
+                asset_data['email'] = 'N/A'
+                asset_data['location'] = asset.location or 'N/A'
+            
+            assets_data.append(asset_data)
+        
+        if not assets_data:
+            return jsonify({'error': 'No valid assets found'}), 404
+        
+        # Generate ZIP with all PDFs
+        pdf_generator = create_pdf_generator()
+        zip_bytes = pdf_generator.generate_bulk_assignment_forms(assets_data)
+        
+        # Return ZIP as response using send_file with BytesIO
+        from flask import send_file
+        zip_buffer = io.BytesIO(zip_bytes)
+        zip_buffer.seek(0)
+        
+        return send_file(
+            zip_buffer,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=f'Assignment_Forms_{datetime.now().strftime("%Y%m%d_%H%M%S")}.zip'
+        )
+        
+    except Exception as e:
+        logger.error(f"Error generating bulk assignment forms: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 # ── Health check & version info ──────────────────────────────────────────────
 @app.route('/api/health', methods=['GET'])
 def health():
@@ -2028,6 +2634,28 @@ def create_asset_replacement():
     db.session.commit()
     
     return jsonify({'success': True, 'replacement': replacement.to_dict()}), 201
+
+@app.route('/api/asset-replacements/<int:replacement_id>', methods=['DELETE'])
+@token_required
+def delete_asset_replacement(replacement_id):
+    """Delete an asset replacement record"""
+    from models import AssetReplacement
+    
+    replacement = AssetReplacement.query.get_or_404(replacement_id)
+    current_user = get_current_user()
+    current_username = current_user.get('username') if current_user else 'system'
+    
+    employee_name = replacement.employee_name
+    old_asset_name = replacement.old_asset_name
+    new_asset_name = replacement.new_asset_name
+    
+    db.session.delete(replacement)
+    log_activity('DELETE', 'AssetReplacement', 
+                f'Deleted asset replacement for {employee_name}: {old_asset_name} -> {new_asset_name}',
+                current_username)
+    db.session.commit()
+    
+    return jsonify({'success': True}), 200
 
 # ══════════════════════════════════════════════════════════════════════════════
 # EMPLOYEE EXIT ENDPOINTS
@@ -2311,6 +2939,7 @@ def _validate_onboarding_payload(data, is_update=False, current_id=None):
 
 # ── CREATE ──────────────────────────────────────────────────────────────────
 @app.route('/api/onboarding', methods=['POST'])
+@admin_required
 def create_onboarding():
     data = request.get_json() or {}
     errors, cleaned = _validate_onboarding_payload(data)
@@ -2350,6 +2979,7 @@ def create_onboarding():
 
 # ── LIST (with search, filter, sort, pagination) ─────────────────────────────
 @app.route('/api/onboarding', methods=['GET'])
+@admin_required
 def list_onboarding():
     search = request.args.get('search', '').strip()
     status = request.args.get('status', '').strip()
@@ -2395,6 +3025,7 @@ def list_onboarding():
 
 # ── GET single record ────────────────────────────────────────────────────────
 @app.route('/api/onboarding/<int:onboarding_id>', methods=['GET'])
+@admin_required
 def get_onboarding(onboarding_id):
     record = Onboarding.query.get(onboarding_id)
     if not record:
@@ -2404,6 +3035,7 @@ def get_onboarding(onboarding_id):
 
 # ── UPDATE ────────────────────────────────────────────────────────────────────
 @app.route('/api/onboarding/<int:onboarding_id>', methods=['PUT'])
+@admin_required
 def update_onboarding(onboarding_id):
     record = Onboarding.query.get(onboarding_id)
     if not record:
@@ -2444,6 +3076,7 @@ def update_onboarding(onboarding_id):
 
 # ── DELETE ────────────────────────────────────────────────────────────────────
 @app.route('/api/onboarding/<int:onboarding_id>', methods=['DELETE'])
+@admin_required
 def delete_onboarding(onboarding_id):
     record = Onboarding.query.get(onboarding_id)
     if not record:
@@ -2464,6 +3097,7 @@ def delete_onboarding(onboarding_id):
 # This satisfies: "Ensure a newly onboarded employee can be converted into an
 # active employee without duplicate data entry."
 @app.route('/api/onboarding/<int:onboarding_id>/convert', methods=['POST'])
+@admin_required
 def convert_onboarding_to_employee(onboarding_id):
     record = Onboarding.query.get(onboarding_id)
     if not record:
@@ -2520,6 +3154,7 @@ def convert_onboarding_to_employee(onboarding_id):
 
 # ── ASSET PICKER HELPER — search available assets to assign during onboarding
 @app.route('/api/onboarding/available-assets', methods=['GET'])
+@admin_required
 def onboarding_available_assets():
     search = request.args.get('search', '').strip()
     category = request.args.get('category', '').strip()

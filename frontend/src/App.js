@@ -68,6 +68,30 @@ function App() {
     return children;
   };
 
+  // Non-viewer guard (allows admin and user, blocks viewer)
+  const NonViewerOnly = ({ children }) => {
+    const u = JSON.parse(localStorage.getItem('user') || '{}');
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
+    if (u.role === 'viewer') {
+      return (
+        <div className="container mt-5">
+          <div className="alert alert-danger" role="alert">
+            <h4 className="alert-heading">
+              <i className="bi bi-exclamation-triangle-fill me-2"></i>
+              Access Denied
+            </h4>
+            <p>You do not have permission to access this page.</p>
+            <p className="mb-0">Viewer users have read-only access. Please contact your administrator if you need additional permissions.</p>
+          </div>
+          <button className="btn btn-primary mt-3" onClick={() => window.history.back()}>
+            <i className="bi bi-arrow-left me-2"></i>Go Back
+          </button>
+        </div>
+      );
+    }
+    return children;
+  };
+
   // Persistent Layout wrapper for all protected routes
   const AppLayout = () => {
     if (!isAuthenticated) return <Navigate to="/login" replace />;
@@ -90,22 +114,22 @@ function App() {
         <Route element={<AppLayout />}>
           <Route path="/dashboard"       element={<Protected><Dashboard /></Protected>} />
           <Route path="/assets"          element={<Protected><AssetList /></Protected>} />
-          <Route path="/assets/add"      element={<AdminOnly><AssetAdd /></AdminOnly>} />
+          <Route path="/assets/add"      element={<NonViewerOnly><AssetAdd /></NonViewerOnly>} />
           <Route path="/assets/import"   element={<AdminOnly><AssetImport /></AdminOnly>} />
-          <Route path="/assets/edit/:id" element={<AdminOnly><AssetEdit /></AdminOnly>} />
+          <Route path="/assets/edit/:id" element={<NonViewerOnly><AssetEdit /></NonViewerOnly>} />
           <Route path="/assets/view/:id" element={<Protected><AssetView /></Protected>} />
           <Route path="/assets/timeline/:assetId" element={<Protected><AssetTimeline /></Protected>} />
           <Route path="/inventory/:type" element={<Protected><InventoryCategory /></Protected>} />
           <Route path="/reports"         element={<Protected><Reports /></Protected>} />
           <Route path="/warranty"        element={<Protected><Warranty /></Protected>} />
           <Route path="/activity-history" element={<Protected><ActivityHistory /></Protected>} />
-          <Route path="/temporary-assignments" element={<Protected><TemporaryAssignments /></Protected>} />
-          <Route path="/asset-replacements" element={<Protected><AssetReplacements /></Protected>} />
+          <Route path="/temporary-assignments" element={<NonViewerOnly><TemporaryAssignments /></NonViewerOnly>} />
+          <Route path="/asset-replacements" element={<NonViewerOnly><AssetReplacements /></NonViewerOnly>} />
           <Route path="/employees" element={<AdminOnly><Employees /></AdminOnly>} />
-          <Route path="/onboarding"          element={<Protected><OnboardingList /></Protected>} />
+          <Route path="/onboarding"          element={<AdminOnly><OnboardingList /></AdminOnly>} />
           <Route path="/onboarding/add"      element={<AdminOnly><OnboardingAdd /></AdminOnly>} />
           <Route path="/onboarding/edit/:id" element={<AdminOnly><OnboardingAdd /></AdminOnly>} />
-          <Route path="/onboarding/view/:id" element={<Protected><OnboardingView /></Protected>} />
+          <Route path="/onboarding/view/:id" element={<AdminOnly><OnboardingView /></AdminOnly>} />
           <Route path="/settings"        element={<AdminOnly><Settings /></AdminOnly>} />
           <Route path="/email-config"    element={<AdminOnly><EmailConfig /></AdminOnly>} />
         </Route>

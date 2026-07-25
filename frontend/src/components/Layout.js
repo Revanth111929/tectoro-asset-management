@@ -176,12 +176,16 @@ function Layout({ children }) {
               <NavItem to="/inventory/other"       icon="three-dots"       label="Other" />
             </div>
 
-            <Divider />
-            <SectionHeader label="Lifecycle" section="lifecycle" />
-            <div className="nav-children" style={{ maxHeight: (collapsed || openSections.lifecycle) ? '250px' : '0', opacity: (collapsed || openSections.lifecycle) ? 1 : 0 }}>
-              <NavItem to="/temporary-assignments" icon="arrow-repeat" label="Temp Assignments" exact />
-              <NavItem to="/asset-replacements" icon="arrow-left-right" label="Asset Replacements" exact />
-            </div>
+            {canPerform('create') && (
+              <>
+                <Divider />
+                <SectionHeader label="Lifecycle" section="lifecycle" />
+                <div className="nav-children" style={{ maxHeight: (collapsed || openSections.lifecycle) ? '250px' : '0', opacity: (collapsed || openSections.lifecycle) ? 1 : 0 }}>
+                  <NavItem to="/temporary-assignments" icon="arrow-repeat" label="Temp Assignments" exact />
+                  <NavItem to="/asset-replacements" icon="arrow-left-right" label="Asset Replacements" exact />
+                </div>
+              </>
+            )}
 
             <Divider />
             <SectionHeader label="Reports" section="reports" />
@@ -191,7 +195,7 @@ function Layout({ children }) {
               <NavItem to="/activity-history" icon="clock-history" label="Activity History" exact />
             </div>
 
-            {canPerform('edit') && (
+            {canPerform('settings') && (
               <>
                 <Divider />
                 <SectionHeader label="Settings" section="settings" />
