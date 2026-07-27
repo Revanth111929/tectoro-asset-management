@@ -20,6 +20,9 @@ import Employees from './pages/Employees';
 import OnboardingList from './pages/OnboardingList';
 import OnboardingAdd from './pages/OnboardingAdd';
 import OnboardingView from './pages/OnboardingView';
+import CorporateSimList from './pages/CorporateSimList';
+import CorporateSimAdd from './pages/CorporateSimAdd';
+import CorporateSimView from './pages/CorporateSimView';
 import Layout       from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -130,6 +133,9 @@ function App() {
           <Route path="/onboarding/add"      element={<AdminOnly><OnboardingAdd /></AdminOnly>} />
           <Route path="/onboarding/edit/:id" element={<AdminOnly><OnboardingAdd /></AdminOnly>} />
           <Route path="/onboarding/view/:id" element={<AdminOnly><OnboardingView /></AdminOnly>} />
+          <Route path="/corporate-sims"          element={<Protected><CorporateSimList /></Protected>} />
+          <Route path="/corporate-sims/add"      element={<NonViewerOnly><CorporateSimAdd /></NonViewerOnly>} />
+          <Route path="/corporate-sims/view/:id" element={<Protected><CorporateSimView /></Protected>} />
           <Route path="/settings"        element={<AdminOnly><Settings /></AdminOnly>} />
           <Route path="/email-config"    element={<AdminOnly><EmailConfig /></AdminOnly>} />
         </Route>

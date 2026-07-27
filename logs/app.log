@@ -5962,3 +5962,41 @@
 2026-07-27 13:52:06,296 [INFO] __main__: Database tables initialized (seed data disabled)
 2026-07-27 13:52:06,305 [WARNING] werkzeug:  * Debugger is active!
 2026-07-27 13:52:06,305 [INFO] werkzeug:  * Debugger PIN: 118-841-274
+2026-07-27 14:08:09,931 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-27 14:08:10,405 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.20.180:5000
+2026-07-27 14:08:10,405 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-07-27 14:08:10,405 [INFO] werkzeug:  * Restarting with stat
+2026-07-27 14:08:11,505 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-27 14:08:11,512 [WARNING] werkzeug:  * Debugger is active!
+2026-07-27 14:08:11,656 [INFO] werkzeug:  * Debugger PIN: 118-841-274
+2026-07-27 14:08:50,334 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:08:50] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-07-27 14:08:50,338 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:08:50] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-07-27 14:08:50,389 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:08:50] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-07-27 14:08:50,410 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:08:50] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-07-27 14:08:51,139 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:08:51] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-07-27 14:08:51,147 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:08:51] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-07-27 14:08:55,021 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:08:55] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-07-27 14:08:55,042 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:08:55] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-07-27 14:09:00,266 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:09:00] "GET /api/reports/activity?page=1&per_page=20 HTTP/1.1" 200 -
+2026-07-27 14:09:00,306 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:09:00] "GET /api/reports/activity?page=1&per_page=20 HTTP/1.1" 200 -
+2026-07-27 14:11:39,037 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:11:39] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-07-27 14:11:39,042 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:11:39] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-07-27 14:11:39,043 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:11:39] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-07-27 14:11:39,068 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:11:39] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-07-27 14:11:41,958 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:11:41] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-07-27 14:11:41,970 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:11:41] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-07-27 14:11:44,713 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:11:44] "GET /api/assets?category=CPU&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-07-27 14:11:44,723 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:11:44] "GET /api/assets?category=CPU&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-07-27 14:16:20,699 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:16:20] "[31m[1mGET /api/assets?category=CPU&search=&status=&page=1&per_page=20 HTTP/1.1[0m" 401 -
+2026-07-27 14:16:20,701 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:16:20] "[31m[1mGET /api/assets?category=CPU&search=&status=&page=1&per_page=20 HTTP/1.1[0m" 401 -
+2026-07-27 14:16:20,709 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:16:20] "OPTIONS /api/auth/refresh HTTP/1.1" 200 -
+2026-07-27 14:16:20,711 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:16:20] "OPTIONS /api/auth/refresh HTTP/1.1" 200 -
+2026-07-27 14:16:20,720 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:16:20] "POST /api/auth/refresh HTTP/1.1" 200 -
+2026-07-27 14:16:20,722 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:16:20] "POST /api/auth/refresh HTTP/1.1" 200 -
+2026-07-27 14:16:20,726 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:16:20] "GET /api/assets?category=CPU&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-07-27 14:16:20,785 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:16:20] "GET /api/assets?category=CPU&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-07-27 14:16:28,979 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:16:28] "GET /api/assets?category=CPU&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-07-27 14:16:28,985 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 14:16:28] "GET /api/assets?category=CPU&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -

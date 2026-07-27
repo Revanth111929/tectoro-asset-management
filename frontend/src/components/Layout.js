@@ -168,7 +168,8 @@ function Layout({ children }) {
 
             <Divider />
             <SectionHeader label="Inventory" section="inventory" />
-            <div className="nav-children" style={{ maxHeight: (collapsed || openSections.inventory) ? '500px' : '0', opacity: (collapsed || openSections.inventory) ? 1 : 0 }}>
+            <div className="nav-children" style={{ maxHeight: (collapsed || openSections.inventory) ? '600px' : '0', opacity: (collapsed || openSections.inventory) ? 1 : 0 }}>
+              <NavItem to="/corporate-sims"    icon="sim"              label="Corporate SIMs" />
               <NavItem to="/inventory/laptop"      icon="laptop"           label="Laptop" />
               <NavItem to="/inventory/cpu"         icon="cpu"              label="CPU" />
               <NavItem to="/inventory/monitor"     icon="display"          label="Monitor" />
