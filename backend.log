@@ -8,25 +8,30 @@
  * Restarting with stat
  * Debugger is active!
  * Debugger PIN: 309-961-709
-192.168.20.180 - - [27/Jul/2026 13:20:25] "GET /api/dashboard/stats HTTP/1.1" 200 -
-192.168.20.180 - - [27/Jul/2026 13:20:37] "HEAD /static/media/tectoro-login-logo.cac63a34d48239d7957e.png HTTP/1.1" 200 -
-192.168.20.180 - - [27/Jul/2026 13:20:53] "GET /api/dashboard/stats HTTP/1.1" 200 -
-192.168.20.180 - - [27/Jul/2026 13:20:53] "GET /api/assets HTTP/1.1" 200 -
-192.168.20.180 - - [27/Jul/2026 13:20:54] "GET /api/employees?q=Raj HTTP/1.1" 200 -
-192.168.20.180 - - [27/Jul/2026 13:20:54] "[33mGET /api/onboarding HTTP/1.1[0m" 404 -
-192.168.20.180 - - [27/Jul/2026 13:21:18] "GET /api/dashboard/stats HTTP/1.1" 200 -
-192.168.20.180 - - [27/Jul/2026 13:21:57] "[33mGET /api/auth/me HTTP/1.1[0m" 404 -
-192.168.20.180 - - [27/Jul/2026 13:21:57] "GET /api/dashboard/stats HTTP/1.1" 200 -
-192.168.20.180 - - [27/Jul/2026 13:21:57] "GET /api/dashboard/activity HTTP/1.1" 200 -
-192.168.20.180 - - [27/Jul/2026 13:21:57] "GET /api/dashboard/lifecycle-stats HTTP/1.1" 200 -
-192.168.20.180 - - [27/Jul/2026 13:21:57] "GET /api/assets HTTP/1.1" 200 -
-192.168.20.180 - - [27/Jul/2026 13:21:57] "GET /api/assets?search=Dell HTTP/1.1" 200 -
-192.168.20.180 - - [27/Jul/2026 13:21:57] "[33mGET /api/assets/warranty/expiring HTTP/1.1[0m" 404 -
-192.168.20.180 - - [27/Jul/2026 13:21:57] "GET /api/employees HTTP/1.1" 200 -
-192.168.20.180 - - [27/Jul/2026 13:21:57] "GET /api/employees?q=Raj HTTP/1.1" 200 -
-192.168.20.180 - - [27/Jul/2026 13:21:57] "GET /api/employees?q=Suresh HTTP/1.1" 200 -
-192.168.20.180 - - [27/Jul/2026 13:21:57] "GET /api/employees/TT002 HTTP/1.1" 200 -
-192.168.20.180 - - [27/Jul/2026 13:21:57] "[33mGET /api/onboarding HTTP/1.1[0m" 404 -
-192.168.20.180 - - [27/Jul/2026 13:21:57] "GET /api/reports/activity HTTP/1.1" 200 -
-192.168.20.180 - - [27/Jul/2026 13:21:58] "GET /static/media/tectoro-login-logo.cac63a34d48239d7957e.png HTTP/1.1" 200 -
-192.168.20.180 - - [27/Jul/2026 13:21:58] "GET /static/media/tectoro-icon-only.29253f2e57ef6301c8d5.png HTTP/1.1" 200 -
+192.168.20.180 - - [27/Jul/2026 13:53:01] "[31m[1mGET /ws HTTP/1.1[0m" 400 -
+192.168.20.180 - - [27/Jul/2026 13:53:03] "GET /api/dashboard/stats HTTP/1.1" 200 -
+192.168.20.180 - - [27/Jul/2026 13:53:04] "[31m[1mGET /ws HTTP/1.1[0m" 400 -
+192.168.20.180 - - [27/Jul/2026 13:53:09] "[31m[1mGET /ws HTTP/1.1[0m" 400 -
+192.168.20.180 - - [27/Jul/2026 13:53:17] "GET /api/corporate-sims HTTP/1.1" 200 -
+192.168.20.180 - - [27/Jul/2026 13:53:18] "[31m[1mGET /ws HTTP/1.1[0m" 400 -
+127.0.0.1 - - [27/Jul/2026 13:53:25] "[36mGET /login HTTP/1.1[0m" 304 -
+127.0.0.1 - - [27/Jul/2026 13:53:25] "[36mGET /static/js/main.35f46920.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [27/Jul/2026 13:53:25] "[36mGET /static/css/main.88101b86.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [27/Jul/2026 13:53:25] "GET /static/media/tectoro-login-logo.cac63a34d48239d7957e.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 13:53:25] "GET /static/media/bootstrap-icons.92ea18a81d737146ff04.woff2 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 13:53:29] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 13:53:29] "[36mGET /static/css/main.88101b86.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [27/Jul/2026 13:53:29] "[36mGET /static/js/main.35f46920.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [27/Jul/2026 13:53:29] "GET /static/media/tectoro-login-logo.cac63a34d48239d7957e.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 13:53:29] "GET /static/media/bootstrap-icons.92ea18a81d737146ff04.woff2 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 13:53:29] "GET /favicon.ico HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jul/2026 13:53:34] "[36mGET /favicon.ico HTTP/1.1[0m" 304 -
+192.168.20.180 - - [27/Jul/2026 13:53:35] "[31m[1mGET /ws HTTP/1.1[0m" 400 -
+192.168.20.180 - - [27/Jul/2026 13:53:37] "GET /api/corporate-sims/stats HTTP/1.1" 200 -
+192.168.20.180 - - [27/Jul/2026 13:54:08] "[31m[1mGET /ws HTTP/1.1[0m" 400 -
+ * Detected change in '/home/administrator/Desktop/asset-management/add_sample_corporate_sims.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 309-961-709
+192.168.20.180 - - [27/Jul/2026 13:55:13] "[31m[1mGET /ws HTTP/1.1[0m" 400 -
+192.168.20.180 - - [27/Jul/2026 13:56:19] "GET /api/corporate-sims HTTP/1.1" 200 -

@@ -864,3 +864,89 @@ class OnboardingAssetAssignment(db.Model):
 
     def __repr__(self):
         return f'<OnboardingAssetAssignment onboarding={self.onboarding_id} asset={self.asset_id}>'
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CORPORATE SIM TABLE  – corporate SIM card inventory management
+# ─────────────────────────────────────────────────────────────────────────────
+class CorporateSIM(db.Model):
+    __tablename__ = 'corporate_sims'
+
+    id                      = db.Column(db.Integer, primary_key=True)
+    
+    # SIM Identification
+    iccid                   = db.Column(db.String(20), unique=True, nullable=False, index=True)  # ICCID (19-20 digits)
+    mobile_number           = db.Column(db.String(15), unique=True, nullable=True, index=True)  # Phone number (optional, unique when set)
+    
+    # Carrier Information
+    carrier                 = db.Column(db.String(100), nullable=False, index=True)  # Airtel, Jio, Vi, BSNL, etc.
+    plan_type               = db.Column(db.String(50))  # Prepaid, Postpaid
+    monthly_cost            = db.Column(db.Float)  # Monthly charge/cost
+    data_limit_gb           = db.Column(db.Integer)  # Data limit in GB
+    
+    # Corporate Account
+    corporate_account       = db.Column(db.String(150))  # Corporate account name/number
+    account_manager         = db.Column(db.String(150))  # Account manager contact
+    
+    # Status Management
+    status                  = db.Column(db.String(30), default='Available', nullable=False, index=True)
+    # Status values: Available, Assigned, Active, Suspended, Returned, Lost, Damaged, Terminated
+    
+    # Employee Assignment
+    assigned_employee_id    = db.Column(db.String(50), db.ForeignKey('employees.emp_id'), nullable=True, index=True)
+    assigned_employee_name  = db.Column(db.String(150))
+    assigned_employee_email = db.Column(db.String(150))
+    assignment_date         = db.Column(db.Date)
+    return_date             = db.Column(db.Date)
+    
+    # Purchase & Activation
+    purchase_date           = db.Column(db.Date)
+    activation_date         = db.Column(db.Date)
+    vendor                  = db.Column(db.String(200))  # Vendor/supplier name
+    
+    # Additional Information
+    sim_type                = db.Column(db.String(50))  # Nano, Micro, Mini, eSIM
+    puk_code                = db.Column(db.String(10))  # PUK code (8 digits, encrypted in production)
+    remarks                 = db.Column(db.Text)  # Notes/comments
+    
+    # Audit fields
+    created_by              = db.Column(db.String(100))
+    updated_by              = db.Column(db.String(100))
+    created_at              = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at              = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationship
+    assigned_employee = db.relationship('Employee', foreign_keys=[assigned_employee_id], backref='assigned_sims')
+
+    def to_dict(self):
+        """Convert to dictionary for JSON API responses"""
+        return {
+            'id':                      self.id,
+            'iccid':                   self.iccid,
+            'mobile_number':           self.mobile_number or '',
+            'carrier':                 self.carrier,
+            'plan_type':               self.plan_type or '',
+            'monthly_cost':            self.monthly_cost or 0,
+            'data_limit_gb':           self.data_limit_gb or 0,
+            'corporate_account':       self.corporate_account or '',
+            'account_manager':         self.account_manager or '',
+            'status':                  self.status or 'Available',
+            'assigned_employee_id':    self.assigned_employee_id or '',
+            'assigned_employee_name':  self.assigned_employee_name or '',
+            'assigned_employee_email': self.assigned_employee_email or '',
+            'assignment_date':         self.assignment_date.isoformat() if self.assignment_date else '',
+            'return_date':             self.return_date.isoformat() if self.return_date else '',
+            'purchase_date':           self.purchase_date.isoformat() if self.purchase_date else '',
+            'activation_date':         self.activation_date.isoformat() if self.activation_date else '',
+            'vendor':                  self.vendor or '',
+            'sim_type':                self.sim_type or '',
+            'puk_code':                self.puk_code or '',  # Be cautious with PUK in production
+            'remarks':                 self.remarks or '',
+            'created_by':              self.created_by or '',
+            'updated_by':              self.updated_by or '',
+            'created_at':              self.created_at.isoformat() if self.created_at else '',
+            'updated_at':              self.updated_at.isoformat() if self.updated_at else '',
+        }
+
+    def __repr__(self):
+        return f'<CorporateSIM {self.iccid} - {self.carrier} [{self.status}]>'

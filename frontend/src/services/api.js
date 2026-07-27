@@ -192,4 +192,16 @@ export const userAPI = {
   delete: (id) => api.delete(`/users/${id}`),
 };
 
+// ── CORPORATE SIMS ────────────────────────────────────────────────────────────
+export const corporateSimAPI = {
+  getAll: (params) => api.get('/corporate-sims', { params }),
+  getById: (id) => api.get(`/corporate-sims/${id}`),
+  create: (data) => api.post('/corporate-sims', data),
+  update: (id, data) => api.put(`/corporate-sims/${id}`, data),
+  delete: (id) => api.delete(`/corporate-sims/${id}`),
+  assign: (id, data) => api.post(`/corporate-sims/${id}/assign`, data),
+  return: (id, data) => api.post(`/corporate-sims/${id}/return`, data),
+  getStats: () => api.get('/corporate-sims/stats'),
+};
+
 export default api;
