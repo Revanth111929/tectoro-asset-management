@@ -71,7 +71,15 @@ function LoginPage({ setAuth }) {
       <div className="login-panel">
         <div className="login-logo">
           <div className="logo-icon">
-            <img src={tectoroLoginLogo} alt="Tectoro" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            <img 
+              src={tectoroLoginLogo} 
+              alt="Tectoro Logo" 
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              onError={(e) => {
+                console.error('Login logo failed to load');
+                e.target.style.display = 'none';
+              }}
+            />
           </div>
           <span>Tectoro</span>
         </div>

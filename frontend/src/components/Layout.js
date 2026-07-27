@@ -1,5 +1,4 @@
 // Layout.js – sidebar with accordion sections (only one open at a time)
-import tectoroLogo from '../assets/tectoro-logo.png';
 import tectoroIcon from '../assets/tectoro-icon-only.png';
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation, Outlet } from 'react-router-dom';
@@ -138,7 +137,15 @@ function Layout({ children }) {
         <div className="layout-sidebar">
           <div className="sidebar-brand">
             <div className="brand-logo">
-              <img src={tectoroIcon} alt="Tectoro" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+              <img 
+                src={tectoroIcon} 
+                alt="Tectoro Logo" 
+                style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                onError={(e) => {
+                  console.error('Logo failed to load');
+                  e.target.style.display = 'none';
+                }}
+              />
             </div>
             {!collapsed && <span className="brand-name">Tectoro</span>}
             
