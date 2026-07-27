@@ -48,20 +48,26 @@ function OnboardingAdd() {
       .finally(() => setLoading(false));
   }, [id, isEdit]);
 
-  const handleChange = (e) => {
+  const handleChange = useCallback((e) => {
     const { name, value } = e.target;
     setForm(f => ({ ...f, [name]: value }));
-    if (errors[name]) setErrors(er => ({ ...er, [name]: '' }));
-  };
+    setErrors(er => {
+      if (er[name]) {
+        const { [name]: removed, ...rest } = er;
+        return rest;
+      }
+      return er;
+    });
+  }, []);
 
-  const toggleAppAccess = (app) => {
+  const toggleAppAccess = useCallback((app) => {
     setForm(f => ({
       ...f,
       application_access: f.application_access.includes(app)
         ? f.application_access.filter(a => a !== app)
         : [...f.application_access, app],
     }));
-  };
+  }, []);
 
   // Search available (real) assets for the picker
   const searchAssets = useCallback((q) => {
@@ -77,14 +83,14 @@ function OnboardingAdd() {
     return () => clearTimeout(t);
   }, [assetSearch, searchAssets]);
 
-  const addAsset = (asset) => {
+  const addAsset = useCallback((asset) => {
     if (selectedAssets.some(a => a.id === asset.id)) return;
     setSelectedAssets(prev => [...prev, asset]);
-  };
+  }, [selectedAssets]);
 
-  const removeAsset = (assetId) => {
+  const removeAsset = useCallback((assetId) => {
     setSelectedAssets(prev => prev.filter(a => a.id !== assetId));
-  };
+  }, []);
 
   const validate = () => {
     const errs = {};
@@ -140,6 +146,7 @@ function OnboardingAdd() {
         className={`form-control ${errors[name] ? 'is-invalid' : ''}`}
         value={form[name]}
         onChange={handleChange}
+        autoComplete="off"
       />
       {errors[name] && <div className="invalid-feedback">{errors[name]}</div>}
     </div>

@@ -1,15 +1,14 @@
 // AssetImport.js - Bulk import assets from Excel
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
-
-const API_BASE_URL = '/api';  // Relative URL - same port as frontend
+import api from '../services/api';
 
 function AssetImport() {
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [downloadingPDF, setDownloadingPDF] = useState(false);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -39,11 +38,9 @@ function AssetImport() {
     formData.append('file', file);
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(`${API_BASE_URL}/assets/import`, formData, {
+      const response = await api.post('/assets/import', formData, {
         headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'multipart/form-data'
         }
       });
 
@@ -57,8 +54,72 @@ function AssetImport() {
     }
   };
 
+  const handleDownloadBulkPDF = async () => {
+    if (!result || !result.imported_ids || result.imported_ids.length === 0) {
+      setError('No assets available for PDF generation');
+      return;
+    }
+
+    setDownloadingPDF(true);
+    setError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      // Use full backend URL for PDF download
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.20.180:5000/api';
+      const response = await fetch(`${API_BASE_URL}/assets/assignment-forms/bulk`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ asset_ids: result.imported_ids })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Bulk PDF generation failed:', errorText);
+        setError('Failed to generate PDF forms: ' + (response.status === 404 ? 'Assets not found' : response.statusText));
+        return;
+      }
+
+      const blob = await response.blob();
+      console.log('Bulk PDF ZIP received, size:', blob.size, 'type:', blob.type);
+      
+      if (blob.size === 0) {
+        setError('Received empty ZIP file');
+        return;
+      }
+      
+      // Create a safe blob URL
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      // Create a temporary link element
+      const link = document.createElement('a');
+      link.style.display = 'none';
+      link.href = blobUrl;
+      link.download = `Assignment_Forms_${new Date().toISOString().split('T')[0]}.zip`;
+      
+      // Append to body, click, and cleanup
+      document.body.appendChild(link);
+      
+      // Use a small timeout to ensure the link is in the DOM
+      setTimeout(() => {
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+      }, 100);
+      
+    } catch (err) {
+      console.error('Bulk PDF download error:', err);
+      setError('Failed to download PDF forms: ' + err.message);
+    } finally {
+      setDownloadingPDF(false);
+    }
+  };
+
   const downloadTemplate = () => {
-    window.open(`${API_BASE_URL}/assets/template`, '_blank');
+    window.open('http://192.168.20.180:5000/api/assets/template', '_blank');
   };
 
   return (
@@ -181,10 +242,26 @@ function AssetImport() {
                     </ul>
                   </div>
                 )}
-                <div className="mt-3">
+                <div className="mt-3 d-flex gap-2">
                   <Link to="/assets" className="btn btn-primary btn-sm">
                     <i className="bi bi-list-ul me-2"></i>View All Assets
                   </Link>
+                  <button 
+                    onClick={handleDownloadBulkPDF} 
+                    disabled={downloadingPDF}
+                    className="btn btn-success btn-sm"
+                  >
+                    {downloadingPDF ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        Generating PDFs...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-file-pdf me-2"></i>Download Assignment Forms (ZIP)
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             )}

@@ -215,6 +215,7 @@ class Asset(db.Model):
             'comments':        self.comments or '',
             'status':          self.status or 'Available',
             'created_at':      self.created_at.isoformat() if self.created_at else '',
+            'updated_at':      self.updated_at.isoformat() if self.updated_at else '',
             'purchase_price':  self.purchase_price or 0,
             'quantity':        self.quantity or 1,
             'configuration':   self.configuration or '',

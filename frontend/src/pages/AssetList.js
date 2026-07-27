@@ -124,19 +124,44 @@ function AssetList() {
     if (!bulkAction || selectedIds.length === 0) return;
 
     if (bulkAction === 'delete') {
-      if (!window.confirm(`Delete ${selectedIds.length} selected assets? This cannot be undone.`)) return;
+      console.log('[AssetList] Bulk delete requested for:', selectedIds);
+      
+      if (!window.confirm(`Delete ${selectedIds.length} selected assets? This cannot be undone.`)) {
+        console.log('[AssetList] Bulk delete cancelled by user');
+        return;
+      }
       
       setBulkProcessing(true);
+      console.log('[AssetList] Starting bulk delete operation...');
+      
       try {
-        await Promise.all(selectedIds.map(id => assetAPI.delete(id)));
+        console.log('[AssetList] Deleting assets:', selectedIds);
+        const deletePromises = selectedIds.map(id => {
+          console.log('[AssetList] Deleting asset ID:', id);
+          return assetAPI.delete(id);
+        });
+        
+        const results = await Promise.allSettled(deletePromises);
+        console.log('[AssetList] Bulk delete results:', results);
+        
+        const successful = results.filter(r => r.status === 'fulfilled').length;
+        const failed = results.filter(r => r.status === 'rejected').length;
+        
+        if (failed === 0) {
+          alert(`✓ Successfully deleted ${successful} assets`);
+        } else {
+          alert(`⚠️ Deleted ${successful} assets. ${failed} failed. Check console for details.`);
+        }
+        
         setSelectedIds([]);
         fetchAssets();
-        alert(`${selectedIds.length} assets deleted successfully`);
-      } catch {
-        alert('Failed to delete some assets');
+      } catch (error) {
+        console.error('[AssetList] Bulk delete error:', error);
+        alert('❌ Failed to delete assets. Check console for details.');
       } finally {
         setBulkProcessing(false);
         setBulkAction('');
+        console.log('[AssetList] Bulk delete operation completed');
       }
     } else if (bulkAction === 'export') {
       // Export selected assets as CSV
@@ -200,15 +225,33 @@ function AssetList() {
   };
 
   const handleDelete = async (id, name) => {
-    if (!window.confirm(`Delete asset "${name}"? This cannot be undone.`)) return;
+    console.log('[AssetList] Delete requested:', { id, name });
+    
+    if (!window.confirm(`Delete asset "${name}"? This cannot be undone.`)) {
+      console.log('[AssetList] Delete cancelled by user');
+      return;
+    }
+    
     setDeleting(id);
+    console.log('[AssetList] Starting delete operation for asset ID:', id);
+    
     try {
-      await assetAPI.delete(id);
+      console.log('[AssetList] Calling assetAPI.delete()...');
+      const response = await assetAPI.delete(id);
+      console.log('[AssetList] Delete successful:', response.data);
+      
+      alert(`✓ Asset "${name}" deleted successfully`);
       fetchAssets();
-    } catch {
-      alert('Failed to delete asset');
+    } catch (error) {
+      console.error('[AssetList] Delete failed:', error);
+      console.error('[AssetList] Error response:', error.response?.data);
+      console.error('[AssetList] Error status:', error.response?.status);
+      
+      const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || 'Failed to delete asset';
+      alert(`❌ Delete failed: ${errorMsg}`);
     } finally {
       setDeleting(null);
+      console.log('[AssetList] Delete operation completed');
     }
   };
 

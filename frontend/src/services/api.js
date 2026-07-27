@@ -3,6 +3,8 @@ import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.20.180:5000/api';
 
+console.log('[API Service] Initialized with base URL:', API_BASE_URL);
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
@@ -14,22 +16,32 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+    console.log(`[API] ${config.method.toUpperCase()} ${config.url}`, config.data ? config.data : '');
+  } else {
+    console.warn('[API] No token found in localStorage');
   }
   return config;
 }, (error) => {
+  console.error('[API] Request interceptor error:', error);
   return Promise.reject(error);
 });
 
 // Auto-logout on 401 and handle token refresh
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    console.log(`[API] Response: ${res.status} ${res.config.method.toUpperCase()} ${res.config.url}`);
+    return res;
+  },
   async (err) => {
+    console.error('[API] Response error:', err);
     const originalRequest = err.config;
 
     // Handle 401 errors
     if (err.response?.status === 401) {
+      console.warn('[API] 401 Unauthorized - attempting token refresh');
       // If this is already a retry, logout
       if (originalRequest._retry) {
+        console.error('[API] Token refresh failed, logging out');
         localStorage.removeItem('token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
@@ -49,11 +61,13 @@ api.interceptors.response.use(
           const { access_token, token } = response.data;
           const newToken = access_token || token;
           
+          console.log('[API] Token refreshed successfully');
           localStorage.setItem('token', newToken);
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
           
           return api(originalRequest);
         } catch (refreshError) {
+          console.error('[API] Token refresh error:', refreshError);
           // Refresh failed, logout
           localStorage.removeItem('token');
           localStorage.removeItem('refresh_token');
@@ -62,6 +76,7 @@ api.interceptors.response.use(
           return Promise.reject(refreshError);
         }
       } else {
+        console.warn('[API] No refresh token available, logging out');
         // No refresh token, logout
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -71,8 +86,10 @@ api.interceptors.response.use(
 
     // Handle network errors
     if (!err.response) {
-      console.error('Network error:', err.message);
+      console.error('[API] Network error:', err.message);
       err.userMessage = 'Network error. Please check your connection and try again.';
+    } else {
+      console.error(`[API] Error ${err.response.status}:`, err.response.data);
     }
 
     return Promise.reject(err);
@@ -95,11 +112,27 @@ export const dashboardAPI = {
 
 // ── ASSETS ────────────────────────────────────────────────────────────────────
 export const assetAPI = {
-  getAll: (params) => api.get('/assets', { params }),
-  getById: (id) => api.get(`/assets/${id}`),
-  create: (data) => api.post('/assets', data),
-  update: (id, data) => api.put(`/assets/${id}`, data),
-  delete: (id) => api.delete(`/assets/${id}`),
+  getAll: (params) => {
+    console.log('[assetAPI] getAll called with params:', params);
+    return api.get('/assets', { params });
+  },
+  getById: (id) => {
+    console.log('[assetAPI] getById called for ID:', id);
+    return api.get(`/assets/${id}`);
+  },
+  create: (data) => {
+    console.log('[assetAPI] create called with data:', data);
+    return api.post('/assets', data);
+  },
+  update: (id, data) => {
+    console.log('[assetAPI] update called for ID:', id, 'with data:', data);
+    return api.put(`/assets/${id}`, data);
+  },
+  delete: (id) => {
+    console.log('[assetAPI] delete called for ID:', id);
+    console.log('[assetAPI] DELETE URL:', `/assets/${id}`);
+    return api.delete(`/assets/${id}`);
+  },
   getExpiring: (days) => api.get('/assets/warranty/expiring', { params: { days } }),
   getHistory: (id) => api.get(`/assets/${id}/history`),
   bulkUpdate: (ids, data) => api.put('/assets/bulk', { ids, ...data }),

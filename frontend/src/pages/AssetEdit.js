@@ -32,7 +32,13 @@ function AssetEdit() {
     const { name, value } = e.target;
     setForm(f => ({ ...f, [name]: value }));
     if (name === 'employee_email') setRecipientEmail(value);
-    if (errors[name]) setErrors(er => ({ ...er, [name]: '' }));
+    setErrors(er => {
+      if (er[name]) {
+        const { [name]: removed, ...rest } = er;
+        return rest;
+      }
+      return er;
+    });
   };
 
   const validate = () => {
@@ -77,6 +83,113 @@ function AssetEdit() {
     } catch (e) {
       setEmailMsg('error:Cannot connect to server');
     } finally { setSendingEmail(false); }
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      // Use full backend URL for PDF download
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.20.180:5000/api';
+      const response = await fetch(`${API_BASE_URL}/assets/${id}/assignment-form`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('PDF generation failed:', errorText);
+        setApiError('Failed to generate PDF: ' + (response.status === 404 ? 'Asset not found' : response.statusText));
+        return;
+      }
+      
+      const blob = await response.blob();
+      console.log('PDF blob received, size:', blob.size, 'type:', blob.type);
+      
+      if (blob.size === 0) {
+        setApiError('Received empty PDF file');
+        return;
+      }
+      
+      // Create a safe blob URL
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      // Create a temporary link element
+      const link = document.createElement('a');
+      link.style.display = 'none';
+      link.href = blobUrl;
+      link.download = `Assignment_Form_${id}_${form.asset_name || 'Asset'}.pdf`.replace(/ /g, '_');
+      
+      // Append to body, click, and cleanup
+      document.body.appendChild(link);
+      
+      // Use a small timeout to ensure the link is in the DOM
+      setTimeout(() => {
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+      }, 100);
+      
+    } catch (err) {
+      console.error('PDF download error:', err);
+      setApiError('Failed to download PDF: ' + err.message);
+    }
+  };
+
+  const handlePrintPDF = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      // Use full backend URL for PDF download
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.20.180:5000/api';
+      const response = await fetch(`${API_BASE_URL}/assets/${id}/assignment-form`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('PDF generation failed:', errorText);
+        setApiError('Failed to generate PDF for printing: ' + (response.status === 404 ? 'Asset not found' : response.statusText));
+        return;
+      }
+      
+      const blob = await response.blob();
+      console.log('PDF blob for print received, size:', blob.size, 'type:', blob.type);
+      
+      if (blob.size === 0) {
+        setApiError('Received empty PDF file for printing');
+        return;
+      }
+      
+      const url = window.URL.createObjectURL(blob);
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.style.position = 'fixed';
+      iframe.src = url;
+      document.body.appendChild(iframe);
+      
+      iframe.onload = () => {
+        setTimeout(() => {
+          try {
+            iframe.contentWindow.print();
+          } catch (e) {
+            console.error('Print error:', e);
+            setApiError('Failed to open print dialog');
+          }
+        }, 500);
+      };
+      
+      // Cleanup after 30 seconds
+      setTimeout(() => {
+        if (iframe.parentNode) {
+          document.body.removeChild(iframe);
+          window.URL.revokeObjectURL(url);
+        }
+      }, 30000);
+      
+    } catch (err) {
+      console.error('Print PDF error:', err);
+      setApiError('Failed to print PDF: ' + err.message);
+    }
   };
 
   if (loading) return (
@@ -261,6 +374,12 @@ function AssetEdit() {
               ? <><span className="spinner-border spinner-border-sm me-2"></span>Saving…</>
               : <><i className="bi bi-check-circle me-2"></i>Update Asset</>
             }
+          </button>
+          <button type="button" className="btn btn-success" onClick={handleDownloadPDF}>
+            <i className="bi bi-file-pdf me-2"></i>Download Assignment Form
+          </button>
+          <button type="button" className="btn btn-info" onClick={handlePrintPDF}>
+            <i className="bi bi-printer me-2"></i>Print Assignment Form
           </button>
           <button type="button" className="btn btn-outline-secondary" onClick={() => navigate('/assets')}>
             Cancel

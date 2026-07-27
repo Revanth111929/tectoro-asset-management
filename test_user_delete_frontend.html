@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test User Deletion</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <h1>User Deletion Test</h1>
+    <div id="output" style="font-family: monospace; white-space: pre-wrap;"></div>
+    
+    <script>
+        const output = document.getElementById('output');
+        const log = (msg) => {
+            output.textContent += msg + '\n';
+            console.log(msg);
+        };
+        
+        const API_BASE_URL = 'http://192.168.20.180:5000/api';
+        
+        async function testUserDeletion() {
+            try {
+                log('='.repeat(80));
+                log('TESTING USER DELETION FROM BROWSER');
+                log('='.repeat(80));
+                
+                // Step 1: Login
+                log('\n1. Logging in as admin...');
+                const loginResponse = await axios.post(`${API_BASE_URL}/auth/login`, {
+                    username: 'admin',
+                    password: 'admin123'
+                });
+                
+                const token = loginResponse.data.token;
+                log('✓ Login successful, token obtained');
+                
+                // Step 2: Get users
+                log('\n2. Fetching users list...');
+                const usersResponse = await axios.get(`${API_BASE_URL}/users`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const users = usersResponse.data;
+                log(`✓ Found ${users.length} users:`);
+                users.forEach(u => log(`  - ID ${u.id}: ${u.username} (${u.role})`));
+                
+                // Step 3: Create test user
+                log('\n3. Creating test user...');
+                const createResponse = await axios.post(`${API_BASE_URL}/users`, {
+                    username: 'testuser_frontend_delete',
+                    email: 'test@test.com',
+                    password: 'testpass123',
+                    role: 'standard'
+                }, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                log('✓ Test user created');
+                
+                // Refresh users list
+                const usersResponse2 = await axios.get(`${API_BASE_URL}/users`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const testUser = usersResponse2.data.find(u => u.username === 'testuser_frontend_delete');
+                log(`✓ Test user ID: ${testUser.id}`);
+                
+                // Step 4: Delete user
+                log(`\n4. Deleting user ID ${testUser.id}...`);
+                log(`   Endpoint: DELETE ${API_BASE_URL}/users/${testUser.id}`);
+                
+                const deleteResponse = await axios.delete(`${API_BASE_URL}/users/${testUser.id}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                log('\n' + '='.repeat(80));
+                log('DELETE RESPONSE:');
+                log('='.repeat(80));
+                log(`Status: ${deleteResponse.status}`);
+                log(`Data: ${JSON.stringify(deleteResponse.data, null, 2)}`);
+                
+                if (deleteResponse.status === 200) {
+                    log('\n✅ DELETE successful!');
+                    
+                    // Verify
+                    log('\n5. Verifying deletion...');
+                    const usersResponse3 = await axios.get(`${API_BASE_URL}/users`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    
+                    const stillExists = usersResponse3.data.find(u => u.id === testUser.id);
+                    
+                    if (stillExists) {
+                        log('❌ User still exists!');
+                    } else {
+                        log('✅ User successfully deleted!');
+                        log(`   Users count: ${usersResponse2.data.length} → ${usersResponse3.data.length}`);
+                    }
+                } else {
+                    log('\n❌ DELETE failed!');
+                }
+                
+            } catch (error) {
+                log('\n❌ ERROR:');
+                log(`Message: ${error.message}`);
+                if (error.response) {
+                    log(`Status: ${error.response.status}`);
+                    log(`Data: ${JSON.stringify(error.response.data, null, 2)}`);
+                }
+                log(`\nFull error: ${JSON.stringify(error, null, 2)}`);
+            }
+        }
+        
+        // Run test on page load
+        testUserDeletion();
+    </script>
+</body>
+</html>

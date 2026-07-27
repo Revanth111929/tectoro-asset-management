@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import './AssetReplacements.css';
 
 function AssetReplacements() {
@@ -8,6 +8,9 @@ function AssetReplacements() {
   const [showModal, setShowModal] = useState(false);
   const [availableAssets, setAvailableAssets] = useState([]);
   const [allAssets, setAllAssets] = useState([]);
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [employeeSuggestions, setEmployeeSuggestions] = useState([]);
+  const [showEmployeeSuggestions, setShowEmployeeSuggestions] = useState(false);
   const [formData, setFormData] = useState({
     employee_id: '',
     employee_name: '',
@@ -44,7 +47,7 @@ function AssetReplacements() {
   const fetchReplacements = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/asset-replacements');
+      const response = await api.get('/asset-replacements');
       setReplacements(response.data.replacements || []);
     } catch (error) {
       console.error('Error fetching replacements:', error);
@@ -55,7 +58,7 @@ function AssetReplacements() {
 
   const fetchAvailableAssets = async () => {
     try {
-      const response = await axios.get('/api/assets?status=Available');
+      const response = await api.get('/assets', { params: { status: 'Available' } });
       setAvailableAssets(response.data.assets || []);
     } catch (error) {
       console.error('Error fetching available assets:', error);
@@ -64,11 +67,47 @@ function AssetReplacements() {
 
   const fetchAllAssets = async () => {
     try {
-      const response = await axios.get('/api/assets');
+      const response = await api.get('/assets');
       setAllAssets(response.data.assets || []);
     } catch (error) {
       console.error('Error fetching all assets:', error);
     }
+  };
+
+  const searchEmployees = async (searchTerm) => {
+    if (!searchTerm || searchTerm.length < 2) {
+      setEmployeeSuggestions([]);
+      setShowEmployeeSuggestions(false);
+      return;
+    }
+
+    try {
+      const response = await api.get('/employees', { params: { q: searchTerm } });
+      const employees = Array.isArray(response.data) ? response.data : [];
+      setEmployeeSuggestions(employees);
+      setShowEmployeeSuggestions(employees.length > 0);
+    } catch (error) {
+      console.error('Error searching employees:', error);
+      setEmployeeSuggestions([]);
+      setShowEmployeeSuggestions(false);
+    }
+  };
+
+  const handleEmployeeSearchChange = (e) => {
+    const value = e.target.value;
+    setEmployeeSearch(value);
+    searchEmployees(value);
+  };
+
+  const selectEmployee = (employee) => {
+    setFormData({
+      ...formData,
+      employee_id: employee.emp_id,
+      employee_name: employee.employee_name
+    });
+    setEmployeeSearch(`${employee.employee_name} (${employee.emp_id})`);
+    setShowEmployeeSuggestions(false);
+    setEmployeeSuggestions([]);
   };
 
   const openNewReplacementModal = async () => {
@@ -84,12 +123,15 @@ function AssetReplacements() {
       old_asset_condition: 'Good',
       remarks: ''
     });
+    setEmployeeSearch('');
+    setEmployeeSuggestions([]);
+    setShowEmployeeSuggestions(false);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('/api/asset-replacements', formData);
+      await api.post('/asset-replacements', formData);
       setShowModal(false);
       fetchReplacements();
       alert('Asset replacement completed successfully!');
@@ -101,7 +143,7 @@ function AssetReplacements() {
 
   const handleDelete = (replacement) => {
     if (window.confirm(`Delete asset replacement for ${replacement.employee_name}?\n\nOld: ${replacement.old_asset_name}\nNew: ${replacement.new_asset_name}\n\nThis action cannot be undone.\n\nWarning: This will permanently delete the replacement record but will NOT automatically update asset statuses.`)) {
-      axios.delete(`/api/asset-replacements/${replacement.id}`)
+      api.delete(`/asset-replacements/${replacement.id}`)
         .then(() => {
           fetchReplacements();
           alert('Replacement deleted successfully!');
@@ -310,27 +352,52 @@ function AssetReplacements() {
                   </div>
 
                   <div className="row g-3">
-                    <div className="col-md-6">
-                      <label className="form-label">Employee ID <span className="text-danger">*</span></label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={formData.employee_id}
-                        onChange={(e) => setFormData({...formData, employee_id: e.target.value})}
-                        required
-                        placeholder="e.g., EMP001"
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Employee Name <span className="text-danger">*</span></label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={formData.employee_name}
-                        onChange={(e) => setFormData({...formData, employee_name: e.target.value})}
-                        required
-                        placeholder="e.g., John Smith"
-                      />
+                    <div className="col-12">
+                      <label className="form-label">Search Employee <span className="text-danger">*</span></label>
+                      <div className="position-relative">
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={employeeSearch}
+                          onChange={handleEmployeeSearchChange}
+                          placeholder="Type employee ID or name (min 2 characters)..."
+                          required={!formData.employee_id}
+                        />
+                        {showEmployeeSuggestions && employeeSuggestions.length > 0 && (
+                          <div className="list-group position-absolute w-100" style={{
+                            zIndex: 1000,
+                            maxHeight: '200px',
+                            overflowY: 'auto',
+                            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                          }}>
+                            {employeeSuggestions.map((employee) => (
+                              <button
+                                key={employee.emp_id}
+                                type="button"
+                                className="list-group-item list-group-item-action"
+                                onClick={() => selectEmployee(employee)}
+                              >
+                                <div className="d-flex justify-content-between">
+                                  <div>
+                                    <strong>{employee.employee_name}</strong>
+                                    <br />
+                                    <small className="text-muted">
+                                      ID: {employee.emp_id} | {employee.department || 'N/A'} | {employee.location || 'N/A'}
+                                    </small>
+                                  </div>
+                                  <span className="badge bg-primary align-self-center">Select</span>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {formData.employee_id && (
+                        <div className="alert alert-success mt-2 mb-0">
+                          <i className="bi bi-check-circle me-2"></i>
+                          Selected: <strong>{formData.employee_name}</strong> ({formData.employee_id})
+                        </div>
+                      )}
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Old Asset (Being Replaced) <span className="text-danger">*</span></label>

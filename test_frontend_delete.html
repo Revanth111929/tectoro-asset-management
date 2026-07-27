@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Asset Deletion</title>
+</head>
+<body>
+    <h1>Frontend Asset Deletion Test</h1>
+    <div id="output"></div>
+    
+    <script>
+        const API_BASE_URL = 'http://192.168.20.180:5000/api';
+        const output = document.getElementById('output');
+        
+        function log(msg) {
+            output.innerHTML += msg + '<br>';
+            console.log(msg);
+        }
+        
+        async function testDeleteAsset() {
+            try {
+                // First, login to get token
+                log('Step 1: Logging in...');
+                const loginRes = await fetch(`${API_BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: 'admin', password: 'admin123' })
+                });
+                
+                if (!loginRes.ok) {
+                    log('❌ Login failed: ' + loginRes.status);
+                    return;
+                }
+                
+                const loginData = await loginRes.json();
+                const token = loginData.access_token || loginData.token;
+                log('✅ Login successful. Token: ' + token.substring(0, 20) + '...');
+                
+                // Check user role
+                log('<br>Step 2: Checking user info...');
+                const meRes = await fetch(`${API_BASE_URL}/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (meRes.ok) {
+                    const userData = await meRes.json();
+                    log('✅ User: ' + userData.username + ', Role: ' + userData.role);
+                    
+                    // Check permissions
+                    const canDelete = userData.role === 'admin';
+                    log('Can delete: ' + (canDelete ? '✅ YES' : '❌ NO'));
+                } else {
+                    log('⚠️ Could not fetch user info');
+                }
+                
+                // Get first asset to test
+                log('<br>Step 3: Fetching assets...');
+                const assetsRes = await fetch(`${API_BASE_URL}/assets?per_page=5`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!assetsRes.ok) {
+                    log('❌ Failed to fetch assets: ' + assetsRes.status);
+                    return;
+                }
+                
+                const assetsData = await assetsRes.json();
+                const assets = assetsData.assets || [];
+                
+                if (assets.length === 0) {
+                    log('⚠️ No assets available for testing');
+                    return;
+                }
+                
+                log(`✅ Found ${assets.length} assets`);
+                
+                // Show first few assets
+                assets.slice(0, 3).forEach(a => {
+                    log(`  - Asset ID ${a.id}: ${a.asset_name} (${a.serial_number})`);
+                });
+                
+                // Ask user which asset to test delete on
+                log('<br>⚠️ To test deletion, check console for asset list');
+                log('⚠️ Deletion test requires manual confirmation to avoid data loss');
+                
+            } catch (err) {
+                log('❌ Error: ' + err.message);
+                console.error(err);
+            }
+        }
+        
+        testDeleteAsset();
+    </script>
+</body>
+</html>
