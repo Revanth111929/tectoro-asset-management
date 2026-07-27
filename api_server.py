@@ -3191,3 +3191,334 @@ if __name__ == '__main__':
     print("=" * 60)
     app.run(debug=True, host='0.0.0.0', port=5000)
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CORPORATE SIM ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/corporate-sims', methods=['GET'])
+def get_corporate_sims():
+    """Get all Corporate SIMs with pagination, search, and filters"""
+    from models import CorporateSIM
+    
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    
+    # Search query
+    search = request.args.get('search', '').strip()
+    
+    # Filters
+    status = request.args.get('status', '').strip()
+    carrier = request.args.get('carrier', '').strip()
+    assigned_to = request.args.get('assigned_to', '').strip()
+    
+    # Build query
+    query = CorporateSIM.query
+    
+    # Apply search
+    if search:
+        query = query.filter(or_(
+            CorporateSIM.iccid.ilike(f'%{search}%'),
+            CorporateSIM.mobile_number.ilike(f'%{search}%'),
+            CorporateSIM.assigned_employee_name.ilike(f'%{search}%'),
+            CorporateSIM.corporate_account.ilike(f'%{search}%')
+        ))
+    
+    # Apply filters
+    if status:
+        query = query.filter_by(status=status)
+    if carrier:
+        query = query.filter_by(carrier=carrier)
+    if assigned_to:
+        query = query.filter(or_(
+            CorporateSIM.assigned_employee_id.ilike(f'%{assigned_to}%'),
+            CorporateSIM.assigned_employee_name.ilike(f'%{assigned_to}%')
+        ))
+    
+    # Get total count
+    total = query.count()
+    
+    # Apply pagination and get results
+    sims = query.order_by(CorporateSIM.created_at.desc())\
+                .offset((page - 1) * per_page)\
+                .limit(per_page)\
+                .all()
+    
+    return jsonify({
+        'sims': [sim.to_dict() for sim in sims],
+        'page': page,
+        'per_page': per_page,
+        'total': total,
+        'total_pages': (total + per_page - 1) // per_page
+    })
+
+@app.route('/api/corporate-sims/<int:sim_id>', methods=['GET'])
+def get_corporate_sim(sim_id):
+    """Get a single Corporate SIM by ID"""
+    from models import CorporateSIM
+    
+    sim = CorporateSIM.query.get(sim_id)
+    if not sim:
+        return jsonify({'error': 'SIM not found'}), 404
+    
+    return jsonify({'sim': sim.to_dict()})
+
+@app.route('/api/corporate-sims', methods=['POST'])
+@admin_required
+def create_corporate_sim():
+    """Create a new Corporate SIM"""
+    from models import CorporateSIM
+    
+    data = request.get_json() or {}
+    
+    # Validate required fields
+    if not data.get('iccid'):
+        return jsonify({'error': 'ICCID is required'}), 400
+    if not data.get('carrier'):
+        return jsonify({'error': 'Carrier is required'}), 400
+    
+    # Validate ICCID format (19-20 digits)
+    iccid = data['iccid'].strip()
+    if not iccid.isdigit() or len(iccid) not in [19, 20]:
+        return jsonify({'error': 'ICCID must be 19-20 digits'}), 400
+    
+    # Check for duplicate ICCID
+    if CorporateSIM.query.filter_by(iccid=iccid).first():
+        return jsonify({'error': f'SIM with ICCID {iccid} already exists'}), 400
+    
+    # Validate mobile number if provided
+    mobile = data.get('mobile_number', '').strip()
+    if mobile:
+        if not mobile.isdigit() or len(mobile) != 10:
+            return jsonify({'error': 'Mobile number must be 10 digits'}), 400
+        # Check for duplicate mobile number
+        if CorporateSIM.query.filter_by(mobile_number=mobile).first():
+            return jsonify({'error': f'SIM with mobile number {mobile} already exists'}), 400
+    
+    # Create new SIM
+    current_user = get_current_user()
+    sim = CorporateSIM(
+        iccid=iccid,
+        mobile_number=mobile if mobile else None,
+        carrier=data.get('carrier'),
+        plan_type=data.get('plan_type'),
+        monthly_cost=data.get('monthly_cost'),
+        data_limit_gb=data.get('data_limit_gb'),
+        corporate_account=data.get('corporate_account'),
+        account_manager=data.get('account_manager'),
+        status=data.get('status', 'Available'),
+        purchase_date=datetime.strptime(data['purchase_date'], '%Y-%m-%d').date() if data.get('purchase_date') else None,
+        activation_date=datetime.strptime(data['activation_date'], '%Y-%m-%d').date() if data.get('activation_date') else None,
+        vendor=data.get('vendor'),
+        sim_type=data.get('sim_type'),
+        puk_code=data.get('puk_code'),
+        remarks=data.get('remarks'),
+        created_by=current_user.username if current_user else 'system'
+    )
+    
+    db.session.add(sim)
+    db.session.commit()
+    
+    log_activity('CREATE', 'CorporateSIM', f'Created SIM: {iccid} - {data.get("carrier")}', current_user)
+    
+    return jsonify({'success': True, 'sim': sim.to_dict()}), 201
+
+@app.route('/api/corporate-sims/<int:sim_id>', methods=['PUT'])
+@admin_required
+def update_corporate_sim(sim_id):
+    """Update a Corporate SIM"""
+    from models import CorporateSIM
+    
+    sim = CorporateSIM.query.get(sim_id)
+    if not sim:
+        return jsonify({'error': 'SIM not found'}), 404
+    
+    data = request.get_json() or {}
+    current_user = get_current_user()
+    
+    # Update fields
+    if 'mobile_number' in data:
+        mobile = data['mobile_number'].strip()
+        if mobile:
+            if not mobile.isdigit() or len(mobile) != 10:
+                return jsonify({'error': 'Mobile number must be 10 digits'}), 400
+            # Check for duplicate (excluding current SIM)
+            existing = CorporateSIM.query.filter_by(mobile_number=mobile).first()
+            if existing and existing.id != sim_id:
+                return jsonify({'error': f'Mobile number {mobile} is already in use'}), 400
+            sim.mobile_number = mobile
+        else:
+            sim.mobile_number = None
+    
+    if 'carrier' in data:
+        sim.carrier = data['carrier']
+    if 'plan_type' in data:
+        sim.plan_type = data['plan_type']
+    if 'monthly_cost' in data:
+        sim.monthly_cost = data['monthly_cost']
+    if 'data_limit_gb' in data:
+        sim.data_limit_gb = data['data_limit_gb']
+    if 'corporate_account' in data:
+        sim.corporate_account = data['corporate_account']
+    if 'account_manager' in data:
+        sim.account_manager = data['account_manager']
+    if 'status' in data:
+        sim.status = data['status']
+    if 'purchase_date' in data:
+        sim.purchase_date = datetime.strptime(data['purchase_date'], '%Y-%m-%d').date() if data['purchase_date'] else None
+    if 'activation_date' in data:
+        sim.activation_date = datetime.strptime(data['activation_date'], '%Y-%m-%d').date() if data['activation_date'] else None
+    if 'vendor' in data:
+        sim.vendor = data['vendor']
+    if 'sim_type' in data:
+        sim.sim_type = data['sim_type']
+    if 'puk_code' in data:
+        sim.puk_code = data['puk_code']
+    if 'remarks' in data:
+        sim.remarks = data['remarks']
+    
+    sim.updated_by = current_user.username if current_user else 'system'
+    sim.updated_at = datetime.utcnow()
+    
+    db.session.commit()
+    
+    log_activity('UPDATE', 'CorporateSIM', f'Updated SIM: {sim.iccid}', current_user)
+    
+    return jsonify({'success': True, 'sim': sim.to_dict()})
+
+@app.route('/api/corporate-sims/<int:sim_id>', methods=['DELETE'])
+@admin_required
+def delete_corporate_sim(sim_id):
+    """Delete a Corporate SIM (admin only)"""
+    from models import CorporateSIM
+    
+    sim = CorporateSIM.query.get(sim_id)
+    if not sim:
+        return jsonify({'error': 'SIM not found'}), 404
+    
+    # Prevent deletion if assigned
+    if sim.status == 'Assigned':
+        return jsonify({'error': 'Cannot delete assigned SIM. Please return it first.'}), 400
+    
+    iccid = sim.iccid
+    current_user = get_current_user()
+    
+    db.session.delete(sim)
+    db.session.commit()
+    
+    log_activity('DELETE', 'CorporateSIM', f'Deleted SIM: {iccid}', current_user)
+    
+    return jsonify({'success': True, 'message': 'SIM deleted successfully'})
+
+@app.route('/api/corporate-sims/<int:sim_id>/assign', methods=['POST'])
+@admin_required
+def assign_corporate_sim(sim_id):
+    """Assign a Corporate SIM to an employee"""
+    from models import CorporateSIM, Employee
+    
+    sim = CorporateSIM.query.get(sim_id)
+    if not sim:
+        return jsonify({'error': 'SIM not found'}), 404
+    
+    if sim.status not in ['Available', 'Returned']:
+        return jsonify({'error': f'SIM is not available for assignment (current status: {sim.status})'}), 400
+    
+    data = request.get_json() or {}
+    employee_id = data.get('employee_id', '').strip()
+    
+    if not employee_id:
+        return jsonify({'error': 'Employee ID is required'}), 400
+    
+    # Get employee details
+    employee = Employee.query.filter_by(emp_id=employee_id).first()
+    if not employee:
+        return jsonify({'error': f'Employee {employee_id} not found'}), 404
+    
+    # Assign SIM
+    current_user = get_current_user()
+    sim.assigned_employee_id = employee.emp_id
+    sim.assigned_employee_name = employee.employee_name
+    sim.assigned_employee_email = employee.email
+    sim.assignment_date = date.today()
+    sim.return_date = None
+    sim.status = 'Assigned'
+    sim.updated_by = current_user.username if current_user else 'system'
+    sim.updated_at = datetime.utcnow()
+    
+    if data.get('remarks'):
+        sim.remarks = (sim.remarks or '') + f"\n[{date.today()}] Assigned to {employee.employee_name}: {data['remarks']}"
+    
+    db.session.commit()
+    
+    log_activity('ASSIGN', 'CorporateSIM', f'Assigned SIM {sim.iccid} to {employee.employee_name} [{employee_id}]', current_user)
+    
+    return jsonify({'success': True, 'sim': sim.to_dict()})
+
+@app.route('/api/corporate-sims/<int:sim_id>/return', methods=['POST'])
+@admin_required
+def return_corporate_sim(sim_id):
+    """Return a Corporate SIM from an employee"""
+    from models import CorporateSIM
+    
+    sim = CorporateSIM.query.get(sim_id)
+    if not sim:
+        return jsonify({'error': 'SIM not found'}), 404
+    
+    if sim.status != 'Assigned':
+        return jsonify({'error': f'SIM is not assigned (current status: {sim.status})'}), 400
+    
+    data = request.get_json() or {}
+    current_user = get_current_user()
+    
+    # Record return
+    old_employee = sim.assigned_employee_name
+    sim.return_date = date.today()
+    sim.status = data.get('new_status', 'Available')  # Can be Available, Damaged, Lost, etc.
+    
+    # Clear assignment if returning to available
+    if sim.status == 'Available':
+        sim.assigned_employee_id = None
+        sim.assigned_employee_name = None
+        sim.assigned_employee_email = None
+    
+    if data.get('remarks'):
+        sim.remarks = (sim.remarks or '') + f"\n[{date.today()}] Returned from {old_employee}: {data['remarks']}"
+    
+    sim.updated_by = current_user.username if current_user else 'system'
+    sim.updated_at = datetime.utcnow()
+    
+    db.session.commit()
+    
+    log_activity('RETURN', 'CorporateSIM', f'Returned SIM {sim.iccid} from {old_employee}', current_user)
+    
+    return jsonify({'success': True, 'sim': sim.to_dict()})
+
+@app.route('/api/corporate-sims/stats', methods=['GET'])
+def get_corporate_sim_stats():
+    """Get Corporate SIM statistics for dashboard"""
+    from models import CorporateSIM
+    
+    total = CorporateSIM.query.count()
+    available = CorporateSIM.query.filter_by(status='Available').count()
+    assigned = CorporateSIM.query.filter_by(status='Assigned').count()
+    suspended = CorporateSIM.query.filter_by(status='Suspended').count()
+    lost = CorporateSIM.query.filter_by(status='Lost').count()
+    damaged = CorporateSIM.query.filter_by(status='Damaged').count()
+    
+    # Carrier breakdown
+    carrier_stats = db.session.query(
+        CorporateSIM.carrier,
+        func.count(CorporateSIM.id).label('count')
+    ).group_by(CorporateSIM.carrier).all()
+    
+    return jsonify({
+        'total': total,
+        'available': available,
+        'assigned': assigned,
+        'suspended': suspended,
+        'lost': lost,
+        'damaged': damaged,
+        'carriers': [{'name': c[0], 'count': c[1]} for c in carrier_stats]
+    })
