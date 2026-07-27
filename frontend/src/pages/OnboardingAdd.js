@@ -11,6 +11,24 @@ const EMPTY = {
   application_access: [], status: 'Pending',
 };
 
+// Field component - moved outside to prevent recreation
+const Field = React.memo(({ label, name, type = 'text', required, col = 'col-md-6', value, onChange, error }) => (
+  <div className={col}>
+    <label className="form-label">
+      {label}{required && <span className="text-danger ms-1">*</span>}
+    </label>
+    <input
+      type={type}
+      name={name}
+      className={`form-control ${error ? 'is-invalid' : ''}`}
+      value={value}
+      onChange={onChange}
+      autoComplete="off"
+    />
+    {error && <div className="invalid-feedback">{error}</div>}
+  </div>
+));
+
 function OnboardingAdd() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -135,22 +153,7 @@ function OnboardingAdd() {
     );
   }
 
-  const Field = ({ label, name, type = 'text', required, col = 'col-md-6' }) => (
-    <div className={col}>
-      <label className="form-label">
-        {label}{required && <span className="text-danger ms-1">*</span>}
-      </label>
-      <input
-        type={type}
-        name={name}
-        className={`form-control ${errors[name] ? 'is-invalid' : ''}`}
-        value={form[name]}
-        onChange={handleChange}
-        autoComplete="off"
-      />
-      {errors[name] && <div className="invalid-feedback">{errors[name]}</div>}
-    </div>
-  );
+
 
   return (
     <div>
@@ -168,10 +171,10 @@ function OnboardingAdd() {
             <i className="bi bi-person me-2"></i>Employee Information
           </h6>
           <div className="row g-3">
-            <Field label="Full Name" name="name" required />
-            <Field label="Email" name="email" type="email" required />
-            <Field label="Phone Number" name="phone_number" type="tel" required />
-            <Field label="Designation" name="designation" required />
+            <Field label="Full Name" name="name" required value={form.name} onChange={handleChange} error={errors.name} />
+            <Field label="Email" name="email" type="email" required value={form.email} onChange={handleChange} error={errors.email} />
+            <Field label="Phone Number" name="phone_number" type="tel" required value={form.phone_number} onChange={handleChange} error={errors.phone_number} />
+            <Field label="Designation" name="designation" required value={form.designation} onChange={handleChange} error={errors.designation} />
             <div className="col-md-6">
               <label className="form-label">Team<span className="text-danger ms-1">*</span></label>
               <select
