@@ -5634,3 +5634,25 @@
 2026-07-27 12:45:49,409 [INFO] __main__: Database tables initialized (seed data disabled)
 2026-07-27 12:45:49,425 [WARNING] werkzeug:  * Debugger is active!
 2026-07-27 12:45:49,426 [INFO] werkzeug:  * Debugger PIN: 118-841-274
+2026-07-27 13:10:56,424 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-27 13:10:56,435 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.20.180:5000
+2026-07-27 13:10:56,435 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-07-27 13:10:56,436 [INFO] werkzeug:  * Restarting with stat
+2026-07-27 13:10:56,959 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-27 13:10:56,968 [WARNING] werkzeug:  * Debugger is active!
+2026-07-27 13:10:56,968 [INFO] werkzeug:  * Debugger PIN: 118-841-274
+2026-07-27 13:11:54,991 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 13:11:54] "GET /assets HTTP/1.1" 200 -
+2026-07-27 13:11:55,019 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 13:11:55] "GET /static/js/main.35f46920.js HTTP/1.1" 200 -
+2026-07-27 13:11:55,105 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 13:11:55] "GET /static/css/main.88101b86.css HTTP/1.1" 200 -
+2026-07-27 13:11:55,420 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 13:11:55] "GET /static/media/bootstrap-icons.92ea18a81d737146ff04.woff2 HTTP/1.1" 200 -
+2026-07-27 13:11:55,513 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 13:11:55] "GET /static/media/tectoro-login-logo.cac63a34d48239d7957e.png HTTP/1.1" 200 -
+2026-07-27 13:12:00,189 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 13:12:00] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-07-27 13:12:00,222 [INFO] werkzeug: 192.168.20.180 - - [27/Jul/2026 13:12:00] "GET /static/media/tectoro-icon-only.29253f2e57ef6301c8d5.png HTTP/1.1" 200 -
+2026-07-27 13:20:08,136 [INFO] werkzeug:  * Detected change in '/home/administrator/Desktop/asset-management/app.py', reloading
+2026-07-27 13:20:08,272 [INFO] werkzeug:  * Restarting with stat
+2026-07-27 13:20:08,759 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-27 13:20:08,765 [WARNING] werkzeug:  * Debugger is active!
+2026-07-27 13:20:08,765 [INFO] werkzeug:  * Debugger PIN: 118-841-274

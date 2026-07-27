@@ -69,6 +69,10 @@ def create_app():
     def serve_css(filename):
         return send_from_directory(os.path.join(os.path.dirname(__file__), 'frontend', 'build', 'static', 'css'), filename)
 
+    @app.route('/static/media/<path:filename>')
+    def serve_media(filename):
+        return send_from_directory(os.path.join(os.path.dirname(__file__), 'frontend', 'build', 'static', 'media'), filename)
+
     app.register_blueprint(api_bp)
     app.register_blueprint(lifecycle_bp)  # Lifecycle tracking API
 
