@@ -1407,7 +1407,10 @@ def test_email_config():
 def get_employees():
     from models import Employee
     q = request.args.get('q', '').strip()
-    query = Employee.query.filter_by(is_active=True)
+    # Filter for active employees (including NULL is_active which means active)
+    query = Employee.query.filter(
+        or_(Employee.is_active == True, Employee.is_active == None)
+    )
     if q:
         query = query.filter(
             or_(Employee.emp_id.ilike(f'%{q}%'),

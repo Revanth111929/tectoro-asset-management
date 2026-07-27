@@ -710,7 +710,7 @@ class EmailConfig(db.Model):
 class Employee(db.Model):
     __tablename__ = 'employees'
 
-    id             = db.Column(db.String(50))
+    id             = db.Column(db.Integer)
     emp_id         = db.Column(db.String(50), unique=True, nullable=False, primary_key=True, index=True)
     employee_name  = db.Column(db.String(150), nullable=False, index=True)
     email          = db.Column(db.String(150), unique=True)
@@ -721,6 +721,8 @@ class Employee(db.Model):
     is_active      = db.Column(db.Boolean, default=True)
     status         = db.Column(db.String(50), default='Active')  # Active, Exited, Inactive
     exit_date      = db.Column(db.Date)
+    application_access = db.Column(db.Text)  # JSON string of application access list
+    onboarding_id  = db.Column(db.Integer)  # Reference to onboarding record if converted
     created_at     = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at     = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -737,6 +739,8 @@ class Employee(db.Model):
             'is_active':     self.is_active,
             'status':        self.status or 'Active',
             'exit_date':     self.exit_date.isoformat() if self.exit_date else None,
+            'application_access': self.application_access or '',
+            'onboarding_id': self.onboarding_id,
         }
 
 

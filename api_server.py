@@ -3122,8 +3122,6 @@ def convert_onboarding_to_employee(onboarding_id):
         mobile_number=record.phone_number,
         designation=record.designation,
         department=record.team,
-        application_access=record.application_access,
-        onboarding_id=record.id,
         status='Active',
         is_active=True,
     )
