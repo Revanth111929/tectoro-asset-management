@@ -1,12 +1,23 @@
 // Warranty.js – Warranty tracking page with expiry alerts
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { assetAPI } from '../services/api';
 
 function Warranty() {
+  const location = useLocation();
   const [assets,  setAssets]  = useState([]);
   const [loading, setLoading] = useState(true);
   const [days,    setDays]    = useState(90);
+
+  // Check URL parameters for filter
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const filter = params.get('filter');
+    
+    if (filter === 'expiring90') {
+      setDays(90);
+    }
+  }, [location.search]);
 
   useEffect(() => {
     setLoading(true);

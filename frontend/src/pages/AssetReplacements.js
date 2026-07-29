@@ -7,7 +7,8 @@ function AssetReplacements() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [availableAssets, setAvailableAssets] = useState([]);
-  const [allAssets, setAllAssets] = useState([]);
+  const [employeeAssets, setEmployeeAssets] = useState([]);
+  const [loadingEmployeeAssets, setLoadingEmployeeAssets] = useState(false);
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [employeeSuggestions, setEmployeeSuggestions] = useState([]);
   const [showEmployeeSuggestions, setShowEmployeeSuggestions] = useState(false);
@@ -65,15 +66,6 @@ function AssetReplacements() {
     }
   };
 
-  const fetchAllAssets = async () => {
-    try {
-      const response = await api.get('/assets');
-      setAllAssets(response.data.assets || []);
-    } catch (error) {
-      console.error('Error fetching all assets:', error);
-    }
-  };
-
   const searchEmployees = async (searchTerm) => {
     if (!searchTerm || searchTerm.length < 2) {
       setEmployeeSuggestions([]);
@@ -99,7 +91,7 @@ function AssetReplacements() {
     searchEmployees(value);
   };
 
-  const selectEmployee = (employee) => {
+  const selectEmployee = async (employee) => {
     setFormData({
       ...formData,
       employee_id: employee.emp_id,
@@ -108,11 +100,32 @@ function AssetReplacements() {
     setEmployeeSearch(`${employee.employee_name} (${employee.emp_id})`);
     setShowEmployeeSuggestions(false);
     setEmployeeSuggestions([]);
+    
+    // Automatically fetch assets assigned to this employee
+    await fetchEmployeeAssets(employee.emp_id);
+  };
+
+  const fetchEmployeeAssets = async (empId) => {
+    if (!empId) return;
+    
+    setLoadingEmployeeAssets(true);
+    try {
+      const response = await api.get(`/assets/by-employee/${empId}`);
+      if (response.data.assets && response.data.assets.length > 0) {
+        setEmployeeAssets(response.data.assets);
+      } else {
+        setEmployeeAssets([]);
+      }
+    } catch (error) {
+      console.error('Error fetching employee assets:', error);
+      setEmployeeAssets([]);
+    } finally {
+      setLoadingEmployeeAssets(false);
+    }
   };
 
   const openNewReplacementModal = async () => {
     await fetchAvailableAssets();
-    await fetchAllAssets();
     setShowModal(true);
     setFormData({
       employee_id: '',
@@ -126,6 +139,7 @@ function AssetReplacements() {
     setEmployeeSearch('');
     setEmployeeSuggestions([]);
     setShowEmployeeSuggestions(false);
+    setEmployeeAssets([]);
   };
 
   const handleSubmit = async (e) => {
@@ -401,20 +415,42 @@ function AssetReplacements() {
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Old Asset (Being Replaced) <span className="text-danger">*</span></label>
-                      <select
-                        className="form-select"
-                        value={formData.old_asset_id}
-                        onChange={(e) => setFormData({...formData, old_asset_id: e.target.value})}
-                        required
-                      >
-                        <option value="">-- Select Asset to Replace --</option>
-                        {allAssets.map(asset => (
-                          <option key={asset.id} value={asset.id}>
-                            {asset.asset_name} - {asset.serial_number} ({asset.status})
-                          </option>
-                        ))}
-                      </select>
-                      <small className="text-muted">The asset currently assigned to employee</small>
+                      {loadingEmployeeAssets ? (
+                        <div className="form-control d-flex align-items-center">
+                          <span className="spinner-border spinner-border-sm me-2"></span>
+                          Loading employee assets...
+                        </div>
+                      ) : (
+                        <>
+                          <select
+                            className="form-select"
+                            value={formData.old_asset_id}
+                            onChange={(e) => setFormData({...formData, old_asset_id: e.target.value})}
+                            required
+                            disabled={!formData.employee_id}
+                          >
+                            <option value="">
+                              {!formData.employee_id 
+                                ? '-- Select Employee First --' 
+                                : employeeAssets.length === 0 
+                                  ? '-- No Assets Assigned to Employee --'
+                                  : '-- Select Asset to Replace --'}
+                            </option>
+                            {employeeAssets.map(asset => (
+                              <option key={asset.id} value={asset.id}>
+                                {asset.asset_name} - {asset.serial_number} ({asset.category})
+                              </option>
+                            ))}
+                          </select>
+                          <small className="text-muted">
+                            {formData.employee_id 
+                              ? employeeAssets.length === 0 
+                                ? 'No assets currently assigned to this employee'
+                                : `${employeeAssets.length} asset(s) assigned to this employee`
+                              : 'Select an employee to view their assets'}
+                          </small>
+                        </>
+                      )}
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">New Asset (Replacement) <span className="text-danger">*</span></label>
