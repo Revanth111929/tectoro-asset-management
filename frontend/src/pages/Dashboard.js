@@ -8,6 +8,11 @@ import { canPerform } from '../utils/permissions';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
 
+// Canvas-rendered chart text doesn't inherit CSS font-family, so it's set
+// explicitly here to keep chart labels/legend/tooltips consistent with Inter
+// used across the rest of the app.
+ChartJS.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+
 function Dashboard() {
   const navigate = useNavigate();
   const [stats, setStats]       = useState(null);
