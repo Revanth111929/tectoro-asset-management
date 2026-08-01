@@ -19,9 +19,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from db_config import resolve_database_uri, DatabaseConfigError
+
+basedir = os.path.dirname(os.path.abspath(__file__))
+
 # Initialize Flask app
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///assets.db')
+try:
+    _db_uri, _app_env = resolve_database_uri(basedir)
+except DatabaseConfigError as exc:
+    raise SystemExit(str(exc))
+app.config['SQLALCHEMY_DATABASE_URI'] = _db_uri
+print(f"Environment: {_app_env}")
+print(f"Database: {_db_uri.replace('sqlite:///', '')}")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 

@@ -35,8 +35,8 @@ def create_app():
 
     app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
     app.config['APP_ENV'] = app_env
-    print(f"🌍 APP_ENV: {app_env}")
-    print(f"📁 Database: {db_uri}")
+    print(f"Environment: {app_env}")
+    print(f"Database: {db_uri.replace('sqlite:///', '')}")
 
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False   # saves memory
 

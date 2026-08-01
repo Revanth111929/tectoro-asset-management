@@ -35,6 +35,8 @@ try:
 except DatabaseConfigError as exc:
     raise SystemExit(str(exc))
 app.config['SQLALCHEMY_DATABASE_URI'] = _db_uri
+print(f"Environment: {APP_ENV}")
+print(f"Database: {_db_uri.replace('sqlite:///', '')}")
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {

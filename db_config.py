@@ -2,8 +2,8 @@
 db_config.py
 Single source of truth for selecting the correct database per environment.
 
-  Local office application  -> office_assets.db   (real office asset data)
-  Public Render deployment  -> demo_assets.db      (public demo data only)
+  Local office application  -> databases/office_assets.db   (real office data)
+  Public Render deployment  -> databases/demo_assets.db      (public demo data)
 
 These two databases must NEVER cross environments and must NEVER fall back
 into one another. APP_ENV is required and must be exactly 'office' or
@@ -16,6 +16,7 @@ entry points can never disagree on which database is safe to use.
 
 import os
 
+DATABASES_DIRNAME = 'databases'
 OFFICE_DB_FILENAME = 'office_assets.db'
 DEMO_DB_FILENAME = 'demo_assets.db'
 
@@ -35,8 +36,9 @@ def resolve_database_uri(basedir):
       - If DATABASE_URL is explicitly set, it must not reference the OTHER
         environment's SQLite filename (office_assets.db / demo_assets.db).
       - If DATABASE_URL is not set, the fixed SQLite file for this
-        environment is used automatically (office_assets.db for 'office',
-        demo_assets.db for 'render'). There is no fallback between them.
+        environment is used automatically, under <basedir>/databases/
+        (office_assets.db for 'office', demo_assets.db for 'render').
+        There is no fallback between them.
     """
     app_env = os.getenv('APP_ENV', '').strip().lower()
 
@@ -64,7 +66,9 @@ def resolve_database_uri(basedir):
             )
         return database_url, app_env
 
-    return 'sqlite:///' + os.path.join(basedir, expected_filename), app_env
+    databases_dir = os.path.join(basedir, DATABASES_DIRNAME)
+    os.makedirs(databases_dir, exist_ok=True)
+    return 'sqlite:///' + os.path.join(databases_dir, expected_filename), app_env
 
 
 def is_render_env(app_env):
