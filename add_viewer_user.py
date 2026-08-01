@@ -7,11 +7,19 @@ Usage: python3 add_viewer_user.py
 import sqlite3
 from werkzeug.security import generate_password_hash
 import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from dotenv import load_dotenv
+load_dotenv()
+
+from db_config import resolve_database_uri, DatabaseConfigError
 
 def add_viewer_user(username, password):
     """Add a new viewer user to the database"""
     try:
-        conn = sqlite3.connect('assets.db')
+        _db_uri, _app_env = resolve_database_uri(os.path.dirname(os.path.abspath(__file__)))
+        conn = sqlite3.connect(_db_uri.replace('sqlite:///', ''))
         cursor = conn.cursor()
         
         # Check if user already exists

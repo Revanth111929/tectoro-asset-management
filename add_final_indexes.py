@@ -5,8 +5,19 @@ Add final indexes for complete optimization
 
 import os
 import sqlite3
+import sys
 
-db_path = os.path.join(os.path.dirname(__file__), 'assets.db')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from dotenv import load_dotenv
+load_dotenv()
+
+from db_config import resolve_database_uri, DatabaseConfigError
+
+try:
+    _db_uri, _app_env = resolve_database_uri(os.path.dirname(os.path.abspath(__file__)))
+except DatabaseConfigError as exc:
+    raise SystemExit(str(exc))
+db_path = _db_uri.replace('sqlite:///', '')
 conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
 

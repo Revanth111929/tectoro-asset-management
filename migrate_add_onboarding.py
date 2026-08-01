@@ -13,7 +13,17 @@ import sqlite3
 import sys
 import os
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets.db')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from dotenv import load_dotenv
+load_dotenv()
+
+from db_config import resolve_database_uri, DatabaseConfigError
+
+try:
+    _db_uri, _app_env = resolve_database_uri(os.path.dirname(os.path.abspath(__file__)))
+except DatabaseConfigError as exc:
+    raise SystemExit(str(exc))
+DB_PATH = _db_uri.replace('sqlite:///', '')
 
 
 def main():

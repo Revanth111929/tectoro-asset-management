@@ -2,7 +2,7 @@
 # Focused Backend Audit Script
 # Tests critical backend functionality
 
-API="http://192.168.20.180:5000/api"
+API="http://192.168.20.180:3000/api"
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'

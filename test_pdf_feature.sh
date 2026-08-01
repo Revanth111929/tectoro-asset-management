@@ -15,7 +15,7 @@ NC='\033[0m' # No Color
 # Test 1: Backend Health Check
 echo "Test 1: Backend Health Check"
 echo "------------------------------"
-HEALTH=$(curl -s http://192.168.20.180:5000/api/health | python3 -c "import sys, json; print(json.load(sys.stdin)['status'])" 2>/dev/null)
+HEALTH=$(curl -s http://192.168.20.180:3000/api/health | python3 -c "import sys, json; print(json.load(sys.stdin)['status'])" 2>/dev/null)
 if [ "$HEALTH" = "ok" ]; then
     echo -e "${GREEN}✓ Backend is healthy${NC}"
 else
@@ -27,7 +27,7 @@ echo ""
 # Test 2: Login and Get Token
 echo "Test 2: Authentication"
 echo "----------------------"
-TOKEN=$(curl -s -X POST http://192.168.20.180:5000/api/auth/login \
+TOKEN=$(curl -s -X POST http://192.168.20.180:3000/api/auth/login \
     -H 'Content-Type: application/json' \
     -d '{"username":"admin","password":"admin123"}' | \
     python3 -c "import sys, json; print(json.load(sys.stdin)['token'])" 2>/dev/null)
@@ -44,7 +44,7 @@ echo ""
 # Test 3: Get Asset List
 echo "Test 3: Fetch Assets"
 echo "--------------------"
-ASSET_ID=$(curl -s "http://192.168.20.180:5000/api/assets?page=1&per_page=1" \
+ASSET_ID=$(curl -s "http://192.168.20.180:3000/api/assets?page=1&per_page=1" \
     -H "Authorization: Bearer $TOKEN" | \
     python3 -c "import sys, json; data=json.load(sys.stdin); print(data['assets'][0]['id'] if data.get('assets') else '')" 2>/dev/null)
 
@@ -61,7 +61,7 @@ echo ""
 echo "Test 4: PDF Generation"
 echo "----------------------"
 HTTP_STATUS=$(curl -s -o /tmp/test_pdf_$$.pdf -w "%{http_code}" \
-    "http://192.168.20.180:5000/api/assets/$ASSET_ID/assignment-form" \
+    "http://192.168.20.180:3000/api/assets/$ASSET_ID/assignment-form" \
     -H "Authorization: Bearer $TOKEN")
 
 if [ "$HTTP_STATUS" = "200" ]; then
@@ -112,14 +112,14 @@ echo ""
 # Test 6: Bulk PDF Generation (if multiple assets)
 echo "Test 6: Bulk PDF Generation"
 echo "---------------------------"
-ASSET_IDS=$(curl -s "http://192.168.20.180:5000/api/assets?page=1&per_page=3" \
+ASSET_IDS=$(curl -s "http://192.168.20.180:3000/api/assets?page=1&per_page=3" \
     -H "Authorization: Bearer $TOKEN" | \
     python3 -c "import sys, json; data=json.load(sys.stdin); print(','.join(str(a['id']) for a in data.get('assets', [])[:3]))" 2>/dev/null)
 
 if [ -n "$ASSET_IDS" ]; then
     IDS_ARRAY="[${ASSET_IDS}]"
     HTTP_STATUS=$(curl -s -o /tmp/test_bulk_$$.zip -w "%{http_code}" \
-        -X POST "http://192.168.20.180:5000/api/assets/assignment-forms/bulk" \
+        -X POST "http://192.168.20.180:3000/api/assets/assignment-forms/bulk" \
         -H "Authorization: Bearer $TOKEN" \
         -H "Content-Type: application/json" \
         -d "{\"asset_ids\": $IDS_ARRAY}")

@@ -2,7 +2,7 @@
 # Comprehensive Backend Testing Script
 # Tests: Successful requests, Invalid requests, Missing parameters, Unauthorized requests, Edge cases
 
-API_URL="http://192.168.20.180:5000/api"
+API_URL="http://192.168.20.180:3000/api"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

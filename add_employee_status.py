@@ -3,9 +3,21 @@
 Add status column to employees table
 """
 import sqlite3
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from dotenv import load_dotenv
+load_dotenv()
+
+from db_config import resolve_database_uri, DatabaseConfigError
 
 def add_employee_status_column():
-    conn = sqlite3.connect('/home/administrator/Desktop/asset-management/assets.db')
+    try:
+        _db_uri, _app_env = resolve_database_uri(os.path.dirname(os.path.abspath(__file__)))
+    except DatabaseConfigError as exc:
+        raise SystemExit(str(exc))
+    conn = sqlite3.connect(_db_uri.replace('sqlite:///', ''))
     cursor = conn.cursor()
     
     try:

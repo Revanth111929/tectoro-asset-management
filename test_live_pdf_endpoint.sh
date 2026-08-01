@@ -8,7 +8,7 @@ echo ""
 
 # Step 1: Login
 echo "Step 1: Logging in..."
-LOGIN_RESPONSE=$(curl -s -X POST http://192.168.20.180:5000/api/auth/login \
+LOGIN_RESPONSE=$(curl -s -X POST http://192.168.20.180:3000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin123"}')
 
@@ -27,7 +27,7 @@ echo ""
 # Step 2: Test PDF endpoint
 echo "Step 2: Testing PDF endpoint for Asset ID 7..."
 HTTP_STATUS=$(curl -s -o /tmp/test_live_pdf.pdf -w "%{http_code}" \
-  http://192.168.20.180:5000/api/assets/7/assignment-form \
+  http://192.168.20.180:3000/api/assets/7/assignment-form \
   -H "Authorization: Bearer $TOKEN")
 
 if [ "$HTTP_STATUS" = "200" ]; then

@@ -39,7 +39,7 @@ fi
 echo ""
 echo "5. Application URLs:"
 echo "   🌐 Frontend: http://192.168.20.180:3000"
-echo "   🔌 Backend:  http://192.168.20.180:5000/api"
+echo "   🔌 Backend:  http://192.168.20.180:3000/api"
 
 echo ""
 echo "=========================================="

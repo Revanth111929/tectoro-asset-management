@@ -12,7 +12,7 @@ from flask import Flask, jsonify, request, send_file, send_from_directory, make_
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -35,8 +35,6 @@ try:
 except DatabaseConfigError as exc:
     raise SystemExit(str(exc))
 app.config['SQLALCHEMY_DATABASE_URI'] = _db_uri
-print(f"Environment: {APP_ENV}")
-print(f"Database: {_db_uri.replace('sqlite:///', '')}")
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
@@ -77,6 +75,22 @@ from utils.auth import generate_access_token, generate_refresh_token, token_requ
 from utils.rate_limit import init_limiter, limit_login, limit_api, limit_expensive
 
 db.init_app(app)
+
+# ── Unmissable startup trace (Production Architecture Audit, Step 6) ─────────
+# Plain print() to stdout/stderr's captured console — cannot be silenced by
+# LOG_LEVEL, a logger config, or --quiet flags. This is intentional: whoever
+# is watching this process's console (locally or in Render's Logs tab) must
+# always be able to see exactly which database this process is talking to.
+with app.app_context():
+    _engine_url = str(db.engine.url)
+print("=" * 60, flush=True)
+print("Backend:            api_server.py", flush=True)
+print(f"Environment:        {APP_ENV}", flush=True)
+print(f"Database URI:       {_db_uri}", flush=True)
+print(f"Resolved DB file:   {_db_uri.replace('sqlite:///', '') if _db_uri.startswith('sqlite') else '(non-sqlite backend)'}", flush=True)
+print(f"SQLAlchemy Engine:  {_engine_url}", flush=True)
+print(f"PID:                {os.getpid()}", flush=True)
+print("=" * 60, flush=True)
 
 # Initialize rate limiter
 limiter = init_limiter(app)
@@ -3200,15 +3214,6 @@ def onboarding_available_assets():
         } for a in assets]
     })
 
-if __name__ == '__main__':
-    print("=" * 60)
-    print("🚀  IT Asset Management API")
-    print("=" * 60)
-    print("✅  API:    http://0.0.0.0:3000")
-    print("✅  Health: http://localhost:3000/api/health")
-    print("⚛️   React:  Served from /frontend/build")
-    print("=" * 60)
-    app.run(debug=True, host='0.0.0.0', port=5000)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -3541,3 +3546,12 @@ def get_corporate_sim_stats():
         'damaged': damaged,
         'carriers': [{'name': c[0], 'count': c[1]} for c in carrier_stats]
     })
+if __name__ == '__main__':
+    print("=" * 60)
+    print("🚀  IT Asset Management API")
+    print("=" * 60)
+    print("✅  API:    http://0.0.0.0:3000")
+    print("✅  Health: http://localhost:3000/api/health")
+    print("⚛️   React:  Served from /frontend/build")
+    print("=" * 60)
+    app.run(debug=True, host='0.0.0.0', port=3000)

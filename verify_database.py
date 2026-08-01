@@ -40,7 +40,7 @@ class DatabaseVerifier:
         self.issues = []
         self.warnings = []
         self.successes = []
-        self.db_path = os.path.join(os.path.dirname(__file__), 'assets.db')
+        self.db_path = _db_uri.replace('sqlite:///', '')
         
     def log_issue(self, category, message):
         self.issues.append(f"[{category}] {message}")

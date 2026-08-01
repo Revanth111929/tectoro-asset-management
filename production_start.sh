@@ -98,21 +98,9 @@ else
     echo "   ✓ Frontend built successfully"
 fi
 
-# Step 6: Choose which server to run
+# Step 6: Start the production backend
 echo "5. Starting Flask application..."
-echo ""
-echo "   Which server file do you want to run?"
-echo "   1) app.py (recommended - includes blueprints)"
-echo "   2) api_server.py (standalone - all routes in one file)"
-echo ""
-read -p "   Enter choice (1 or 2): " CHOICE
-
-if [ "$CHOICE" = "2" ]; then
-    SERVER_FILE="api_server.py"
-else
-    SERVER_FILE="app.py"
-fi
-
+SERVER_FILE="api_server.py"
 echo ""
 echo "   Starting $SERVER_FILE..."
 

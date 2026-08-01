@@ -5,9 +5,21 @@ Adds all new fields for category-specific asset attributes
 """
 
 import sqlite3
+import os
+import sys
 from datetime import datetime
 
-DB_PATH = 'assets.db'
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from dotenv import load_dotenv
+load_dotenv()
+
+from db_config import resolve_database_uri, DatabaseConfigError
+
+try:
+    _db_uri, _app_env = resolve_database_uri(os.path.dirname(os.path.abspath(__file__)))
+except DatabaseConfigError as exc:
+    raise SystemExit(str(exc))
+DB_PATH = _db_uri.replace('sqlite:///', '')
 
 def migrate():
     conn = sqlite3.connect(DB_PATH)

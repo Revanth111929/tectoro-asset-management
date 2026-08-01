@@ -5,9 +5,20 @@ Migration script to add employee_email column to assets table
 
 import sqlite3
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from dotenv import load_dotenv
+load_dotenv()
+
+from db_config import resolve_database_uri, DatabaseConfigError
 
 # Database path
-DB_PATH = 'assets.db'
+try:
+    _db_uri, _app_env = resolve_database_uri(os.path.dirname(os.path.abspath(__file__)))
+except DatabaseConfigError as exc:
+    raise SystemExit(str(exc))
+DB_PATH = _db_uri.replace('sqlite:///', '')
 
 def add_employee_email_column():
     """Add employee_email column to assets table"""

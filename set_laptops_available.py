@@ -3,10 +3,24 @@
 Script to set specific laptops to Available status
 """
 import sqlite3
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from dotenv import load_dotenv
+load_dotenv()
+
+from db_config import resolve_database_uri, DatabaseConfigError
+
+try:
+    _db_uri, _app_env = resolve_database_uri(os.path.dirname(os.path.abspath(__file__)))
+except DatabaseConfigError as exc:
+    raise SystemExit(str(exc))
+DB_PATH = _db_uri.replace('sqlite:///', '')
 
 def set_laptops_available(laptop_ids):
     """Set specified laptop IDs to Available status"""
-    conn = sqlite3.connect('assets.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     for laptop_id in laptop_ids:
@@ -47,7 +61,7 @@ if __name__ == '__main__':
     print()
     
     # Show current laptop statuses
-    conn = sqlite3.connect('assets.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT id, asset_name, serial_number, status FROM assets WHERE category='Laptop' ORDER BY id")
     laptops = cursor.fetchall()
@@ -83,7 +97,7 @@ if __name__ == '__main__':
         set_laptops_available(laptop_ids)
         print()
         print("📊 Updated laptop status summary:")
-        conn = sqlite3.connect('assets.db')
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute("SELECT status, COUNT(*) FROM assets WHERE category='Laptop' GROUP BY status")
         for row in cursor.fetchall():

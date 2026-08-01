@@ -1,7 +1,20 @@
 #!/usr/bin/env python3
 import sqlite3
+import os
+import sys
 
-conn = sqlite3.connect('assets.db')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from dotenv import load_dotenv
+load_dotenv()
+
+from db_config import resolve_database_uri, DatabaseConfigError
+
+try:
+    _db_uri, _app_env = resolve_database_uri(os.path.dirname(os.path.abspath(__file__)))
+except DatabaseConfigError as exc:
+    raise SystemExit(str(exc))
+
+conn = sqlite3.connect(_db_uri.replace('sqlite:///', ''))
 cursor = conn.cursor()
 
 # Check total laptops

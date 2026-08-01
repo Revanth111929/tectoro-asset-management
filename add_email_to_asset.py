@@ -4,10 +4,23 @@ Quick script to add email to an existing asset
 """
 import sqlite3
 import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from dotenv import load_dotenv
+load_dotenv()
+
+from db_config import resolve_database_uri, DatabaseConfigError
+
+try:
+    _db_uri, _app_env = resolve_database_uri(os.path.dirname(os.path.abspath(__file__)))
+except DatabaseConfigError as exc:
+    raise SystemExit(str(exc))
+DB_PATH = _db_uri.replace('sqlite:///', '')
 
 def add_email_to_asset(asset_id, email):
     try:
-        conn = sqlite3.connect('assets.db')
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
         # Check if asset exists

@@ -21,7 +21,7 @@ echo ""
 # Start Backend
 echo "2. Starting Backend (Python Flask API)..."
 source venv/bin/activate
-nohup python3 app.py > logs/backend.log 2>&1 &
+nohup python3 api_server.py > logs/backend.log 2>&1 &
 BACKEND_PID=$!
 echo "   ✅ Backend started (PID: $BACKEND_PID)"
 echo "   📝 Backend logs: logs/backend.log"

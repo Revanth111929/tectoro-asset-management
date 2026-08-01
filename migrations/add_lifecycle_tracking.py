@@ -5,9 +5,22 @@ Creates all new tables for comprehensive lifecycle management
 """
 
 import sqlite3
+import os
+import sys
 from datetime import datetime
 
-DB_PATH = 'assets.db'
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _project_root)
+from dotenv import load_dotenv
+load_dotenv()
+
+from db_config import resolve_database_uri, DatabaseConfigError
+
+try:
+    _db_uri, _app_env = resolve_database_uri(_project_root)
+except DatabaseConfigError as exc:
+    raise SystemExit(str(exc))
+DB_PATH = _db_uri.replace('sqlite:///', '')
 
 def migrate():
     conn = sqlite3.connect(DB_PATH)

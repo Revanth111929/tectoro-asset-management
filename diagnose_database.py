@@ -109,7 +109,7 @@ def diagnose():
     print("   └─ Result: Same 5 sample assets appear every time")
     
     print("\n3. LOCAL vs RENDER:")
-    print("   ├─ Local: Persistent filesystem, keeps assets.db")
+    print("   ├─ Local: Persistent filesystem, keeps its resolved database (see db_config.py)")
     print("   ├─ Render: Ephemeral filesystem, loses database")
     print("   └─ Both see SAME seed data because seed function runs")
     

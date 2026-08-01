@@ -111,14 +111,27 @@ fi
 
 echo ""
 
-# Check database
+# Check database (resolved the same way api_server.py/app.py do — via db_config.py,
+# never a hardcoded filename)
 echo "6. Database:"
-if [ -f "$APP_DIR/assets.db" ]; then
-    DB_SIZE=$(du -sh "$APP_DIR/assets.db" 2>/dev/null | cut -f1)
-    echo "   ✓ Database exists: assets.db"
+DB_PATH=$(cd "$APP_DIR" && python3 -c "
+from dotenv import load_dotenv
+load_dotenv()
+import os
+from db_config import resolve_database_uri
+try:
+    uri, env = resolve_database_uri(os.getcwd())
+    print(uri.replace('sqlite:///', ''))
+except Exception:
+    pass
+" 2>/dev/null)
+
+if [ -n "$DB_PATH" ] && [ -f "$DB_PATH" ]; then
+    DB_SIZE=$(du -sh "$DB_PATH" 2>/dev/null | cut -f1)
+    echo "   ✓ Database exists: $(basename "$DB_PATH")"
     echo "   📊 Size: $DB_SIZE"
 else
-    echo "   ❌ Database NOT found"
+    echo "   ❌ Database NOT found (resolved path: ${DB_PATH:-unresolved — check APP_ENV})"
 fi
 
 echo ""

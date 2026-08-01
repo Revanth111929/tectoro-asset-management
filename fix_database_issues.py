@@ -44,7 +44,7 @@ def add_missing_indexes():
     """Add missing indexes for better query performance"""
     print_header("ADDING MISSING INDEXES")
     
-    db_path = os.path.join(os.path.dirname(__file__), 'assets.db')
+    db_path = _db_uri.replace('sqlite:///', '')
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
@@ -127,7 +127,7 @@ def cleanup_unexpected_tables():
     """Remove unexpected tables like admin_profile"""
     print_header("CLEANING UP UNEXPECTED TABLES")
     
-    db_path = os.path.join(os.path.dirname(__file__), 'assets.db')
+    db_path = _db_uri.replace('sqlite:///', '')
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
@@ -164,7 +164,7 @@ def verify_fixes():
     """Verify that all fixes were applied correctly"""
     print_header("VERIFYING FIXES")
     
-    db_path = os.path.join(os.path.dirname(__file__), 'assets.db')
+    db_path = _db_uri.replace('sqlite:///', '')
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
