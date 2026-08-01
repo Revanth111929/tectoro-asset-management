@@ -26,7 +26,16 @@ app = Flask(__name__, static_folder=build_dir, static_url_path='')
 
 # Secure configuration from environment
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.urandom(32).hex())
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///' + os.path.join(basedir, 'assets.db'))
+
+# Database selection: strictly isolated per environment (office vs render demo).
+# See db_config.py — this fails startup rather than silently falling back.
+from db_config import resolve_database_uri, is_render_env, DatabaseConfigError
+try:
+    _db_uri, APP_ENV = resolve_database_uri(basedir)
+except DatabaseConfigError as exc:
+    raise SystemExit(str(exc))
+app.config['SQLALCHEMY_DATABASE_URI'] = _db_uri
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_size': 10,
@@ -2868,17 +2877,25 @@ def page_not_found(e):
         return jsonify({'error': 'Application not found'}), 404
 
 # ══════════════════════════════════════════════════════════════════════════════
-# DATABASE INITIALIZATION (WITHOUT AUTO-SEEDING)
+# DATABASE INITIALIZATION
 # ══════════════════════════════════════════════════════════════════════════════
-# IMPORTANT: seed_data() has been PERMANENTLY DISABLED to prevent dummy data
-# from overwriting real user data. The application will only create tables,
-# not insert any test/dummy data.
+# The office database (APP_ENV=office) is NEVER seeded — it only ever holds
+# real office data, created and edited through the application itself.
+# The public demo database (APP_ENV=render) is seeded with clearly-synthetic
+# demo data the first time it's empty, so the public deployment always has
+# something to show without ever touching real office data.
 # ══════════════════════════════════════════════════════════════════════════════
 
 with app.app_context():
     db.create_all()  # Create tables if they don't exist
-    # seed_data()  # DISABLED: Do not seed dummy data
-    logger.info("Database tables initialized (seed data disabled)")
+    if is_render_env(APP_ENV):
+        from demo_seed import seed_demo_data
+        if seed_demo_data(db):
+            logger.info("Demo database was empty — seeded with synthetic demo data")
+        else:
+            logger.info("Demo database already has data — skipped seeding")
+    else:
+        logger.info("Database tables initialized (office database — seeding never runs)")
 
 # ONBOARDING API ROUTES — append this block to api_server.py
 # Paste this near your other @app.route('/api/...') definitions, AFTER the
