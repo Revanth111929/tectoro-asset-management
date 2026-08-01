@@ -96,7 +96,7 @@ function Layout({ children }) {
     <>
       <style>{`
         :root {
-          --sidebar-w: ${collapsed ? '64px' : '208px'};
+          --sidebar-w: ${collapsed ? '70px' : '220px'};
           --nav-text: #b8c5d6; --nav-text-hover: #ffffff; --nav-hover: rgba(99,102,241,0.15);
           --nav-section: #7888a0; --nav-divider: rgba(255,255,255,0.06); --nav-bg: #1e2a3a;
           --nav-border: rgba(255,255,255,0.05); --topbar-bg: #ffffff; --content-bg: #f8fafc;
@@ -108,14 +108,8 @@ function Layout({ children }) {
         }
         .layout-sidebar { width: var(--sidebar-w); min-height: 100vh; background: var(--nav-bg); border-right: 1px solid var(--nav-border); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; z-index: 100; transition: width 0.2s ease; overflow: hidden; }
         .layout-main { margin-left: var(--sidebar-w); flex: 1; min-width: 0; min-height: 100vh; background: var(--content-bg); transition: margin-left 0.2s ease; display: flex; flex-direction: column; }
-        .layout-topbar { height: 56px; background: var(--topbar-bg); border-bottom: 1px solid var(--nav-border); display: flex; align-items: center; justify-content: space-between; padding: 0 clamp(16px, 1.5vw, 24px); position: sticky; top: 0; z-index: 50; }
-        .layout-content { flex: 1; padding: clamp(16px, 1.8vw, 24px) clamp(16px, 2.2vw, 28px); }
-        .layout-content .mb-4 { margin-bottom: 16px !important; }
-        .layout-content .mb-3 { margin-bottom: 12px !important; }
-        .layout-content h1 { font-size: clamp(1.5rem, 1.1rem + 1vw, 2rem); }
-        .layout-content h2 { font-size: clamp(1.25rem, 1rem + 0.8vw, 1.6rem); }
-        .layout-content h3 { font-size: clamp(1.1rem, 0.95rem + 0.6vw, 1.35rem); }
-        .layout-content h4, .layout-content h5, .layout-content h6 { font-size: clamp(0.95rem, 0.85rem + 0.4vw, 1.1rem); }
+        .layout-topbar { height: 60px; background: var(--topbar-bg); border-bottom: 1px solid var(--nav-border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; position: sticky; top: 0; z-index: 50; }
+        .layout-content { flex: 1; padding: 28px 32px; }
         .sidebar-brand { height: 68px; display: flex; align-items: center; gap: 12px; padding: 0 ${collapsed ? '20px' : '16px'}; border-bottom: 1px solid var(--nav-border); flex-shrink: 0; position: relative; justify-content: ${collapsed ? 'center' : 'flex-start'}; }
         .brand-logo { width: 40px; height: 40px; flex-shrink: 0; background: transparent; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         .brand-name { font-size: 18px; font-weight: 600; color: #6b7280; white-space: nowrap; letter-spacing: -0.3px; }

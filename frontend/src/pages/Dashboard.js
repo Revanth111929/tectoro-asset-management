@@ -130,7 +130,7 @@ function Dashboard() {
       </div>
 
       {/* Stat Cards */}
-      <div className="stat-grid mb-4">
+      <div className="row g-3 mb-4">
         {[
           { label: 'Total Laptops',    value: stats.laptopStats?.total || 0,       icon: 'bi-laptop',             bg: '#dbeafe', color: '#2563eb', link: '/inventory/laptop' },
           { label: 'Available',       value: stats.laptopStats?.available || 0,   icon: 'bi-check-circle',       bg: '#dcfce7', color: '#16a34a', link: '/assets?status=Available' },
@@ -138,25 +138,26 @@ function Dashboard() {
           { label: 'Maintenance',     value: stats.laptopStats?.maintenance || 0, icon: 'bi-tools',              bg: '#fee2e2', color: '#dc2626', link: '/assets?status=Maintenance' },
           { label: 'Warranty Expiring (90d)', value: stats.expiringWarranties, icon: 'bi-shield-exclamation', bg: '#fce7f3', color: '#9333ea', link: '/warranty?filter=expiring90' },
         ].map((s, i) => (
-          <div
-            key={i}
-            className="stat-card"
-            onClick={() => navigate(s.link)}
-            style={{ cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s' }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-4px)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '';
-            }}
-          >
-            <div className="stat-icon" style={{ background: s.bg, color: s.color }}>
-              <i className={`bi ${s.icon}`}></i>
+          <div className="col-6 col-md-4 col-xl" key={i}>
+            <div
+              className="stat-card"
+              onClick={() => navigate(s.link)}
+              style={{ cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '';
+              }}
+            >
+              <div className="stat-icon" style={{ background: s.bg, color: s.color }}>
+                <i className={`bi ${s.icon}`}></i>
+              </div>
+              <div className="stat-value">{s.value}</div>
+              <div className="stat-label">{s.label}</div>
             </div>
-            <div className="stat-value">{s.value}</div>
-            <div className="stat-label">{s.label}</div>
           </div>
         ))}
       </div>

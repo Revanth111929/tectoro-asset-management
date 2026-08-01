@@ -27,7 +27,7 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: var(--bg);
   color: var(--text);
-  font-size: clamp(13px, 0.65vw + 10.5px, 14.5px);
+  font-size: 14px;
   line-height: 1.6;
 }
 
@@ -170,24 +170,16 @@ body {
 .table-card {
   background: var(--card-bg);
   border-radius: var(--radius);
-  padding: clamp(14px, 1.3vw, 20px);
+  padding: 20px;
   box-shadow: var(--shadow);
   border: 1px solid var(--border);
-  max-width: 100%;
-}
-
-/* Safety net: any <table> not already wrapped in Bootstrap's .table-responsive
-   scrolls horizontally on its own axis rather than breaking the page layout */
-.table-card > table {
-  display: block;
-  overflow-x: auto;
 }
 
 /* ── Stat Cards ───────────────────────────────────────────────────────────── */
 .stat-card {
   background: var(--card-bg);
   border-radius: var(--radius);
-  padding: clamp(14px, 1.3vw, 20px);
+  padding: 20px;
   box-shadow: var(--shadow);
   border: 1px solid var(--border);
   display: flex;
@@ -199,24 +191,16 @@ body {
 .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0,0,0,.1); }
 
 .stat-icon {
-  width: 40px; height: 40px;
+  width: 48px; height: 48px;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.25rem;
+  font-size: 1.4rem;
 }
 
-.stat-value { font-size: clamp(1.5rem, 1rem + 1vw, 2rem); font-weight: 800; color: var(--text); line-height: 1; }
+.stat-value { font-size: 2rem; font-weight: 800; color: var(--text); line-height: 1; }
 .stat-label { font-size: 13px; color: var(--text-muted); font-weight: 500; }
-
-/* Responsive card grid for dashboard KPI rows — replaces fixed Bootstrap
-   column breakpoints with fluid auto-fit sizing */
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 16px;
-}
 
 /* ── Tables ───────────────────────────────────────────────────────────────── */
 .table { font-size: 13.5px; }
@@ -1180,8 +1164,7 @@ body.dark .page-item.active .page-link {
 
 .layout-content {
   width: 100% !important;
-  max-width: 1800px !important;
-  margin: 0 auto !important;
+  max-width: 100% !important;
   box-sizing: border-box !important;
 }
 
