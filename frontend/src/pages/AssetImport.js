@@ -66,7 +66,7 @@ function AssetImport() {
     try {
       const token = localStorage.getItem('token');
       // Use full backend URL for PDF download
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.20.180:5000/api';
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://tectoro-asset-management.onrender.com/api';
       const response = await fetch(`${API_BASE_URL}/assets/assignment-forms/bulk`, {
         method: 'POST',
         headers: {
@@ -119,7 +119,7 @@ function AssetImport() {
   };
 
   const downloadTemplate = () => {
-    window.open('http://192.168.20.180:5000/api/assets/template', '_blank');
+    window.open('https://tectoro-asset-management.onrender.com/api/assets/template', '_blank');
   };
 
   return (

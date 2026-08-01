@@ -89,7 +89,7 @@ function AssetEdit() {
     try {
       const token = localStorage.getItem('token');
       // Use full backend URL for PDF download
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.20.180:5000/api';
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://tectoro-asset-management.onrender.com/api';
       const response = await fetch(`${API_BASE_URL}/assets/${id}/assignment-form`, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${token}` }
@@ -139,7 +139,7 @@ function AssetEdit() {
     try {
       const token = localStorage.getItem('token');
       // Use full backend URL for PDF download
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.20.180:5000/api';
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://tectoro-asset-management.onrender.com/api';
       const response = await fetch(`${API_BASE_URL}/assets/${id}/assignment-form`, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${token}` }

@@ -1,6 +1,76 @@
+# ==========================================
+# DATABASE FILES (NEVER COMMIT)
+# ==========================================
+*.db
+*.sqlite
+*.sqlite3
+instance/
+database/
+
+# ==========================================
+# ENVIRONMENT CONFIGURATION (NEVER COMMIT)
+# ==========================================
+.env
+.env.local
+.env.production
+.env.*.local
+
+# ==========================================
+# LOGS (NEVER COMMIT)
+# ==========================================
+logs/*.log
+*.log
+
+# ==========================================
+# UPLOADS & STATIC FILES (NEVER COMMIT)
+# ==========================================
+uploads/
+static/uploads/
+static/qrcodes/*.png
+static/qrcodes/*.jpg
+
+# ==========================================
+# PYTHON
+# ==========================================
 venv/
+env/
+ENV/
 __pycache__/
 *.pyc
-*.db
-.env
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ==========================================
+# NODE / FRONTEND
+# ==========================================
 frontend/node_modules/
+frontend/build/
+frontend/.env.local
+frontend/.env.production.local
+
+# ==========================================
+# IDE / EDITOR
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ==========================================
+# TEMPORARY FILES
+# ==========================================
+*.tmp
+*.temp
+*.cache
+.cache/

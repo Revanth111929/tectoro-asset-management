@@ -6589,3 +6589,62 @@
 2026-07-28 18:25:16,019 [INFO] werkzeug: 192.168.20.180 - - [28/Jul/2026 18:25:16] "OPTIONS /api/corporate-sims?search=&carrier=&status=&page=1&per_page=20 HTTP/1.1" 200 -
 2026-07-28 18:25:16,030 [INFO] werkzeug: 192.168.20.180 - - [28/Jul/2026 18:25:16] "[33mGET /api/corporate-sims?search=&carrier=&status=&page=1&per_page=20 HTTP/1.1[0m" 404 -
 2026-07-28 18:25:16,036 [INFO] werkzeug: 192.168.20.180 - - [28/Jul/2026 18:25:16] "[33mGET /api/corporate-sims?search=&carrier=&status=&page=1&per_page=20 HTTP/1.1[0m" 404 -
+2026-07-28 18:30:55,838 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-28 18:30:55,848 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.20.180:5000
+2026-07-28 18:30:55,848 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-07-28 18:30:55,849 [INFO] werkzeug:  * Restarting with stat
+2026-07-28 18:30:56,223 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-28 18:30:56,229 [WARNING] werkzeug:  * Debugger is active!
+2026-07-28 18:30:56,230 [INFO] werkzeug:  * Debugger PIN: 118-841-274
+2026-07-28 21:59:58,169 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-28 21:59:58,300 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.20.180:5000
+2026-07-28 21:59:58,300 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-07-28 21:59:58,304 [INFO] werkzeug:  * Restarting with stat
+2026-07-28 21:59:58,888 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-28 21:59:58,896 [WARNING] werkzeug:  * Debugger is active!
+2026-07-28 21:59:59,050 [INFO] werkzeug:  * Debugger PIN: 134-974-941
+2026-07-29 10:03:16,081 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-29 10:03:16,555 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.20.180:5000
+2026-07-29 10:03:16,555 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-07-29 10:03:16,556 [INFO] werkzeug:  * Restarting with stat
+2026-07-29 10:03:16,902 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-29 10:03:16,908 [WARNING] werkzeug:  * Debugger is active!
+2026-07-29 10:03:17,122 [INFO] werkzeug:  * Debugger PIN: 144-357-943
+2026-07-29 10:05:26,321 [INFO] werkzeug: 192.168.20.180 - - [29/Jul/2026 10:05:26] "GET /login HTTP/1.1" 200 -
+2026-07-29 10:05:26,440 [INFO] werkzeug: 192.168.20.180 - - [29/Jul/2026 10:05:26] "GET /static/css/main.88101b86.css HTTP/1.1" 200 -
+2026-07-29 10:05:26,449 [INFO] werkzeug: 192.168.20.180 - - [29/Jul/2026 10:05:26] "GET /static/js/main.66557a5e.js HTTP/1.1" 200 -
+2026-07-29 10:05:26,975 [INFO] werkzeug: 192.168.20.180 - - [29/Jul/2026 10:05:26] "GET /static/media/bootstrap-icons.92ea18a81d737146ff04.woff2 HTTP/1.1" 200 -
+2026-07-29 10:05:26,987 [INFO] werkzeug: 192.168.20.180 - - [29/Jul/2026 10:05:26] "GET /static/media/tectoro-login-logo.cac63a34d48239d7957e.png HTTP/1.1" 200 -
+2026-07-29 10:05:27,487 [INFO] werkzeug: 192.168.20.180 - - [29/Jul/2026 10:05:27] "GET /favicon.ico HTTP/1.1" 200 -
+2026-07-29 10:05:39,134 [INFO] werkzeug: 192.168.20.180 - - [29/Jul/2026 10:05:39] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-07-29 10:05:39,271 [INFO] werkzeug: 192.168.20.180 - - [29/Jul/2026 10:05:39] "GET /static/media/tectoro-icon-only.29253f2e57ef6301c8d5.png HTTP/1.1" 200 -
+2026-07-29 10:05:50,215 [INFO] werkzeug: 192.168.20.180 - - [29/Jul/2026 10:05:50] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-07-29 10:06:54,135 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-29 10:06:54,144 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.20.180:5000
+2026-07-29 10:06:54,144 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-07-29 10:06:54,144 [INFO] werkzeug:  * Restarting with stat
+2026-07-29 10:06:54,486 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-29 10:06:54,492 [WARNING] werkzeug:  * Debugger is active!
+2026-07-29 10:06:54,492 [INFO] werkzeug:  * Debugger PIN: 144-357-943
+2026-07-29 10:10:14,620 [INFO] werkzeug:  * Detected change in '/home/administrator/Desktop/asset-management/api_server.py', reloading
+2026-07-29 10:10:14,735 [INFO] werkzeug:  * Restarting with stat
+2026-07-29 10:10:15,183 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-29 10:10:15,189 [WARNING] werkzeug:  * Debugger is active!
+2026-07-29 10:10:15,189 [INFO] werkzeug:  * Debugger PIN: 144-357-943
+2026-07-29 13:12:37,328 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-29 13:21:03,569 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-29 13:21:20,031 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-29 13:21:35,626 [INFO] __main__: Database tables initialized (seed data disabled)
+2026-07-29 13:22:25,617 [INFO] __main__: Database tables initialized (seed data disabled)

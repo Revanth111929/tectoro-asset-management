@@ -8,6 +8,10 @@ from flask_cors import CORS
 from flask_login import LoginManager
 from models import db, User
 from werkzeug.security import generate_password_hash
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # ── Create the Flask application ──────────────────────────────────────────────
 def create_app():
@@ -18,9 +22,42 @@ def create_app():
     # Secret key is used to sign session cookies (keep this secret in production!)
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'assetmgmt-super-secret-2024')
 
-    # SQLite database file will be created in the same folder as app.py
+    # Database Configuration - Environment-based
+    # Supports both environment variable and automatic environment detection
     basedir = os.path.abspath(os.path.dirname(__file__))
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'assets.db')
+    
+    # Get environment
+    env = os.environ.get('FLASK_ENV', 'development')
+    
+    # Check if DATABASE_URL is set in environment
+    database_url = os.environ.get('DATABASE_URL')
+    
+    if database_url:
+        # Use DATABASE_URL from environment (production or custom)
+        app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+        print(f"📁 Database: Using DATABASE_URL (external/managed database)")
+        if 'postgresql' in database_url.lower():
+            print(f"   Type: PostgreSQL")
+        elif 'mysql' in database_url.lower():
+            print(f"   Type: MySQL")
+        else:
+            print(f"   Type: {database_url.split(':')[0]}")
+    else:
+        # Auto-detect environment and use appropriate database
+        if env == 'production':
+            # Production without DATABASE_URL: ERROR
+            print(f"⚠️  WARNING: Production mode but no DATABASE_URL set!")
+            print(f"   Using local SQLite (NOT RECOMMENDED for production)")
+            print(f"   Please set DATABASE_URL to use PostgreSQL or managed database")
+            db_file = 'production.db'
+        else:
+            # Development/Local: Use assets.db (development data)
+            db_file = 'assets.db'
+        
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, db_file)
+        print(f"📁 Database: {db_file}")
+        print(f"   Type: SQLite (local file)")
+    
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False   # saves memory
 
     # Folder where uploaded QR code images will be stored
@@ -77,20 +114,36 @@ def create_app():
     # ── Create tables and seed sample data ────────────────────────────────────
     with app.app_context():
         db.create_all()          # creates all tables if they don't exist
-        seed_data()              # insert sample data for testing
+        
+        # Print environment information
+        env = os.environ.get('FLASK_ENV', 'development')
+        print(f"🌍 Environment: {env}")
+        
+        # Only seed in development, never in production
+        if env == 'production':
+            print("⚠️  PRODUCTION MODE: Seed data is DISABLED")
+            print("   No sample assets will be created")
+            print("   Use admin panel to add real production data")
+        else:
+            seed_data()  # insert sample data for testing (development only)
 
     return app
 
 # ── Seed function: inserts demo data so you can test immediately ───────────────
 def seed_data():
+    """
+    Seed sample data for DEVELOPMENT ONLY.
+    This function is NEVER called in production (FLASK_ENV=production).
+    """
     from models import User, Asset, ActivityLog
     from datetime import date, datetime
 
     # Only seed if the database is empty
     if User.query.first():
+        print("✓ Database already contains data, skipping seed")
         return
 
-    print("🌱 Seeding sample data...")
+    print("🌱 Seeding sample data (DEVELOPMENT ONLY)...")
 
     # Create admin user (password: admin123)
     admin = User(

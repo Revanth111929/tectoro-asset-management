@@ -1,7 +1,7 @@
 // api.js – Axios API service for all backend calls
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.20.180:5000/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://tectoro-asset-management.onrender.com/api';
 
 console.log('[API Service] Initialized with base URL:', API_BASE_URL);
 
