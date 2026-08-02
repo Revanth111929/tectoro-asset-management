@@ -3,7 +3,7 @@
 # It creates the Flask app, configures it, and starts the server.
 
 import os
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 from flask_login import LoginManager
 from models import db, User
@@ -16,7 +16,23 @@ load_dotenv()
 def create_app():
     app = Flask(__name__)
     from flask_cors import CORS
-    CORS(app)  # Enable CORS for React frontend
+    allowed_origins = os.environ.get(
+        'ALLOWED_ORIGINS',
+        'https://tectoro-asset-management.onrender.com'
+    ).split(',')
+    CORS(app, resources={r"/api/*": {"origins": allowed_origins, "supports_credentials": True}})
+
+    from utils.limiter import limiter
+    limiter.init_app(app)
+
+    @app.after_request
+    def set_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        if request.headers.get('X-Forwarded-Proto', request.scheme) == 'https':
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        return response
 
     # Secret key is used to sign session cookies (keep this secret in production!)
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'assetmgmt-super-secret-2024')
@@ -46,7 +62,6 @@ def create_app():
 
     # ── Initialise extensions ──────────────────────────────────────────────────
     db.init_app(app)
-    CORS(app)          # connect SQLAlchemy to this app
 
     # Flask-Login manages user sessions (who is logged in)
     login_manager = LoginManager()

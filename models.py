@@ -5,6 +5,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
+from datetime_utils import utc_iso
 import secrets, hashlib
 
 db = SQLAlchemy()
@@ -214,8 +215,8 @@ class Asset(db.Model):
             'old_device':      self.old_device or '',
             'comments':        self.comments or '',
             'status':          self.status or 'Available',
-            'created_at':      self.created_at.isoformat() if self.created_at else '',
-            'updated_at':      self.updated_at.isoformat() if self.updated_at else '',
+            'created_at':      utc_iso(self.created_at),
+            'updated_at':      utc_iso(self.updated_at),
             'purchase_price':  self.purchase_price or 0,
             'quantity':        self.quantity or 1,
             'configuration':   self.configuration or '',
@@ -230,9 +231,9 @@ class Asset(db.Model):
             'mobile_number_sim': self.mobile_number_sim or '',
             'testing_status':  self.testing_status or '',
             'ack_status':      self.ack_status or 'Not Sent',
-            'ack_sent_at':     self.ack_sent_at.isoformat() if self.ack_sent_at else '',
-            'ack_received_at': self.ack_received_at.isoformat() if self.ack_received_at else '',
-            'ack_expires_at':  self.ack_expires_at.isoformat() if self.ack_expires_at else '',
+            'ack_sent_at':     utc_iso(self.ack_sent_at),
+            'ack_received_at': utc_iso(self.ack_received_at),
+            'ack_expires_at':  utc_iso(self.ack_expires_at),
             # New dynamic fields
             'brand_name':      self.brand_name or '',
             'processor':       self.processor or '',
@@ -313,7 +314,7 @@ class AuditLog(db.Model):
     def to_dict(self):
         return {
             'id':            self.id,
-            'timestamp':     self.timestamp.isoformat() if self.timestamp else '',
+            'timestamp':     utc_iso(self.timestamp),
             'action_type':   self.action_type,
             'module':        self.module,
             'asset_id':      self.asset_id,
@@ -356,7 +357,7 @@ class ActivityLog(db.Model):
             'action':      self.action,
             'module':      self.module,
             'description': self.description,
-            'timestamp':   self.timestamp.isoformat() if self.timestamp else '',
+            'timestamp':   utc_iso(self.timestamp),
         }
 
     def __repr__(self):
@@ -400,7 +401,7 @@ class AssetLifecycle(db.Model):
             'id':               self.id,
             'asset_id':         self.asset_id,
             'event_type':       self.event_type,
-            'event_date':       self.event_date.isoformat() if self.event_date else '',
+            'event_date':       utc_iso(self.event_date),
             'from_employee_id': self.from_employee_id or '',
             'from_employee':    self.from_employee or '',
             'to_employee_id':   self.to_employee_id or '',
@@ -478,8 +479,8 @@ class TemporaryAssignment(db.Model):
             'created_by':            self.created_by or '',
             'completed_by':          self.completed_by or '',
             'remarks':               self.remarks or '',
-            'created_at':            self.created_at.isoformat() if self.created_at else '',
-            'updated_at':            self.updated_at.isoformat() if self.updated_at else '',
+            'created_at':            utc_iso(self.created_at),
+            'updated_at':            utc_iso(self.updated_at),
         }
 
     def __repr__(self):
@@ -538,7 +539,7 @@ class AssetReplacement(db.Model):
             'old_asset_condition': self.old_asset_condition or '',
             'performed_by':        self.performed_by or '',
             'remarks':             self.remarks or '',
-            'created_at':          self.created_at.isoformat() if self.created_at else '',
+            'created_at':          utc_iso(self.created_at),
         }
 
     def __repr__(self):
@@ -602,11 +603,11 @@ class EmployeeExit(db.Model):
             'clearance_status':       self.clearance_status,
             'processed_by':           self.processed_by or '',
             'completed_by':           self.completed_by or '',
-            'completed_at':           self.completed_at.isoformat() if self.completed_at else '',
+            'completed_at':           utc_iso(self.completed_at),
             'remarks':                self.remarks or '',
             'exit_report_path':       self.exit_report_path or '',
-            'created_at':             self.created_at.isoformat() if self.created_at else '',
-            'updated_at':             self.updated_at.isoformat() if self.updated_at else '',
+            'created_at':             utc_iso(self.created_at),
+            'updated_at':             utc_iso(self.updated_at),
             'asset_collections':      [ac.to_dict() for ac in self.asset_collections] if self.asset_collections else [],
         }
 
@@ -659,7 +660,7 @@ class ExitAssetCollection(db.Model):
             'estimated_cost':      self.estimated_cost or 0,
             'collected_by':        self.collected_by or '',
             'remarks':             self.remarks or '',
-            'created_at':          self.created_at.isoformat() if self.created_at else '',
+            'created_at':          utc_iso(self.created_at),
         }
 
     def __repr__(self):
@@ -697,8 +698,8 @@ class EmailConfig(db.Model):
             'smtp_username': self.smtp_username,
             'use_tls':       self.use_tls,
             'is_active':     self.is_active,
-            'updated_at':    self.updated_at.isoformat() if self.updated_at else '',
-            'last_tested_at':   self.last_tested_at.isoformat() if self.last_tested_at else '',
+            'updated_at':    utc_iso(self.updated_at),
+            'last_tested_at':   utc_iso(self.last_tested_at),
             'last_test_status': self.last_test_status or '',
         }
         return d
@@ -766,7 +767,7 @@ class AdminProfile(db.Model):
             'phone':       self.phone or '',
             'department':  self.department or '',
             'designation': self.designation or '',
-            'updated_at':  self.updated_at.isoformat() if self.updated_at else '',
+            'updated_at':  utc_iso(self.updated_at),
         }
 # ─────────────────────────────────────────────────────────────────────────────
 # ONBOARDING MODELS — append this block to models.py
@@ -822,9 +823,9 @@ class Onboarding(db.Model):
             'application_access': self.application_access.split(',') if self.application_access else [],
             'status':             self.status or 'Pending',
             'converted_emp_id':   self.converted_emp_id or '',
-            'converted_at':       self.converted_at.isoformat() if self.converted_at else '',
-            'created_at':         self.created_at.isoformat() if self.created_at else '',
-            'updated_at':         self.updated_at.isoformat() if self.updated_at else '',
+            'converted_at':       utc_iso(self.converted_at),
+            'created_at':         utc_iso(self.created_at),
+            'updated_at':         utc_iso(self.updated_at),
         }
         if include_assets:
             data['assets_assigned'] = [a.to_dict() for a in self.asset_assignments]
@@ -859,7 +860,7 @@ class OnboardingAssetAssignment(db.Model):
             'asset_name':     self.asset_name or '',
             'asset_serial':   self.asset_serial or '',
             'asset_category': self.asset_category or '',
-            'assigned_at':    self.assigned_at.isoformat() if self.assigned_at else '',
+            'assigned_at':    utc_iso(self.assigned_at),
         }
 
     def __repr__(self):
@@ -918,6 +919,16 @@ class CorporateSIM(db.Model):
     # Relationship
     assigned_employee = db.relationship('Employee', foreign_keys=[assigned_employee_id], backref='assigned_sims')
 
+    @staticmethod
+    def _decrypt_puk(value):
+        if not value:
+            return ''
+        try:
+            from email_service import decrypt_password
+            return decrypt_password(value)
+        except Exception:
+            return value
+
     def to_dict(self):
         """Convert to dictionary for JSON API responses"""
         return {
@@ -940,12 +951,12 @@ class CorporateSIM(db.Model):
             'activation_date':         self.activation_date.isoformat() if self.activation_date else '',
             'vendor':                  self.vendor or '',
             'sim_type':                self.sim_type or '',
-            'puk_code':                self.puk_code or '',  # Be cautious with PUK in production
+            'puk_code':                CorporateSIM._decrypt_puk(self.puk_code),
             'remarks':                 self.remarks or '',
             'created_by':              self.created_by or '',
             'updated_by':              self.updated_by or '',
-            'created_at':              self.created_at.isoformat() if self.created_at else '',
-            'updated_at':              self.updated_at.isoformat() if self.updated_at else '',
+            'created_at':              utc_iso(self.created_at),
+            'updated_at':              utc_iso(self.updated_at),
         }
 
     def __repr__(self):

@@ -8,6 +8,7 @@ from models import (db, Asset, AuditLog, AssetLifecycle, TemporaryAssignment,
                     AssetReplacement, EmployeeExit, ExitAssetCollection)
 from services.audit_service import AuditService, LifecycleService
 from datetime import datetime, date, timedelta
+from datetime_utils import today_ist, ist_midnight_utc
 from sqlalchemy import or_, and_
 import io
 import csv
@@ -208,7 +209,7 @@ def export_audit_logs():
             io.BytesIO(output.getvalue().encode('utf-8-sig')),
             mimetype='text/csv',
             as_attachment=True,
-            download_name=f'audit_logs_{date.today()}.csv'
+            download_name=f'audit_logs_{today_ist()}.csv'
         )
         
     except Exception as e:
@@ -313,7 +314,7 @@ def create_temporary_assignment():
             temp_asset_name=temp_asset.asset_name,
             temp_asset_serial=temp_asset.serial_number,
             reason=data['reason'],
-            start_date=date.today(),
+            start_date=today_ist(),
             expected_return_date=expected_return,
             status='Active',
             created_by=user_info['username'],
@@ -408,7 +409,7 @@ def get_active_temporary_assignments():
         ).all()
         
         # Check for overdue
-        today = date.today()
+        today = today_ist()
         for assignment in assignments:
             if assignment.expected_return_date and assignment.expected_return_date < today:
                 assignment.status = 'Overdue'
@@ -459,7 +460,7 @@ def complete_temporary_assignment(assignment_id):
         
         # Update assignment
         assignment.status = 'Completed'
-        assignment.actual_return_date = date.today()
+        assignment.actual_return_date = today_ist()
         assignment.completed_by = user_info['username']
         if data.get('remarks'):
             assignment.remarks = (assignment.remarks or '') + '\n' + data['remarks']
@@ -605,7 +606,7 @@ def create_asset_replacement():
             return jsonify({'error': 'New asset is not available'}), 400
         
         # Parse replacement date
-        replacement_date = date.today()
+        replacement_date = today_ist()
         if data.get('replacement_date'):
             try:
                 replacement_date = datetime.strptime(data['replacement_date'], '%Y-%m-%d').date()
@@ -948,7 +949,7 @@ def collect_exit_asset(exit_id):
         # Update collection
         collection.collection_status = data.get('collection_status', 'Returned')
         collection.asset_condition = data.get('asset_condition', 'Good')
-        collection.collected_date = date.today()
+        collection.collected_date = today_ist()
         collection.collected_by = user_info['username']
         collection.damage_description = data.get('damage_description')
         collection.estimated_cost = data.get('estimated_cost', 0)
@@ -1096,13 +1097,13 @@ def get_lifecycle_stats():
         pending_exits = EmployeeExit.query.filter_by(exit_status='In Progress').count()
         
         # Recent replacements (last 30 days)
-        thirty_days_ago = date.today() - timedelta(days=30)
+        thirty_days_ago = today_ist() - timedelta(days=30)
         recent_replacements = AssetReplacement.query.filter(
             AssetReplacement.replacement_date >= thirty_days_ago
         ).count()
         
         # Overdue temp assignments
-        today = date.today()
+        today = today_ist()
         overdue_assignments = TemporaryAssignment.query.filter(
             TemporaryAssignment.status == 'Active',
             TemporaryAssignment.expected_return_date < today
@@ -1120,8 +1121,10 @@ def get_lifecycle_stats():
         assets_temp = Asset.query.filter_by(status='Temporary Assignment').count()
         assets_returned = Asset.query.filter_by(status='Returned').count()
         
-        # Today's activity count
-        today_start = datetime.combine(date.today(), datetime.min.time())
+        # Today's activity count — compares against AuditLog.timestamp, a
+        # true UTC instant, so we need the UTC instant corresponding to
+        # midnight IST today, not just today's calendar date.
+        today_start = ist_midnight_utc()
         today_activities = AuditLog.query.filter(AuditLog.timestamp >= today_start).count()
         
         return jsonify({

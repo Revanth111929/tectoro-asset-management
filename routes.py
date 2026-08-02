@@ -1,6 +1,7 @@
 # routes.py - Simplified routes for IT Asset Management
 import os, csv, io
 from datetime import datetime, date, timedelta
+from datetime_utils import today_ist
 from flask import (Blueprint, render_template, redirect, url_for,
                    request, flash, send_file, jsonify, current_app)
 # flask_login session imports removed — app uses JWT token auth
@@ -10,21 +11,32 @@ from sqlalchemy import or_, func
 from models import db, User, Asset, ActivityLog
 from services.audit_service import AuditService, LifecycleService
 from email_service import send_acknowledgment_email
-from flask_cors import cross_origin
 from werkzeug.utils import secure_filename
 # ── RBAC helpers ──────────────────────────────────────────────────────────────
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+from utils.limiter import limiter
+
+TOKEN_MAX_AGE_SECONDS = 8 * 3600  # 8 hour session, matches prior de-facto behavior
+
+def _token_serializer():
+    secret = os.environ.get('SECRET_KEY', 'assetmgmt-super-secret-2024')
+    return URLSafeTimedSerializer(secret, salt='auth-token')
+
+def generate_signed_token(user_id, username, role):
+    """Create a signed, expiring token. Replaces the old unsigned 'user-{id}-{username}' format."""
+    return _token_serializer().dumps({'user_id': user_id, 'username': username, 'role': role})
+
 def get_request_user():
-    """Extract user from Bearer token."""
+    """Extract user from a signed Bearer token, verifying signature and expiry."""
     auth = request.headers.get('Authorization', '')
-    token = auth.replace('Bearer ', '')
-    if token.startswith('user-'):
-        parts = token.split('-')
-        if len(parts) >= 3:
-            try:
-                return User.query.get(int(parts[1]))
-            except Exception:
-                pass
-    return None
+    token = auth.replace('Bearer ', '').strip()
+    if not token:
+        return None
+    try:
+        payload = _token_serializer().loads(token, max_age=TOKEN_MAX_AGE_SECONDS)
+        return User.query.get(int(payload['user_id']))
+    except (BadSignature, SignatureExpired, KeyError, ValueError, TypeError):
+        return None
 
 def require_role(*allowed_roles):
     """Decorator: deny request if user role not in allowed_roles."""
@@ -110,7 +122,7 @@ def dashboard():
     cat_counts = [c[1] for c in cat_data]
 
     # Warranty expiring within 90 days
-    today = date.today()
+    today = today_ist()
     soon = today + timedelta(days=90)
     expiring = Asset.query.filter(
         Asset.warranty_date != None,
@@ -190,7 +202,7 @@ def add_asset():
             warranty_date    = _parse_date(request.form.get('warranty_date')),
             charger_serial   = request.form.get('charger_serial', '').strip(),
             old_user         = request.form.get('old_user', '').strip(),
-            date             = _parse_date(request.form.get('date')) or date.today(),
+            date             = _parse_date(request.form.get('date')) or today_ist(),
             old_device       = request.form.get('old_device', '').strip(),
             comments         = request.form.get('comments', '').strip(),
             status           = request.form.get('status', 'Available')
@@ -284,7 +296,7 @@ def export_csv():
         io.BytesIO(output.getvalue().encode()),
         mimetype='text/csv',
         as_attachment=True,
-        download_name=f'assets_{date.today()}.csv'
+        download_name=f'assets_{today_ist()}.csv'
     )
 
 @report_bp.route('/activity')
@@ -295,7 +307,7 @@ def activity_log():
 
 @report_bp.route('/warranty')
 def warranty_alerts():
-    today = date.today()
+    today = today_ist()
     soon = today + timedelta(days=90)
     expiring = Asset.query.filter(
         Asset.warranty_date != None,
@@ -308,14 +320,13 @@ def warranty_alerts():
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
 @api_bp.route('/dashboard/stats')
-@cross_origin()
 def api_dashboard_stats():
     total     = Asset.query.count()
     assigned  = Asset.query.filter_by(status='Assigned').count()
     available = Asset.query.filter_by(status='Available').count()
     maintenance = Asset.query.filter_by(status='Maintenance').count()
 
-    today = date.today()
+    today = today_ist()
     soon  = today + timedelta(days=90)
     expiring = Asset.query.filter(
         Asset.warranty_date != None,
@@ -353,13 +364,11 @@ def api_dashboard_stats():
     })
 
 @api_bp.route('/dashboard/activity')
-@cross_origin()
 def api_dashboard_activity():
     logs = ActivityLog.query.order_by(ActivityLog.timestamp.desc()).limit(20).all()
     return jsonify({'logs': [l.to_dict() for l in logs]})
 
 @api_bp.route('/assets')
-@cross_origin()
 def api_assets():
     search   = request.args.get('search', '')
     category = request.args.get('category', '')
@@ -398,13 +407,11 @@ def api_assets():
     })
 
 @api_bp.route('/assets/<int:asset_id>')
-@cross_origin()
 def api_asset_detail(asset_id):
     asset = Asset.query.get_or_404(asset_id)
     return jsonify(asset.to_dict())
 
 @api_bp.route('/assets/<int:asset_id>', methods=['DELETE'])
-@cross_origin()
 def api_delete_asset(asset_id):
     """Delete an asset"""
     try:
@@ -435,7 +442,6 @@ def api_delete_asset(asset_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 @api_bp.route('/assets/<int:asset_id>', methods=['PUT'])
-@cross_origin()
 def api_update_asset(asset_id):
     """Update an asset"""
     try:
@@ -632,7 +638,6 @@ def api_update_asset(asset_id):
         return jsonify({'error': str(e)}), 500
 
 @api_bp.route('/assets', methods=['POST'])
-@cross_origin()
 def api_create_asset():
     """Create a new asset"""
     try:
@@ -673,7 +678,7 @@ def api_create_asset():
             warranty_date   = parse_date(data.get('warranty_date')),
             charger_serial  = data.get('charger_serial', ''),
             old_user        = data.get('old_user', ''),
-            date            = parse_date(data.get('date')) or date.today(),
+            date            = parse_date(data.get('date')) or today_ist(),
             old_device      = data.get('old_device', ''),
             comments        = data.get('comments', ''),
             status          = data.get('status', 'Available'),
@@ -713,32 +718,29 @@ def api_create_asset():
         return jsonify({'error': str(e)}), 500
 
 @api_bp.route('/auth/login', methods=['POST'])
-@cross_origin()
+@limiter.limit("5 per minute")
 def api_login():
-    data     = request.get_json()
+    data     = request.get_json() or {}
     username = data.get('username', '').strip()
     password = data.get('password', '')
     user = User.query.filter_by(username=username).first()
     if user and check_password_hash(user.password_hash, password):
         return jsonify({
             'success': True,
-            'token': f'user-{user.id}-{user.username}',
+            'token': generate_signed_token(user.id, user.username, user.role),
             'user': {'id': user.id, 'username': user.username, 'role': user.role}
         })
     return jsonify({'success': False, 'message': 'Invalid credentials'}), 401
 
 @api_bp.route('/auth/logout', methods=['POST'])
-@cross_origin()
 def api_logout():
     return jsonify({'success': True})
 
 @api_bp.route('/health')
-@cross_origin()
 def api_health():
     return jsonify({'status': 'ok', 'message': 'API running'})
 
 @api_bp.route('/assets/import', methods=['POST'])
-@cross_origin()
 def api_import_assets():
     """Import assets from Excel file"""
     if 'file' not in request.files:
@@ -807,7 +809,7 @@ def api_import_assets():
                     warranty_date    = parse_date(row.get('Warranty Date')),
                     charger_serial   = str(row.get('Charger Serial Number', '')).strip() if not pd.isna(row.get('Charger Serial Number')) else '',
                     old_user         = str(row.get('Old User', '')).strip() if not pd.isna(row.get('Old User')) else '',
-                    date             = parse_date(row.get('Date')) or date.today(),
+                    date             = parse_date(row.get('Date')) or today_ist(),
                     old_device       = str(row.get('Old Device', '')).strip() if not pd.isna(row.get('Old Device')) else '',
                     comments         = str(row.get('Comments', '')).strip() if not pd.isna(row.get('Comments')) else '',
                     status           = str(row.get('Status', 'Available')).strip() if not pd.isna(row.get('Status')) else 'Available'
@@ -833,7 +835,6 @@ def api_import_assets():
         return jsonify({'error': f'Import failed: {str(e)}'}), 500
 
 @api_bp.route('/assets/template', methods=['GET'])
-@cross_origin()
 def api_download_template():
     """Download Excel template for bulk import"""
     try:
@@ -924,7 +925,6 @@ def api_download_template():
 
 # ── USER MANAGEMENT API ───────────────────────────────────────────────────────
 @api_bp.route('/users', methods=['GET'])
-@cross_origin()
 def api_get_users():
     users = User.query.all()
     return jsonify([{
@@ -936,7 +936,6 @@ def api_get_users():
     } for u in users])
 
 @api_bp.route('/users', methods=['POST'])
-@cross_origin()
 def api_create_user():
     data = request.get_json()
     username = data.get('username', '').strip()
@@ -964,7 +963,6 @@ def api_create_user():
     return jsonify({'message': 'User created', 'id': user.id}), 201
 
 @api_bp.route('/users/<int:uid>', methods=['PUT'])
-@cross_origin()
 def api_update_user(uid):
     user = User.query.get_or_404(uid)
     data = request.get_json()
@@ -986,7 +984,6 @@ def api_update_user(uid):
     return jsonify({'message': 'User updated'})
 
 @api_bp.route('/users/<int:uid>', methods=['DELETE'])
-@cross_origin()
 def api_delete_user(uid):
     user = User.query.get_or_404(uid)
     if user.username == 'admin':
@@ -998,21 +995,19 @@ def api_delete_user(uid):
 
 # ── EMAIL API ─────────────────────────────────────────────────────────────────
 @api_bp.route('/users/<int:uid>/smtp-password', methods=['PUT'])
-@cross_origin()
 def api_update_smtp_password(uid):
     user = User.query.get_or_404(uid)
     data = request.get_json()
     pwd  = data.get('smtp_password', '').strip()
     if not pwd:
         return jsonify({'error': 'Password is required'}), 400
-    from werkzeug.security import generate_password_hash
-    user.smtp_password = pwd          # store plain for SMTP use
+    from email_service import encrypt_password
+    user.smtp_password = encrypt_password(pwd)   # encrypted at rest
     db.session.commit()
     return jsonify({'message': 'SMTP password saved'})
 
 
 @api_bp.route('/assets/<int:asset_id>/send-assignment-email', methods=['POST'])
-@cross_origin()
 def api_send_assignment_email(asset_id):
     try:
         data             = request.get_json()
@@ -1098,9 +1093,16 @@ def api_send_assignment_email(asset_id):
         msg['To']      = recipient_email
         msg.attach(MIMEText(html_body, 'html'))
 
+        from email_service import decrypt_password
+        try:
+            smtp_plain_password = decrypt_password(sender.smtp_password)
+        except Exception:
+            # Fallback for any password stored before encryption was added
+            smtp_plain_password = sender.smtp_password
+
         with smtplib.SMTP('smtp.office365.com', 587) as server:
             server.starttls()
-            server.login(sender.email, sender.smtp_password)
+            server.login(sender.email, smtp_plain_password)
             server.sendmail(sender.email, recipient_email, msg.as_string())
 
         log = ActivityLog(
@@ -1124,7 +1126,6 @@ def api_send_assignment_email(asset_id):
 
 # ── REPORTS API ───────────────────────────────────────────────────────────────
 @api_bp.route('/reports/activity')
-@cross_origin()
 def api_reports_activity():
     page     = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
@@ -1138,7 +1139,6 @@ def api_reports_activity():
     })
 
 @api_bp.route('/reports/export/csv')
-@cross_origin()
 def api_reports_export_csv():
     assets = Asset.query.all()
     output = io.StringIO()
@@ -1161,11 +1161,10 @@ def api_reports_export_csv():
         io.BytesIO(output.getvalue().encode()),
         mimetype='text/csv',
         as_attachment=True,
-        download_name=f'assets_{date.today()}.csv'
+        download_name=f'assets_{today_ist()}.csv'
     )
 
 @api_bp.route('/reports/export/excel')
-@cross_origin()
 def api_reports_export_excel():
     try:
         import openpyxl
@@ -1199,7 +1198,7 @@ def api_reports_export_excel():
         return send_file(buf,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             as_attachment=True,
-            download_name=f'assets_{date.today()}.xlsx')
+            download_name=f'assets_{today_ist()}.xlsx')
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1616,7 +1615,7 @@ def create_corporate_sim():
         activation_date=datetime.strptime(data['activation_date'], '%Y-%m-%d').date() if data.get('activation_date') else None,
         vendor=data.get('vendor'),
         sim_type=data.get('sim_type'),
-        puk_code=data.get('puk_code'),
+        puk_code=encrypt_password(data['puk_code']) if data.get('puk_code') else None,
         remarks=data.get('remarks'),
         created_by=user.username if user else 'system'
     )
@@ -1678,7 +1677,7 @@ def update_corporate_sim(sim_id):
     if 'sim_type' in data:
         sim.sim_type = data['sim_type']
     if 'puk_code' in data:
-        sim.puk_code = data['puk_code']
+        sim.puk_code = encrypt_password(data['puk_code']) if data['puk_code'] else None
     if 'remarks' in data:
         sim.remarks = data['remarks']
     
@@ -1744,14 +1743,14 @@ def assign_corporate_sim(sim_id):
     sim.assigned_employee_id = employee.emp_id
     sim.assigned_employee_name = employee.employee_name
     sim.assigned_employee_email = employee.email
-    sim.assignment_date = date.today()
+    sim.assignment_date = today_ist()
     sim.return_date = None
     sim.status = 'Assigned'
     sim.updated_by = user.username if user else 'system'
     sim.updated_at = datetime.utcnow()
     
     if data.get('remarks'):
-        sim.remarks = (sim.remarks or '') + f"\n[{date.today()}] Assigned to {employee.employee_name}: {data['remarks']}"
+        sim.remarks = (sim.remarks or '') + f"\n[{today_ist()}] Assigned to {employee.employee_name}: {data['remarks']}"
     
     db.session.commit()
     
@@ -1777,7 +1776,7 @@ def return_corporate_sim(sim_id):
     
     # Record return
     old_employee = sim.assigned_employee_name
-    sim.return_date = date.today()
+    sim.return_date = today_ist()
     sim.status = data.get('new_status', 'Available')  # Can be Available, Damaged, Lost, etc.
     
     # Clear assignment if returning to available
@@ -1787,7 +1786,7 @@ def return_corporate_sim(sim_id):
         sim.assigned_employee_email = None
     
     if data.get('remarks'):
-        sim.remarks = (sim.remarks or '') + f"\n[{date.today()}] Returned from {old_employee}: {data['remarks']}"
+        sim.remarks = (sim.remarks or '') + f"\n[{today_ist()}] Returned from {old_employee}: {data['remarks']}"
     
     sim.updated_by = user.username if user else 'system'
     sim.updated_at = datetime.utcnow()
