@@ -124,7 +124,7 @@ function OnboardingView() {
           <div className="table-card">
             <h6 className="fw-bold mb-3 text-primary"><i className="bi bi-laptop me-2"></i>Assets Assigned</h6>
             {record.assets_assigned && record.assets_assigned.length > 0 ? (
-              <div className="table-responsive">
+              <div className="table-responsive" style={{ maxHeight: "320px", overflowY: "auto" }}>
                 <table className="table table-hover mb-0">
                   <thead>
                     <tr><th>Asset Name</th><th>Serial Number</th><th>Category</th></tr>

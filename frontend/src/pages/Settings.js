@@ -389,7 +389,7 @@ function Settings() {
               </div>
             )}
             
-            <div className="table-responsive">
+            <div className="table-responsive" style={{ maxHeight: "calc(100vh - 340px)", overflowY: "auto" }}>
               <table className="table table-hover mb-0">
                 <thead>
                   <tr>

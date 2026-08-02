@@ -278,7 +278,7 @@ function AssetReplacements() {
         </div>
       ) : (
         <div className="table-card">
-          <div className="table-responsive">
+          <div className="table-responsive" style={{ maxHeight: "calc(100vh - 340px)", overflowY: "auto" }}>
             <table className="table table-hover">
               <thead>
                 <tr>

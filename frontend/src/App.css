@@ -1182,6 +1182,22 @@ body.dark .page-item.active .page-link {
   width: 100% !important;
 }
 
+/* Sticky table headers — the header row stays fixed while tbody scrolls
+   within any .table-responsive container that has a bounded max-height +
+   overflow-y (set per-page inline, viewport-relative). Applies uniformly
+   across every module (Assets, Inventory, Lifecycle, Reports, Users,
+   History/Logs, etc.) since they all share this one class — no per-page
+   duplication needed for the sticky behavior itself. */
+.table-responsive thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--card-bg, #fff);
+}
+body.dark .table-responsive thead th {
+  background-color: #1e293b !important;
+}
+
 /* Fix Bootstrap container inside content */
 .page-content,
 .layout-content .container,

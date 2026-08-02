@@ -246,7 +246,7 @@ function Dashboard() {
           <h6 className="fw-bold mb-0">Recent Activity</h6>
           <Link to="/reports" className="btn btn-sm btn-outline-primary">View All</Link>
         </div>
-        <div className="table-responsive">
+        <div className="table-responsive" style={{ maxHeight: "320px", overflowY: "auto" }}>
           <table className="table table-hover mb-0">
             <thead>
               <tr>
