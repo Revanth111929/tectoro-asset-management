@@ -5,6 +5,8 @@ import { Link } from 'react-router-dom';
 import { assetAPI, ackAPI } from '../services/api';
 import { useUrlFilters } from '../hooks/useUrlFilters';
 import { useScrollRestoration, markLastSelected } from '../hooks/useScrollRestoration';
+import { useTableAreaHeight } from '../hooks/useTableAreaHeight';
+import './AssetList.css';
 
 const AckBadge = ({ asset, onSend }) => {
   const [sending, setSending] = useState(false);
@@ -92,6 +94,7 @@ function AssetList() {
 
   const listUrl = buildUrl('/assets');
   useScrollRestoration(listUrl, !loading);
+  const { toolbarRef, footerRef, tableAreaStyle } = useTableAreaHeight();
 
   const fetchAssets = useCallback(() => {
     setLoading(true);
@@ -280,9 +283,10 @@ function AssetList() {
   const totalPages = Math.ceil(total / 10);
 
   return (
-    <div>
+    <div className="asset-list-compact">
+      <div ref={toolbarRef}>
       {/* Header */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
+      <div className="d-flex justify-content-between align-items-center mb-4 asset-compact-header">
         <div>
           <h2 className="fw-bold mb-1">Asset Management</h2>
           <p className="text-muted mb-0">{total} total records</p>
@@ -295,7 +299,7 @@ function AssetList() {
       </div>
 
       {/* Filters */}
-      <div className="table-card mb-3">
+      <div className="table-card mb-3 asset-compact-filters">
         <div className="row g-2">
           <div className="col-md-4">
             <div className="input-group">
@@ -348,7 +352,7 @@ function AssetList() {
       </div>
 
       {/* Legend & Bulk Actions */}
-      <div className="d-flex justify-content-between align-items-center mb-2">
+      <div className="d-flex justify-content-between align-items-center mb-2 asset-compact-legend">
         <div className="d-flex gap-3 small text-muted">
           <span><span className="badge bg-warning text-dark me-1">●</span>Warranty expiring ≤ 90 days</span>
           <span><span className="badge bg-danger me-1">●</span>Warranty expired</span>
@@ -388,9 +392,10 @@ function AssetList() {
           </div>
         )}
       </div>
+      </div>
 
       {/* Table */}
-      <div className="table-card">
+      <div className="table-card asset-compact-table-card">
         {error && <div className="alert alert-danger">{error}</div>}
 
         {loading ? (
@@ -399,7 +404,7 @@ function AssetList() {
           </div>
         ) : (
           <>
-            <div className="table-responsive" style={{ maxHeight: "calc(100vh - 340px)", overflowY: "auto" }}>
+            <div className="table-responsive" style={tableAreaStyle}>
               <table className="table table-hover mb-0">
                 <thead style={{ position: "sticky", top: 0, zIndex: 1, background: "var(--card-bg, #fff)" }}>
                   <tr>
@@ -519,7 +524,7 @@ function AssetList() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="d-flex justify-content-between align-items-center mt-3">
+              <div ref={footerRef} className="d-flex justify-content-between align-items-center mt-3">
                 <small className="text-muted">
                   Showing {(page - 1) * 10 + 1}–{Math.min(page * 10, total)} of {total}
                 </small>
