@@ -886,10 +886,6 @@ function AssetAdd() {
     <div>
       {/* Header */}
       <div className="d-flex align-items-center gap-3 mb-4">
-        <button className="btn btn-outline-secondary btn-sm"
-          onClick={() => navigate('/assets')}>
-          <i className="bi bi-arrow-left me-1"></i>Back
-        </button>
         <div>
           <h2 className="fw-bold mb-0">Add Asset</h2>
           <p className="text-muted mb-0 small">Choose the type of entry below</p>

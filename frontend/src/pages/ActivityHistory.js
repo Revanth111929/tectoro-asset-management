@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './ActivityHistory.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://tectoro-asset-management.onrender.com/api';
+const API_BASE_URL = '/api';
 
 function ActivityHistory() {
   const [logs, setLogs] = useState([]);

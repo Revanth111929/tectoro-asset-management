@@ -66,7 +66,7 @@ function AssetImport() {
     try {
       const token = localStorage.getItem('token');
       // Use full backend URL for PDF download
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://tectoro-asset-management.onrender.com/api';
+      const API_BASE_URL = '/api';
       const response = await fetch(`${API_BASE_URL}/assets/assignment-forms/bulk`, {
         method: 'POST',
         headers: {
@@ -119,7 +119,7 @@ function AssetImport() {
   };
 
   const downloadTemplate = () => {
-    window.open('https://tectoro-asset-management.onrender.com/api/assets/template', '_blank');
+    window.open('/api/assets/template', '_blank');
   };
 
   return (
@@ -130,9 +130,6 @@ function AssetImport() {
           <h2 className="fw-bold mb-1">Import Assets</h2>
           <p className="text-muted mb-0">Upload Excel file to add multiple assets at once</p>
         </div>
-        <Link to="/assets" className="btn btn-outline-primary">
-          <i className="bi bi-arrow-left me-2"></i>Back to Assets
-        </Link>
       </div>
 
       <div className="row">

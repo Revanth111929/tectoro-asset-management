@@ -88,9 +88,6 @@ function CorporateSimAdd() {
       <div className="row justify-content-center">
         <div className="col-lg-10">
           <div className="d-flex align-items-center mb-4">
-            <button className="btn btn-outline-secondary me-3" onClick={() => navigate('/corporate-sims')}>
-              <i className="bi bi-arrow-left"></i>
-            </button>
             <div>
               <h2 className="mb-0">
                 <i className="bi bi-sim me-2"></i>Add Corporate SIM

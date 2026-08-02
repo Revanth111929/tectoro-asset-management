@@ -1,8 +1,10 @@
 // AssetList.js – Full asset table with search, filter, delete, warranty highlights
 import { canPerform } from '../utils/permissions';
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { assetAPI, ackAPI } from '../services/api';
+import { useUrlFilters } from '../hooks/useUrlFilters';
+import { useScrollRestoration, markLastSelected } from '../hooks/useScrollRestoration';
 
 const AckBadge = ({ asset, onSend }) => {
   const [sending, setSending] = useState(false);
@@ -55,7 +57,6 @@ const CATEGORIES = ['Laptop', 'CPU', 'Monitor', 'Printer', 'Phone', 'Server', 'M
 const STATUSES   = ['Available', 'Assigned', 'Maintenance', 'Retired'];
 
 function AssetList() {
-  const routerLocation = useLocation();
   const [assets,   setAssets]   = useState([]);
   const [total,    setTotal]    = useState(0);
   const [loading,  setLoading]  = useState(true);
@@ -69,22 +70,28 @@ function AssetList() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState('Available');
 
-  // Filters
-  const [search,   setSearch]   = useState('');
-  const [category, setCategory] = useState('');
-  const [status,   setStatus]   = useState('');
+  const { values: filterValues, setValue: setFilterValue, buildUrl, clearAll } = useUrlFilters({
+    search: '', category: '', status: '', location: '', sort: 'id_desc', page: 1
+  });
+  const search   = filterValues.search;
+  const category = filterValues.category;
+  const status   = filterValues.status;
+  const location = filterValues.location;
+  const sortBy   = filterValues.sort;
+  const page     = filterValues.page;
 
-  useEffect(() => {
-    const urlP = new URLSearchParams(routerLocation.search);
-    const cat = urlP.get('category') || '';
-    const st  = urlP.get('status') || '';
-    setCategory(cat);
-    setStatus(st);
-    setPage(1);
-  }, [routerLocation.search]);
-  const [location, setLocation] = useState('');
-  const [page,     setPage]     = useState(1);
-  const [sortBy,   setSortBy]   = useState('id_desc');
+  const setSearch   = function(v) { setFilterValue('search', v,   { resetPage: true, replace: true }); };
+  const setCategory = function(v) { setFilterValue('category', v, { resetPage: true }); };
+  const setStatus   = function(v) { setFilterValue('status', v,   { resetPage: true }); };
+  const setLocation = function(v) { setFilterValue('location', v, { resetPage: true }); };
+  const setSortBy   = function(v) { setFilterValue('sort', v,     { resetPage: true }); };
+  const setPage     = function(v) {
+    const nextPage = typeof v === 'function' ? v(page) : v;
+    setFilterValue('page', nextPage);
+  };
+
+  const listUrl = buildUrl('/assets');
+  useScrollRestoration(listUrl, !loading);
 
   const fetchAssets = useCallback(() => {
     setLoading(true);
@@ -100,7 +107,6 @@ function AssetList() {
   useEffect(() => { fetchAssets(); }, [fetchAssets]);
 
   // Reset to page 1 when filters change
-  useEffect(() => { setPage(1); }, [search, category, status, location]);
   
   // Clear selection when page changes
   useEffect(() => { setSelectedIds([]); }, [page]);
@@ -333,7 +339,7 @@ function AssetList() {
           <div className="col-md-2">
             <button
               className="btn btn-outline-secondary w-100"
-              onClick={() => { setSearch(''); setCategory(''); setStatus(''); setLocation(''); setSortBy('id_desc'); }}
+              onClick={() => clearAll()}
             >
               <i className="bi bi-x-circle me-1"></i>Clear
             </button>
@@ -469,15 +475,29 @@ function AssetList() {
                       <td><AckBadge asset={a} onSend={fetchAssets} /></td>
                       <td>
                         <div className="btn-group btn-group-sm">
-                          <Link to={`/assets/view/${a.id}`} className="btn btn-outline-primary" title="View">
+                          <Link
+                            to={`/assets/view/${a.id}`}
+                            state={{ returnTo: listUrl }}
+                            onClick={() => markLastSelected(listUrl, a.id)}
+                            className="btn btn-outline-primary"
+                            title="View"
+                          >
                             <i className="bi bi-eye"></i>
                           </Link>
                           <Link to={`/assets/timeline/${a.id}`} className="btn btn-outline-info" title="View Timeline">
                             <i className="bi bi-clock-history"></i>
                           </Link>
-                          {canPerform('edit') && <Link to={`/assets/edit/${a.id}`} className="btn btn-outline-secondary" title="Edit">
-                            <i className="bi bi-pencil"></i>
-                          </Link>}
+                          {canPerform('edit') && (
+                            <Link
+                              to={`/assets/edit/${a.id}`}
+                              state={{ returnTo: listUrl }}
+                              onClick={() => markLastSelected(listUrl, a.id)}
+                              className="btn btn-outline-secondary"
+                              title="Edit"
+                            >
+                              <i className="bi bi-pencil"></i>
+                            </Link>
+                          )}
                           <button
                             className={canPerform('delete') ? "btn btn-outline-danger" : "d-none"}
                             title="Delete"

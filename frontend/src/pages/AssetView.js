@@ -1,11 +1,13 @@
 // AssetView.js – Full detail view of a single asset (all 20 columns)
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { assetAPI } from '../services/api';
 
 function AssetView() {
   const { id }   = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const viewUrl  = `/assets/view/${id}`;
   const [asset,   setAsset]   = useState(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
@@ -58,12 +60,9 @@ function AssetView() {
           </div>
         </div>
         <div className="d-flex gap-2">
-          <Link to={`/assets/edit/${asset.id}`} className="btn btn-primary">
+          <Link to={`/assets/edit/${asset.id}`} state={{ returnTo: viewUrl }} className="btn btn-primary">
             <i className="bi bi-pencil me-2"></i>Edit
           </Link>
-          <button className="btn btn-outline-secondary" onClick={() => navigate('/assets')}>
-            <i className="bi bi-arrow-left me-2"></i>Back
-          </button>
         </div>
       </div>
 

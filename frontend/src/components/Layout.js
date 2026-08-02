@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { canPerform, getUserInfo } from '../utils/permissions';
+import { resolveActiveMenu, ASSET_DETAIL_ROUTE } from '../utils/sidebarActiveResolver';
+import { assetAPI } from '../services/api';
 
 function Layout({ children }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -22,10 +24,48 @@ function Layout({ children }) {
     window.location.href = '/login';
   };
 
-  const isActive = (path, exact = false) => {
-    if (exact) return location.pathname === path;
-    return location.pathname.startsWith(path);
-  };
+  // Resolve category for /assets/edit|view|timeline/:id pages so the
+  // matching Inventory item (not just "All Assets") gets highlighted.
+  const [resolvedCategory, setResolvedCategory] = useState(null);
+  const categoryCacheRef = React.useRef(new Map());
+
+  React.useEffect(() => {
+    const match = location.pathname.match(ASSET_DETAIL_ROUTE);
+    if (!match) { setResolvedCategory(null); return; }
+    const id = match[1];
+    const cache = categoryCacheRef.current;
+    if (cache.has(id)) { setResolvedCategory(cache.get(id)); return; }
+    let cancelled = false;
+    assetAPI.getById(id)
+      .then(res => {
+        const category = res?.data?.category || res?.category || null;
+        cache.set(id, category);
+        if (!cancelled) setResolvedCategory(category);
+      })
+      .catch(() => { if (!cancelled) setResolvedCategory(null); });
+    return () => { cancelled = true; };
+  }, [location.pathname]);
+
+  const activeMenu = React.useMemo(
+    () => resolveActiveMenu(location.pathname, resolvedCategory),
+    [location.pathname, resolvedCategory]
+  );
+
+  // Keep the section containing the active item expanded; persists until
+  // the user navigates to a different module. Manual toggling still works
+  // for browsing other sections without leaving the current page.
+  React.useEffect(() => {
+    if (!activeMenu.section) return;
+    setOpenSections({
+      assets: activeMenu.section === 'assets',
+      inventory: activeMenu.section === 'inventory',
+      lifecycle: activeMenu.section === 'lifecycle',
+      reports: activeMenu.section === 'reports',
+      settings: activeMenu.section === 'settings',
+    });
+  }, [activeMenu.section]);
+
+  const isActive = (path) => activeMenu.key === path;
 
   // Accordion: open clicked section, close all others
   const toggleSection = (section) => {
@@ -243,9 +283,6 @@ function Layout({ children }) {
         <div className="layout-main">
           <div className="layout-topbar">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {location.pathname !== '/dashboard' && (
-                <button className="topbar-btn" onClick={() => navigate(-1)} title="Go back"><i className="bi bi-arrow-left"></i></button>
-              )}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div className="dropdown">

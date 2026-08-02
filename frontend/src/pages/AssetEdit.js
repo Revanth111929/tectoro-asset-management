@@ -1,6 +1,6 @@
 // AssetEdit.js – Edit existing asset, pre-populated with all 20 fields
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { assetAPI } from '../services/api';
 
 const CATEGORIES = ['Laptop', 'CPU', 'Monitor', 'Printer', 'Phone', 'Server', 'Other'];
@@ -11,6 +11,8 @@ const STATUSES   = ['Available', 'Assigned', 'Maintenance', 'Retired'];
 function AssetEdit() {
   const { id }   = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = location.state?.returnTo || '/assets';
 
   const [form,     setForm]     = useState(null);
   const [loading,  setLoading]  = useState(true);
@@ -57,7 +59,7 @@ function AssetEdit() {
     setApiError('');
     try {
       await assetAPI.update(id, form);
-      navigate('/assets', { state: { success: 'Asset updated successfully!' } });
+      navigate(returnTo, { state: { success: 'Asset updated successfully!' } });
     } catch (err) {
       setApiError(err.response?.data?.error || 'Failed to update asset');
     } finally {
@@ -89,7 +91,7 @@ function AssetEdit() {
     try {
       const token = localStorage.getItem('token');
       // Use full backend URL for PDF download
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://tectoro-asset-management.onrender.com/api';
+      const API_BASE_URL = '/api';
       const response = await fetch(`${API_BASE_URL}/assets/${id}/assignment-form`, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${token}` }
@@ -139,7 +141,7 @@ function AssetEdit() {
     try {
       const token = localStorage.getItem('token');
       // Use full backend URL for PDF download
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://tectoro-asset-management.onrender.com/api';
+      const API_BASE_URL = '/api';
       const response = await fetch(`${API_BASE_URL}/assets/${id}/assignment-form`, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${token}` }
@@ -381,7 +383,7 @@ function AssetEdit() {
           <button type="button" className="btn btn-info" onClick={handlePrintPDF}>
             <i className="bi bi-printer me-2"></i>Print Assignment Form
           </button>
-          <button type="button" className="btn btn-outline-secondary" onClick={() => navigate('/assets')}>
+          <button type="button" className="btn btn-outline-secondary" onClick={() => navigate(returnTo)}>
             Cancel
           </button>
         </div>

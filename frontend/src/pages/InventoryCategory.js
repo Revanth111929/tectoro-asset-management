@@ -1,5 +1,7 @@
 // InventoryCategory.js - Filtered inventory view by category
 import React, { useState, useEffect, useCallback } from 'react';
+import { useUrlFilters } from '../hooks/useUrlFilters';
+import { useScrollRestoration, markLastSelected } from '../hooks/useScrollRestoration';
 import { Link, useParams } from 'react-router-dom';
 import { assetAPI } from '../services/api';
 import { canPerform } from '../utils/permissions';
@@ -98,9 +100,20 @@ function InventoryCategory() {
   const [assets, setAssets] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
-  const [page, setPage] = useState(1);
+  const { values: filterValues, setValue: setFilterValue, buildUrl } = useUrlFilters({
+    search: '', status: '', page: 1
+  });
+  const search = filterValues.search;
+  const status = filterValues.status;
+  const page   = filterValues.page;
+  const setSearch = function(v) { setFilterValue('search', v, { resetPage: true, replace: true }); };
+  const setStatus  = function(v) { setFilterValue('status', v, { resetPage: true }); };
+  const setPage    = function(v) {
+    const nextPage = typeof v === 'function' ? v(page) : v;
+    setFilterValue('page', nextPage);
+  };
+  const listUrl = buildUrl(`/inventory/${type}`);
+  useScrollRestoration(listUrl, !loading);
   
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState([]);
@@ -131,7 +144,6 @@ function InventoryCategory() {
   }, [config, search, status, page]);
 
   useEffect(() => { fetchAssets(); }, [fetchAssets]);
-  useEffect(() => { setPage(1); }, [search, status]);
   
   // Clear selection when page changes
   useEffect(() => { setSelectedIds([]); }, [page]);
@@ -143,9 +155,6 @@ function InventoryCategory() {
         <i className="bi bi-exclamation-triangle fs-1 text-warning d-block mb-3"></i>
         <h3>Category Not Found</h3>
         <p className="text-muted">The category "{type}" does not exist.</p>
-        <Link to="/assets" className="btn btn-primary">
-          <i className="bi bi-arrow-left me-2"></i>Go to All Assets
-        </Link>
       </div>
     );
   }
@@ -399,11 +408,11 @@ function InventoryCategory() {
                       ))}
                       <td>
                         <div className="btn-group btn-group-sm">
-                          <Link to={`/assets/view/${a.id}`} className="btn btn-outline-primary" title="View">
+                          <Link to={`/assets/view/${a.id}`} state={{ returnTo: listUrl }} onClick={() => markLastSelected(listUrl, a.id)} className="btn btn-outline-primary" title="View">
                             <i className="bi bi-eye"></i>
                           </Link>
                           {canPerform('edit') && (
-                            <Link to={`/assets/edit/${a.id}`} className="btn btn-outline-secondary" title="Edit">
+                            <Link to={`/assets/edit/${a.id}`} state={{ returnTo: listUrl }} onClick={() => markLastSelected(listUrl, a.id)} className="btn btn-outline-secondary" title="Edit">
                               <i className="bi bi-pencil"></i>
                             </Link>
                           )}
@@ -508,3 +517,5 @@ function InventoryCategory() {
 }
 
 export default InventoryCategory;
+
+export { CATEGORY_CONFIG };

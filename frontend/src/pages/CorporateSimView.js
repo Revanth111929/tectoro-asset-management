@@ -51,9 +51,6 @@ function CorporateSimView() {
     return (
       <div className="container-fluid py-4">
         <div className="alert alert-danger">{error || 'SIM not found'}</div>
-        <button className="btn btn-secondary" onClick={() => navigate('/corporate-sims')}>
-          <i className="bi bi-arrow-left me-2"></i>Back to List
-        </button>
       </div>
     );
   }
@@ -65,9 +62,6 @@ function CorporateSimView() {
           {/* Header */}
           <div className="d-flex justify-content-between align-items-start mb-4">
             <div className="d-flex align-items-center">
-              <button className="btn btn-outline-secondary me-3" onClick={() => navigate('/corporate-sims')}>
-                <i className="bi bi-arrow-left"></i>
-              </button>
               <div>
                 <h2 className="mb-1">
                   <i className="bi bi-sim me-2"></i>Corporate SIM Details

@@ -25,15 +25,21 @@ function LoginPage({ setAuth }) {
     setError('');
     setLoading(true);
 
-    try {
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://tectoro-asset-management.onrender.com/api';
-      const response = await fetch(API_BASE_URL + '/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username, password: password })
-      });
-      
-      const data = await response.json();
+ const API_BASE_URL = '/api';
+
+try {
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      username,
+      password
+    })
+  });
+
+  const data = await response.json();
       
       if (response.ok && data.success) {
         // Store JWT tokens (support both old and new format)

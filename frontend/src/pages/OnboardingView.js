@@ -64,9 +64,6 @@ function OnboardingView() {
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
-          <button className="btn btn-outline-secondary btn-sm mb-2" onClick={() => navigate('/onboarding')}>
-            <i className="bi bi-arrow-left me-1"></i>Back
-          </button>
           <h2 className="fw-bold mb-1">{record.name}</h2>
           <div className="d-flex align-items-center gap-2">
             {statusBadge(record.status)}

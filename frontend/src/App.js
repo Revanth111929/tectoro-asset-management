@@ -86,9 +86,6 @@ function App() {
             <p>You do not have permission to access this page.</p>
             <p className="mb-0">Viewer users have read-only access. Please contact your administrator if you need additional permissions.</p>
           </div>
-          <button className="btn btn-primary mt-3" onClick={() => window.history.back()}>
-            <i className="bi bi-arrow-left me-2"></i>Go Back
-          </button>
         </div>
       );
     }
