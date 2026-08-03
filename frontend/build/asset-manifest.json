@@ -1,17 +1,23 @@
 {
   "files": {
-    "main.css": "/static/css/main.6bfcef8e.css",
-    "main.js": "/static/js/main.0e122639.js",
+    "main.css": "/static/css/main.b6f3582c.css",
+    "main.js": "/static/js/main.f828a16e.js",
+    "static/js/239.34f2cad3.chunk.js": "/static/js/239.34f2cad3.chunk.js",
+    "static/js/977.c1951ede.chunk.js": "/static/js/977.c1951ede.chunk.js",
+    "static/js/455.b1beaf2e.chunk.js": "/static/js/455.b1beaf2e.chunk.js",
     "static/media/bootstrap-icons.woff?": "/static/media/bootstrap-icons.1295669cd4e305c97f2c.woff",
     "static/media/bootstrap-icons.woff2?": "/static/media/bootstrap-icons.92ea18a81d737146ff04.woff2",
     "static/media/tectoro-icon-only.png": "/static/media/tectoro-icon-only.29253f2e57ef6301c8d5.png",
     "static/media/tectoro-login-logo.png": "/static/media/tectoro-login-logo.cac63a34d48239d7957e.png",
     "index.html": "/index.html",
-    "main.6bfcef8e.css.map": "/static/css/main.6bfcef8e.css.map",
-    "main.0e122639.js.map": "/static/js/main.0e122639.js.map"
+    "main.b6f3582c.css.map": "/static/css/main.b6f3582c.css.map",
+    "main.f828a16e.js.map": "/static/js/main.f828a16e.js.map",
+    "239.34f2cad3.chunk.js.map": "/static/js/239.34f2cad3.chunk.js.map",
+    "977.c1951ede.chunk.js.map": "/static/js/977.c1951ede.chunk.js.map",
+    "455.b1beaf2e.chunk.js.map": "/static/js/455.b1beaf2e.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.6bfcef8e.css",
-    "static/js/main.0e122639.js"
+    "static/css/main.b6f3582c.css",
+    "static/js/main.f828a16e.js"
   ]
 }

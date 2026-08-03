@@ -425,7 +425,7 @@ function InventoryDetail() {
             )}
             
             <Link 
-              to={`/assets/timeline/${inventoryId}`}
+              to={`/inventory/lifecycle/${inventoryId}`}
               className="btn btn-outline-primary btn-sm w-100 mt-3"
             >
               <i className="bi bi-clock-history me-2"></i>

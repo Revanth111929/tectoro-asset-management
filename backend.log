@@ -4,9 +4,9 @@ Environment:        office
 Database URI:       sqlite:////home/administrator/Desktop/asset-management/databases/local_assets.db
 Resolved DB file:   /home/administrator/Desktop/asset-management/databases/local_assets.db
 SQLAlchemy Engine:  sqlite:////home/administrator/Desktop/asset-management/databases/local_assets.db
-PID:                45245
+PID:                47333
 ============================================================
-2026-08-03 13:15:41,735 [INFO] __main__: Database tables initialized (office database — seeding never runs)
+2026-08-03 13:59:17,732 [INFO] __main__: Database tables initialized (office database — seeding never runs)
 ============================================================
 🚀  IT Asset Management API
 ============================================================
@@ -16,21 +16,21 @@ PID:                45245
 ============================================================
  * Serving Flask app 'api_server'
  * Debug mode: on
-2026-08-03 13:15:41,791 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+2026-08-03 13:59:17,745 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
  * Running on all addresses (0.0.0.0)
  * Running on http://127.0.0.1:3000
  * Running on http://192.168.20.180:3000
-2026-08-03 13:15:41,791 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
-2026-08-03 13:15:41,791 [INFO] werkzeug:  * Restarting with stat
+2026-08-03 13:59:17,745 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-08-03 13:59:17,746 [INFO] werkzeug:  * Restarting with stat
 ============================================================
 Backend:            api_server.py
 Environment:        office
 Database URI:       sqlite:////home/administrator/Desktop/asset-management/databases/local_assets.db
 Resolved DB file:   /home/administrator/Desktop/asset-management/databases/local_assets.db
 SQLAlchemy Engine:  sqlite:////home/administrator/Desktop/asset-management/databases/local_assets.db
-PID:                45252
+PID:                47336
 ============================================================
-2026-08-03 13:15:42,207 [INFO] __main__: Database tables initialized (office database — seeding never runs)
-2026-08-03 13:15:42,217 [WARNING] werkzeug:  * Debugger is active!
-2026-08-03 13:15:42,217 [INFO] werkzeug:  * Debugger PIN: 136-377-553
-2026-08-03 13:15:44,418 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:15:44] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:59:18,220 [INFO] __main__: Database tables initialized (office database — seeding never runs)
+2026-08-03 13:59:18,229 [WARNING] werkzeug:  * Debugger is active!
+2026-08-03 13:59:18,229 [INFO] werkzeug:  * Debugger PIN: 136-377-553
+2026-08-03 13:59:20,727 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:59:20] "GET /api/dashboard/stats HTTP/1.1" 200 -

@@ -9851,3 +9851,239 @@ NameError: name 'func' is not defined
 2026-08-03 13:15:42,217 [WARNING] werkzeug:  * Debugger is active!
 2026-08-03 13:15:42,217 [INFO] werkzeug:  * Debugger PIN: 136-377-553
 2026-08-03 13:15:44,418 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:15:44] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:26:02,774 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:02] "GET /dashboard HTTP/1.1" 200 -
+2026-08-03 13:26:02,782 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:02] "GET /static/css/main.6bfcef8e.css HTTP/1.1" 200 -
+2026-08-03 13:26:02,783 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:02] "GET /static/js/main.0e122639.js HTTP/1.1" 200 -
+2026-08-03 13:26:02,893 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:02] "GET /static/media/bootstrap-icons.92ea18a81d737146ff04.woff2 HTTP/1.1" 200 -
+2026-08-03 13:26:02,907 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:02] "GET /static/media/tectoro-login-logo.cac63a34d48239d7957e.png HTTP/1.1" 200 -
+2026-08-03 13:26:02,915 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:02] "GET /favicon.ico HTTP/1.1" 200 -
+2026-08-03 13:26:06,524 [INFO] __main__: Successful login: admin from 192.168.20.180
+2026-08-03 13:26:06,524 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:06] "POST /api/auth/login HTTP/1.1" 200 -
+2026-08-03 13:26:06,531 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:06] "GET /static/media/tectoro-icon-only.29253f2e57ef6301c8d5.png HTTP/1.1" 200 -
+2026-08-03 13:26:06,573 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:06] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 13:26:06,606 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:06] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:26:06,608 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:06] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 13:26:10,073 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:10] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:26:19,992 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:19] "GET /inventory/laptop HTTP/1.1" 200 -
+2026-08-03 13:26:20,004 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:20] "[36mGET /static/js/main.0e122639.js HTTP/1.1[0m" 304 -
+2026-08-03 13:26:20,004 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:20] "[36mGET /static/css/main.6bfcef8e.css HTTP/1.1[0m" 304 -
+2026-08-03 13:26:20,062 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:20] "[36mGET /static/media/tectoro-icon-only.29253f2e57ef6301c8d5.png HTTP/1.1[0m" 304 -
+2026-08-03 13:26:20,073 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:20] "[36mGET /static/media/bootstrap-icons.92ea18a81d737146ff04.woff2 HTTP/1.1[0m" 304 -
+2026-08-03 13:26:20,091 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:20] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:26:20,097 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:20] "[36mGET /favicon.ico HTTP/1.1[0m" 304 -
+2026-08-03 13:26:21,116 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:21] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 13:26:21,123 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:21] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:26:21,123 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:21] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 13:26:23,427 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:23] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-08-03 13:26:30,987 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:30] "POST /api/assets/import HTTP/1.1" 200 -
+2026-08-03 13:26:32,375 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:32] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 13:26:32,384 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:32] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 13:26:32,402 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:32] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:26:33,722 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:33] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-08-03 13:26:36,577 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:36] "GET /api/corporate-sims?search=&carrier=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:26:36,887 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:36] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:26:38,912 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:38] "GET /api/assets/1 HTTP/1.1" 200 -
+2026-08-03 13:26:38,919 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:38] "[33mGET /api/assets/1/invoice HTTP/1.1[0m" 404 -
+2026-08-03 13:26:38,936 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:38] "GET /api/assets/1/history HTTP/1.1" 200 -
+2026-08-03 13:26:55,305 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:55] "GET /api/assets/1 HTTP/1.1" 200 -
+2026-08-03 13:26:55,309 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:55] "GET /api/assets/1 HTTP/1.1" 200 -
+2026-08-03 13:26:57,799 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:57] "GET /api/assets/1 HTTP/1.1" 200 -
+2026-08-03 13:26:57,825 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:57] "[33mGET /api/assets/1/invoice HTTP/1.1[0m" 404 -
+2026-08-03 13:26:57,842 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:26:57] "GET /api/assets/1/history HTTP/1.1" 200 -
+2026-08-03 13:27:26,457 [WARNING] __main__: Invalid date format: 12-Nov-25
+2026-08-03 13:27:26,459 [WARNING] __main__: Invalid date format: 12-Nov-25
+2026-08-03 13:27:26,460 [WARNING] __main__: Invalid date format: 17-Nov-25
+2026-08-03 13:27:26,461 [WARNING] __main__: Invalid date format: 19-Nov-25
+2026-08-03 13:27:26,462 [WARNING] __main__: Invalid date format: 13-12-2021
+2026-08-03 13:27:26,462 [WARNING] __main__: Invalid date format: Expires Aug 2024
+2026-08-03 13:27:26,462 [WARNING] __main__: Invalid date format: 19-Nov-25
+2026-08-03 13:27:26,464 [WARNING] __main__: Invalid date format: 12/9/2022
+2026-08-03 13:27:26,464 [WARNING] __main__: Invalid date format: Expires sep 2025
+2026-08-03 13:27:26,464 [WARNING] __main__: Invalid date format: 2-Dec-25
+2026-08-03 13:27:26,465 [WARNING] __main__: Invalid date format: 03-01-2022
+2026-08-03 13:27:26,465 [WARNING] __main__: Invalid date format: Expires feb 2025
+2026-08-03 13:27:26,465 [WARNING] __main__: Invalid date format: 27-Nov-25
+2026-08-03 13:27:26,466 [WARNING] __main__: Invalid date format: 21/9/2024
+2026-08-03 13:27:26,466 [WARNING] __main__: Invalid date format: 20/9/2027
+2026-08-03 13:27:26,466 [WARNING] __main__: Invalid date format: 2-Dec-25
+2026-08-03 13:27:26,468 [WARNING] __main__: Invalid date format: 26-Nov-25
+2026-08-03 13:27:26,470 [WARNING] __main__: Invalid date format: 13/12/2024
+2026-08-03 13:27:26,470 [WARNING] __main__: Invalid date format: 12/12/2027
+2026-08-03 13:27:26,470 [WARNING] __main__: Invalid date format: 2-Dec-25
+2026-08-03 13:27:26,473 [WARNING] __main__: Invalid date format: 06-10-2021
+2026-08-03 13:27:26,473 [WARNING] __main__: Invalid date format: Expired oct 2024
+2026-08-03 13:27:26,473 [WARNING] __main__: Invalid date format: 3-Dec-25
+2026-08-03 13:27:26,474 [WARNING] __main__: Invalid date format: 3/1/2022
+2026-08-03 13:27:26,474 [WARNING] __main__: Invalid date format: 2/1/2025
+2026-08-03 13:27:26,474 [WARNING] __main__: Invalid date format: 4-Dec-25
+2026-08-03 13:27:26,476 [WARNING] __main__: Invalid date format: 4-Dec-25
+2026-08-03 13:27:26,477 [WARNING] __main__: Invalid date format: 03-01-2022
+2026-08-03 13:27:26,477 [WARNING] __main__: Invalid date format: Expires feb 2025
+2026-08-03 13:27:26,477 [WARNING] __main__: Invalid date format: 4-Dec-25
+2026-08-03 13:27:26,478 [WARNING] __main__: Invalid date format: 4-Dec-25
+2026-08-03 13:27:26,479 [WARNING] __main__: Invalid date format: 8-Dec-25
+2026-08-03 13:27:26,481 [WARNING] __main__: Invalid date format: 31-01-2022
+2026-08-03 13:27:26,481 [WARNING] __main__: Invalid date format: Expires feb 2025
+2026-08-03 13:27:26,481 [WARNING] __main__: Invalid date format: 8-Dec-25
+2026-08-03 13:27:26,482 [WARNING] __main__: Invalid date format: 31-01-2022
+2026-08-03 13:27:26,482 [WARNING] __main__: Invalid date format: Expires feb 2025
+2026-08-03 13:27:26,482 [WARNING] __main__: Invalid date format: 9-Dec-25
+2026-08-03 13:27:26,483 [WARNING] __main__: Invalid date format: 3/3/2025
+2026-08-03 13:27:26,483 [WARNING] __main__: Invalid date format: 2/3/2028
+2026-08-03 13:27:26,483 [WARNING] __main__: Invalid date format: 9-Dec-25
+2026-08-03 13:27:26,485 [WARNING] __main__: Invalid date format: 26-06-2020
+2026-08-03 13:27:26,485 [WARNING] __main__: Invalid date format: Expires 20 JUN 2023
+2026-08-03 13:27:26,485 [WARNING] __main__: Invalid date format: 9-Dec-25
+2026-08-03 13:27:26,488 [WARNING] __main__: Invalid date format: 11-05-2022
+2026-08-03 13:27:26,489 [WARNING] __main__: Invalid date format: Expires 22 mar 2025
+2026-08-03 13:27:26,489 [WARNING] __main__: Invalid date format: 15-Dec-25
+2026-08-03 13:27:26,490 [WARNING] __main__: Invalid date format: 09-06-2021
+2026-08-03 13:27:26,490 [WARNING] __main__: Invalid date format: 4/6/2024
+2026-08-03 13:27:26,490 [WARNING] __main__: Invalid date format: 17-Dec-25
+2026-08-03 13:27:26,491 [WARNING] __main__: Invalid date format: 06-10-2021
+2026-08-03 13:27:26,491 [WARNING] __main__: Invalid date format: Expired oct 2024
+2026-08-03 13:27:26,491 [WARNING] __main__: Invalid date format: 18-Dec-25
+2026-08-03 13:27:26,493 [WARNING] __main__: Invalid date format: 18-Dec-25
+2026-08-03 13:27:26,494 [WARNING] __main__: Invalid date format: 09-10-2021
+2026-08-03 13:27:26,494 [WARNING] __main__: Invalid date format: Expired oct 2024
+2026-08-03 13:27:26,494 [WARNING] __main__: Invalid date format: 18-Dec-25
+2026-08-03 13:27:26,495 [WARNING] __main__: Invalid date format: 09-10-2021
+2026-08-03 13:27:26,495 [WARNING] __main__: Invalid date format: Expired oct 2024
+2026-08-03 13:27:26,495 [WARNING] __main__: Invalid date format: 18-Dec-25
+2026-08-03 13:27:26,497 [WARNING] __main__: Invalid date format: 18-Dec-25
+2026-08-03 13:27:26,498 [WARNING] __main__: Invalid date format: 10/2/2025
+2026-08-03 13:27:26,498 [WARNING] __main__: Invalid date format: 9/2/2028
+2026-08-03 13:27:26,498 [WARNING] __main__: Invalid date format: 2-Jan-26
+2026-08-03 13:27:26,499 [WARNING] __main__: Invalid date format: 03-01-2022
+2026-08-03 13:27:26,499 [WARNING] __main__: Invalid date format: Expires feb 2025
+2026-08-03 13:27:26,499 [WARNING] __main__: Invalid date format: 2-Jan-26
+2026-08-03 13:27:26,500 [WARNING] __main__: Invalid date format: 10/2/2025
+2026-08-03 13:27:26,501 [WARNING] __main__: Invalid date format: 10/2/2027
+2026-08-03 13:27:26,501 [WARNING] __main__: Invalid date format: 2-Jan-26
+2026-08-03 13:27:26,503 [WARNING] __main__: Invalid date format: 21/9/2024
+2026-08-03 13:27:26,503 [WARNING] __main__: Invalid date format: 20/9/2027
+2026-08-03 13:27:26,503 [WARNING] __main__: Invalid date format: 2-Jan-26
+2026-08-03 13:27:26,658 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:27:26] "POST /api/assets/import HTTP/1.1" 200 -
+2026-08-03 13:27:28,545 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:27:28] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 13:27:28,550 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:27:28] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 13:27:28,577 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:27:28] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:27:30,062 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:27:30] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-08-03 13:27:30,843 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:27:30] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 13:27:30,855 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:27:30] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 13:27:30,874 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:27:30] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:27:32,017 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:27:32] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-08-03 13:28:07,853 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:28:07] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 13:28:07,866 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:28:07] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 13:28:07,878 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:28:07] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:28:23,628 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:28:23] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-08-03 13:28:29,444 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:28:29] "GET /api/corporate-sims?search=&carrier=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:28:29,795 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:28:29] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:28:32,109 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:28:32] "GET /api/assets/17 HTTP/1.1" 200 -
+2026-08-03 13:28:32,122 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:28:32] "[33mGET /api/assets/17/invoice HTTP/1.1[0m" 404 -
+2026-08-03 13:28:32,130 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:28:32] "GET /api/assets/17/history HTTP/1.1" 200 -
+2026-08-03 13:28:49,406 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:28:49] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:28:53,165 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:28:53] "GET /api/assets?category=Laptop&search=&status=Available&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:28:54,161 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:28:54] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:28:57,049 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:28:57] "GET /api/assets/33 HTTP/1.1" 200 -
+2026-08-03 13:28:57,057 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:28:57] "[33mGET /api/assets/33/invoice HTTP/1.1[0m" 404 -
+2026-08-03 13:28:57,065 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:28:57] "GET /api/assets/33/history HTTP/1.1" 200 -
+2026-08-03 13:29:20,616 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:29:20] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:29:21,559 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:29:21] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 13:29:21,590 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:29:21] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 13:29:21,595 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:29:21] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:29:23,719 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:29:23] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-08-03 13:29:25,721 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:29:25] "GET /api/assets/33 HTTP/1.1" 200 -
+2026-08-03 13:29:25,732 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:29:25] "GET /api/assets/33 HTTP/1.1" 200 -
+2026-08-03 13:29:32,240 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:29:32] "PUT /api/assets/33 HTTP/1.1" 200 -
+2026-08-03 13:29:32,255 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:29:32] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-08-03 13:29:41,168 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:29:41] "GET /api/temporary-assignments HTTP/1.1" 200 -
+2026-08-03 13:29:42,109 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:29:42] "GET /api/assets?status=Available HTTP/1.1" 200 -
+2026-08-03 13:29:42,118 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:29:42] "GET /api/assets HTTP/1.1" 200 -
+2026-08-03 13:29:45,214 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:29:45] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-08-03 13:29:47,426 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:29:47] "GET /api/assets/32 HTTP/1.1" 200 -
+2026-08-03 13:29:47,441 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:29:47] "GET /api/assets/32 HTTP/1.1" 200 -
+2026-08-03 13:29:55,230 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:29:55] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 13:29:55,241 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:29:55] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 13:29:55,245 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:29:55] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:32:40,425 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:32:40] "GET / HTTP/1.1" 200 -
+2026-08-03 13:32:40,446 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:32:40] "GET /static/css/main.6bfcef8e.css HTTP/1.1" 200 -
+2026-08-03 13:32:40,448 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:32:40] "GET /static/js/main.0e122639.js HTTP/1.1" 200 -
+2026-08-03 13:32:40,684 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:32:40] "GET /favicon.ico HTTP/1.1" 200 -
+2026-08-03 13:32:40,729 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:32:40] "[36mGET /favicon.ico HTTP/1.1[0m" 304 -
+2026-08-03 13:32:40,729 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:32:40] "GET /static/media/bootstrap-icons.92ea18a81d737146ff04.woff2 HTTP/1.1" 200 -
+2026-08-03 13:32:40,733 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:32:40] "GET /static/media/tectoro-login-logo.cac63a34d48239d7957e.png HTTP/1.1" 200 -
+2026-08-03 13:32:49,676 [INFO] __main__: Successful login: admin from 192.168.21.37
+2026-08-03 13:32:49,677 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:32:49] "POST /api/auth/login HTTP/1.1" 200 -
+2026-08-03 13:32:49,719 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:32:49] "GET /static/media/tectoro-icon-only.29253f2e57ef6301c8d5.png HTTP/1.1" 200 -
+2026-08-03 13:32:49,727 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:32:49] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 13:32:49,731 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:32:49] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 13:32:49,735 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:32:49] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:33:22,343 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:33:22] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-08-03 13:33:52,829 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:33:52] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:34:11,523 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:34:11] "GET /api/temporary-assignments HTTP/1.1" 200 -
+2026-08-03 13:34:13,758 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:34:13] "GET /api/assets?status=Available HTTP/1.1" 200 -
+2026-08-03 13:34:13,774 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:34:13] "GET /api/assets HTTP/1.1" 200 -
+2026-08-03 13:34:22,458 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:34:22] "GET /api/corporate-sims?search=&carrier=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:34:23,054 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:34:23] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:34:24,810 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:34:24] "GET /api/assets/33 HTTP/1.1" 200 -
+2026-08-03 13:34:24,823 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:34:24] "[33mGET /api/assets/33/invoice HTTP/1.1[0m" 404 -
+2026-08-03 13:34:24,844 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:34:24] "GET /api/assets/33/history HTTP/1.1" 200 -
+2026-08-03 13:34:31,255 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:34:31] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 13:34:31,262 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:34:31] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:34:31,263 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:34:31] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 13:34:44,259 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:34:44] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:34:46,576 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:34:46] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-08-03 13:34:49,743 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:34:49] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:35:19,594 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:35:19] "GET /api/assets/33 HTTP/1.1" 200 -
+2026-08-03 13:35:19,605 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:35:19] "GET /api/assets/33 HTTP/1.1" 200 -
+2026-08-03 13:35:37,338 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:35:37] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:35:39,004 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:35:39] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 13:35:39,011 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:35:39] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:35:39,012 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:35:39] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 13:35:59,175 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:35:59] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-08-03 13:36:28,545 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:36:28] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:36:52,488 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:36:52] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 13:36:52,494 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:36:52] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 13:36:52,498 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:36:52] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:37:10,274 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:10] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:37:13,531 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:13] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 13:37:13,537 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:13] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 13:37:13,540 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:13] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:37:14,836 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:14] "GET /api/assets?search=&category=&status=Available&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-08-03 13:37:16,431 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:16] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 13:37:16,435 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:16] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 13:37:16,439 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:16] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:37:18,103 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:18] "GET /api/assets?search=&category=&status=Assigned&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-08-03 13:37:19,828 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:19] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 13:37:19,835 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:19] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 13:37:19,837 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:19] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:37:43,357 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:43] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 13:37:44,408 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:44] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 13:37:44,418 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:44] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 13:37:44,421 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:44] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:37:47,802 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:47] "GET /api/assets HTTP/1.1" 200 -
+2026-08-03 13:37:49,839 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:49] "GET /api/employees?q=TT HTTP/1.1" 200 -
+2026-08-03 13:37:51,970 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:51] "GET /api/employees?q=im HTTP/1.1" 200 -
+2026-08-03 13:37:53,698 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:53] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-08-03 13:37:55,843 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:55] "GET /api/assets/33 HTTP/1.1" 200 -
+2026-08-03 13:37:58,212 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:37:58] "GET /api/assets/33/assignment-form HTTP/1.1" 200 -
+2026-08-03 13:39:10,887 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:39:10] "GET /api/assets/33/assignment-form HTTP/1.1" 200 -
+2026-08-03 13:39:37,475 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:39:37] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 13:39:37,480 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:39:37] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 13:39:37,484 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:39:37] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:46:42,176 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:46:42] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-08-03 13:46:44,399 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:46:44] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 13:46:44,405 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:46:44] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 13:46:44,408 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:46:44] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 13:46:45,391 [INFO] werkzeug: 192.168.21.37 - - [03/Aug/2026 13:46:45] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-08-03 13:59:17,732 [INFO] __main__: Database tables initialized (office database — seeding never runs)
+2026-08-03 13:59:17,745 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:3000
+ * Running on http://192.168.20.180:3000
+2026-08-03 13:59:17,745 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-08-03 13:59:17,746 [INFO] werkzeug:  * Restarting with stat
+2026-08-03 13:59:18,220 [INFO] __main__: Database tables initialized (office database — seeding never runs)
+2026-08-03 13:59:18,229 [WARNING] werkzeug:  * Debugger is active!
+2026-08-03 13:59:18,229 [INFO] werkzeug:  * Debugger PIN: 136-377-553
+2026-08-03 13:59:20,727 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:59:20] "GET /api/dashboard/stats HTTP/1.1" 200 -
