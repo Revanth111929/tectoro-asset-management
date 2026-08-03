@@ -10649,3 +10649,36 @@ NameError: name 'func' is not defined
 2026-08-03 16:45:35,602 [INFO] __main__: Database tables initialized (office database — seeding never runs)
 2026-08-03 16:45:35,611 [WARNING] werkzeug:  * Debugger is active!
 2026-08-03 16:45:35,612 [INFO] werkzeug:  * Debugger PIN: 136-377-553
+2026-08-03 16:48:22,122 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:22] "GET /assets/add HTTP/1.1" 200 -
+2026-08-03 16:48:22,192 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:22] "GET /static/css/main.5534c45c.css HTTP/1.1" 200 -
+2026-08-03 16:48:22,196 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:22] "GET /static/js/main.62e015e6.js HTTP/1.1" 200 -
+2026-08-03 16:48:22,506 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:22] "GET /static/media/bootstrap-icons.92ea18a81d737146ff04.woff2 HTTP/1.1" 200 -
+2026-08-03 16:48:22,543 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:22] "GET /static/media/tectoro-login-logo.cac63a34d48239d7957e.png HTTP/1.1" 200 -
+2026-08-03 16:48:22,545 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:22] "GET /favicon.ico HTTP/1.1" 200 -
+2026-08-03 16:48:22,550 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:22] "[36mGET /favicon.ico HTTP/1.1[0m" 304 -
+2026-08-03 16:48:26,213 [INFO] __main__: Successful login: admin from 192.168.20.180
+2026-08-03 16:48:26,214 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:26] "POST /api/auth/login HTTP/1.1" 200 -
+2026-08-03 16:48:26,341 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:26] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 16:48:26,362 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:26] "GET /static/media/tectoro-icon-only.29253f2e57ef6301c8d5.png HTTP/1.1" 200 -
+2026-08-03 16:48:26,406 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:26] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 16:48:26,462 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:26] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 16:48:28,795 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:28] "GET /api/assets?search=&category=&status=&location=&page=1&per_page=10&sort=id_desc HTTP/1.1" 200 -
+2026-08-03 16:48:35,042 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:35] "GET /api/assets HTTP/1.1" 200 -
+2026-08-03 16:48:37,255 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:37] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 16:48:37,679 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:37] "GET /api/corporate-sims?search=&carrier=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 16:48:38,464 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:38] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 16:48:39,074 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:39] "GET /api/assets?category=CPU&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 16:48:39,695 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:39] "GET /api/assets?category=Monitor&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 16:48:40,531 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:40] "GET /api/assets?category=Printer&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 16:48:40,881 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:40] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 16:48:41,288 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:41] "GET /api/corporate-sims?search=&carrier=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 16:48:43,033 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:43] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 16:48:44,050 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:44] "GET /api/corporate-sims?search=&carrier=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 16:48:44,945 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:44] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 16:48:45,794 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:45] "GET /api/assets?category=CPU&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 16:48:46,259 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:46] "GET /api/corporate-sims?search=&carrier=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 16:48:48,823 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:48] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 16:48:49,509 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:49] "GET /api/assets?category=CPU&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 16:48:49,878 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:49] "GET /api/assets?category=Monitor&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 16:48:50,232 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:50] "GET /api/assets?category=Printer&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 16:48:50,601 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 16:48:50] "GET /api/corporate-sims?search=&carrier=&status=&page=1&per_page=20 HTTP/1.1" 200 -

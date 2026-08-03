@@ -1,0 +1,128 @@
+/* EmployeeAutocomplete.css - Phase 2 */
+
+.employee-autocomplete {
+  position: relative;
+  width: 100%;
+}
+
+.employee-autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 400px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  z-index: 1000;
+  margin-top: 4px;
+}
+
+.dropdown-header {
+  padding: 8px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.employee-autocomplete-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid #f3f4f6;
+  transition: background-color 0.15s ease;
+}
+
+.employee-autocomplete-item:last-child {
+  border-bottom: none;
+}
+
+.employee-autocomplete-item:hover {
+  background-color: #f8f9fa;
+}
+
+.employee-autocomplete-item:active {
+  background-color: #e9ecef;
+}
+
+.employee-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.employee-id {
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6366f1;
+  background: #eef2ff;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.employee-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1f2937;
+}
+
+.employee-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.employee-details span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.selected-employee-info {
+  padding: 12px;
+  background: #f0f9ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 0.375rem;
+  margin-top: 8px;
+}
+
+.selected-employee-info small {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Loading state */
+.employee-autocomplete .spinner-border-sm {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+}
+
+/* Error state */
+.employee-autocomplete .is-invalid {
+  border-color: #dc3545;
+}
+
+.employee-autocomplete .invalid-feedback {
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .employee-autocomplete-dropdown {
+    max-height: 300px;
+  }
+
+  .employee-details {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
