@@ -1,5 +1,6 @@
 // Employees.js - Employee management with exit process
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { employeeAPI, assetAPI } from '../services/api';
 import EmployeeExitModal from '../components/EmployeeExitModal';
 
@@ -144,16 +145,25 @@ function Employees() {
                         </span>
                       </td>
                       <td>
-                        {emp.status !== 'Exited' && (
-                          <button
-                            className="btn btn-sm btn-outline-danger"
-                            onClick={() => handleExitEmployee(emp)}
-                            title="Process Employee Exit"
+                        <div className="d-flex gap-2">
+                          <Link
+                            to={`/employees/${emp.emp_id}/asset-history`}
+                            className="btn btn-sm btn-outline-info"
+                            title="View Asset History"
                           >
-                            <i className="bi bi-box-arrow-right me-1"></i>
-                            Employee Exit
-                          </button>
-                        )}
+                            <i className="bi bi-clock-history"></i>
+                          </Link>
+                          {emp.status !== 'Exited' && (
+                            <button
+                              className="btn btn-sm btn-outline-danger"
+                              onClick={() => handleExitEmployee(emp)}
+                              title="Process Employee Exit"
+                            >
+                              <i className="bi bi-box-arrow-right me-1"></i>
+                              Employee Exit
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
