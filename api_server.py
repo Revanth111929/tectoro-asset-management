@@ -2744,6 +2744,204 @@ def generate_bulk_assignment_forms():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+# ══════════════════════════════════════════════════════════════════════════════
+# GLOBAL SEARCH
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/search/global', methods=['GET'])
+@admin_required
+def global_search():
+    """
+    Global smart search across assets, employees, invoices, and inventory.
+    Searches by: asset tag, serial, name, brand, model, category, employee name, 
+    employee ID, email, invoice number, vendor, etc.
+    """
+    from models import Asset, Employee, InvoiceAttachment
+    from sqlalchemy import or_, and_
+    
+    query = request.args.get('q', '').strip()
+    filter_type = request.args.get('type', 'all').lower()  # all, assets, employees, inventory, invoices
+    limit = request.args.get('limit', 10, type=int)
+    
+    if not query or len(query) < 2:
+        return jsonify({
+            'results': {
+                'assets': [],
+                'employees': [],
+                'invoices': [],
+                'inventory': []
+            },
+            'total': 0
+        }), 200
+    
+    results = {
+        'assets': [],
+        'employees': [],
+        'invoices': [],
+        'inventory': []
+    }
+    
+    search_pattern = f'%{query}%'
+    
+    # Search Assets
+    if filter_type in ['all', 'assets', 'inventory']:
+        try:
+            asset_query = Asset.query.filter(
+                or_(
+                    Asset.serial_number.ilike(search_pattern),
+                    Asset.asset_name.ilike(search_pattern),
+                    Asset.brand_name.ilike(search_pattern),
+                    Asset.model_name.ilike(search_pattern),
+                    Asset.category.ilike(search_pattern),
+                    Asset.ip_address.ilike(search_pattern),
+                    Asset.location.ilike(search_pattern),
+                    Asset.invoice_number.ilike(search_pattern),
+                    Asset.purchase_vendor.ilike(search_pattern),
+                )
+            ).limit(limit).all()
+            
+            for asset in asset_query:
+                result = {
+                    'id': asset.id,
+                    'type': 'asset',
+                    'title': asset.asset_name,
+                    'subtitle': f"Serial: {asset.serial_number}",
+                    'category': asset.category,
+                    'brand': asset.brand_name,
+                    'model': asset.model_name,
+                    'status': asset.status,
+                    'location': asset.location,
+                    'asset_tag': f"AST-{str(asset.id).zfill(5)}",
+                    'url': f"/inventory/detail/{asset.id}"
+                }
+                
+                # Add to inventory if available, otherwise to assets
+                if asset.status == 'Available':
+                    results['inventory'].append(result)
+                else:
+                    results['assets'].append(result)
+        except Exception as e:
+            print(f"Asset search error: {e}")
+    
+    # Search Employees
+    if filter_type in ['all', 'employees']:
+        try:
+            # Get unique employees from assets
+            employees_query = Asset.query.filter(
+                and_(
+                    Asset.emp_id.isnot(None),
+                    or_(
+                        Asset.emp_id.ilike(search_pattern),
+                        Asset.employee_name.ilike(search_pattern),
+                        Asset.employee_email.ilike(search_pattern),
+                        Asset.mobile_number.ilike(search_pattern)
+                    )
+                )
+            ).with_entities(
+                Asset.emp_id,
+                Asset.employee_name,
+                Asset.employee_email,
+                Asset.mobile_number
+            ).distinct().limit(limit).all()
+            
+            seen_emp_ids = set()
+            for emp in employees_query:
+                if emp.emp_id and emp.emp_id not in seen_emp_ids:
+                    seen_emp_ids.add(emp.emp_id)
+                    results['employees'].append({
+                        'type': 'employee',
+                        'emp_id': emp.emp_id,
+                        'title': emp.employee_name,
+                        'subtitle': f"ID: {emp.emp_id}",
+                        'email': emp.employee_email or '',
+                        'mobile': emp.mobile_number or '',
+                        'url': f"/employees/{emp.emp_id}/asset-history"
+                    })
+            
+            # Also search in Employee table if it exists
+            try:
+                from models import Employee
+                emp_table_query = Employee.query.filter(
+                    or_(
+                        Employee.emp_id.ilike(search_pattern),
+                        Employee.employee_name.ilike(search_pattern),
+                        Employee.email.ilike(search_pattern),
+                        Employee.mobile_number.ilike(search_pattern),
+                        Employee.department.ilike(search_pattern),
+                        Employee.designation.ilike(search_pattern)
+                    )
+                ).limit(limit).all()
+                
+                for emp in emp_table_query:
+                    if emp.emp_id not in seen_emp_ids:
+                        seen_emp_ids.add(emp.emp_id)
+                        results['employees'].append({
+                            'type': 'employee',
+                            'emp_id': emp.emp_id,
+                            'title': emp.employee_name,
+                            'subtitle': f"ID: {emp.emp_id}",
+                            'email': emp.email or '',
+                            'mobile': emp.mobile_number or '',
+                            'department': emp.department or '',
+                            'designation': emp.designation or '',
+                            'url': f"/employees/{emp.emp_id}/asset-history"
+                        })
+            except:
+                pass  # Employee table might not exist or be empty
+                
+        except Exception as e:
+            print(f"Employee search error: {e}")
+    
+    # Search Invoices (via assets with invoice information)
+    if filter_type in ['all', 'invoices']:
+        try:
+            invoice_query = Asset.query.filter(
+                and_(
+                    Asset.invoice_number.isnot(None),
+                    or_(
+                        Asset.invoice_number.ilike(search_pattern),
+                        Asset.purchase_vendor.ilike(search_pattern)
+                    )
+                )
+            ).with_entities(
+                Asset.id,
+                Asset.invoice_number,
+                Asset.purchase_vendor,
+                Asset.purchase_date,
+                Asset.purchase_price,
+                Asset.asset_name
+            ).distinct().limit(limit).all()
+            
+            seen_invoices = set()
+            for inv in invoice_query:
+                if inv.invoice_number and inv.invoice_number not in seen_invoices:
+                    seen_invoices.add(inv.invoice_number)
+                    results['invoices'].append({
+                        'type': 'invoice',
+                        'invoice_number': inv.invoice_number,
+                        'title': f"Invoice {inv.invoice_number}",
+                        'subtitle': f"Vendor: {inv.purchase_vendor or 'N/A'}",
+                        'vendor': inv.purchase_vendor,
+                        'date': inv.purchase_date.isoformat() if inv.purchase_date else None,
+                        'amount': inv.purchase_price,
+                        'asset_id': inv.id,
+                        'asset_name': inv.asset_name,
+                        'url': f"/inventory/detail/{inv.id}"
+                    })
+        except Exception as e:
+            print(f"Invoice search error: {e}")
+    
+    # Calculate total results
+    total = (len(results['assets']) + len(results['employees']) + 
+             len(results['invoices']) + len(results['inventory']))
+    
+    return jsonify({
+        'results': results,
+        'total': total,
+        'query': query
+    }), 200
+
+
 # ── Health check & version info ──────────────────────────────────────────────
 @app.route('/api/health', methods=['GET'])
 def health():

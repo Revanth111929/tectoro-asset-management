@@ -228,4 +228,11 @@ export const invoiceAPI = {
   },
 };
 
+// ── GLOBAL SEARCH ─────────────────────────────────────────────────────────────
+export const searchAPI = {
+  global: (query, type = 'all', limit = 10) => api.get('/search/global', {
+    params: { q: query, type, limit }
+  }),
+};
+
 export default api;

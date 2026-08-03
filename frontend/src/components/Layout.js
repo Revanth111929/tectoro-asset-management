@@ -6,6 +6,7 @@ import { useTheme } from '../context/ThemeContext';
 import { canPerform, getUserInfo } from '../utils/permissions';
 import { resolveActiveMenu, ASSET_DETAIL_ROUTE } from '../utils/sidebarActiveResolver';
 import { assetAPI } from '../services/api';
+import GlobalSearch from './GlobalSearch';
 
 function Layout({ children }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -282,7 +283,8 @@ function Layout({ children }) {
 
         <div className="layout-main">
           <div className="layout-topbar">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
+              <GlobalSearch />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div className="dropdown">

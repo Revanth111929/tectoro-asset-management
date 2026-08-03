@@ -10324,3 +10324,35 @@ NameError: name 'func' is not defined
 2026-08-03 14:29:43,341 [ERROR] __main__: Error serving index.html: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
 2026-08-03 14:29:43,342 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:29:43] "[33mGET /employees HTTP/1.1[0m" 404 -
 2026-08-03 14:29:43,747 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:29:43] "GET /favicon.ico HTTP/1.1" 200 -
+2026-08-03 14:30:00,875 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:00] "GET /employees HTTP/1.1" 200 -
+2026-08-03 14:30:00,911 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:00] "GET /static/css/main.4daf6726.css HTTP/1.1" 200 -
+2026-08-03 14:30:00,914 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:00] "GET /static/js/main.7bb84ffe.js HTTP/1.1" 200 -
+2026-08-03 14:30:01,138 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:01] "GET /static/media/bootstrap-icons.92ea18a81d737146ff04.woff2 HTTP/1.1" 200 -
+2026-08-03 14:30:01,283 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:01] "GET /static/media/tectoro-login-logo.cac63a34d48239d7957e.png HTTP/1.1" 200 -
+2026-08-03 14:30:01,317 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:01] "[36mGET /favicon.ico HTTP/1.1[0m" 304 -
+2026-08-03 14:30:06,133 [INFO] __main__: Successful login: admin from 192.168.20.180
+2026-08-03 14:30:06,134 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:06] "POST /api/auth/login HTTP/1.1" 200 -
+2026-08-03 14:30:06,215 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:06] "GET /static/media/tectoro-icon-only.29253f2e57ef6301c8d5.png HTTP/1.1" 200 -
+2026-08-03 14:30:06,230 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:06] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 14:30:06,252 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:06] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 14:30:06,263 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:06] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 14:30:09,978 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:09] "GET /api/onboarding?search=&status=&team=&page=1&per_page=10&sort=created_desc HTTP/1.1" 200 -
+2026-08-03 14:30:10,328 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:10] "GET /api/assets HTTP/1.1" 200 -
+2026-08-03 14:30:12,448 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:12] "[33mGET /api/employees/TT927/asset-history HTTP/1.1[0m" 404 -
+2026-08-03 14:30:15,023 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:15] "GET /api/assets HTTP/1.1" 200 -
+2026-08-03 14:30:26,177 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:26] "[33mGET /api/employees/TT921/asset-history HTTP/1.1[0m" 404 -
+2026-08-03 14:30:27,166 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:27] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 14:30:27,174 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:27] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 14:30:27,183 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:27] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 14:30:28,421 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:28] "GET /api/assets HTTP/1.1" 200 -
+2026-08-03 14:30:29,899 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:29] "[33mGET /api/employees/TT927/asset-history HTTP/1.1[0m" 404 -
+2026-08-03 14:30:31,996 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:31] "[31m[1mGET /api/dashboard/lifecycle-stats HTTP/1.1[0m" 401 -
+2026-08-03 14:30:32,004 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:32] "GET /api/dashboard/activity HTTP/1.1" 200 -
+2026-08-03 14:30:32,028 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 14:30:32] "GET /api/dashboard/stats HTTP/1.1" 200 -
+2026-08-03 14:32:50,801 [INFO] werkzeug:  * Detected change in '/home/administrator/Desktop/asset-management/api_server.py', reloading
+2026-08-03 14:32:50,955 [INFO] werkzeug:  * Restarting with stat
+2026-08-03 14:32:51,373 [INFO] __main__: Database tables initialized (office database — seeding never runs)
+2026-08-03 14:32:51,382 [WARNING] werkzeug:  * Debugger is active!
+2026-08-03 14:32:51,383 [INFO] werkzeug:  * Debugger PIN: 136-377-553
+2026-08-03 14:35:23,984 [INFO] werkzeug: 127.0.0.1 - - [03/Aug/2026 14:35:23] "GET /api/health HTTP/1.1" 200 -
+2026-08-03 14:35:35,188 [INFO] werkzeug: 127.0.0.1 - - [03/Aug/2026 14:35:35] "[31m[1mGET /api/search/global?q=dell HTTP/1.1[0m" 401 -
