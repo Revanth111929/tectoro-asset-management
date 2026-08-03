@@ -73,6 +73,7 @@ from models import db, Asset, ActivityLog, User, Employee, Onboarding, Onboardin
 from services.audit_service import AuditService, LifecycleService
 from utils.auth import generate_access_token, generate_refresh_token, token_required, admin_required, get_current_user, non_viewer_required
 from utils.rate_limit import init_limiter, limit_login, limit_api, limit_expensive
+from utils.inventory_validator import InventoryValidator, ValidationError  # Phase 3
 
 db.init_app(app)
 
@@ -1017,13 +1018,22 @@ def create_asset():
     data = request.get_json() or {}
     current_user = get_current_user()
 
-    # Validate required fields
-    if not data.get('asset_name') or not data.get('serial_number'):
-        return jsonify({'error': 'asset_name and serial_number are required'}), 400
-
-    # Check duplicate serial number
-    if Asset.query.filter_by(serial_number=data['serial_number'].strip()).first():
-        return jsonify({'error': 'Serial number already exists'}), 409
+    # Phase 3: Comprehensive Validation
+    validation_result = InventoryValidator.validate_new_asset(data)
+    
+    if not validation_result['valid']:
+        error_message = '; '.join(validation_result['errors'])
+        logger.warning(f"Asset creation validation failed: {error_message}")
+        return jsonify({
+            'error': error_message,
+            'errors': validation_result['errors'],
+            'warnings': validation_result.get('warnings', [])
+        }), 400
+    
+    # If there are warnings, log them but continue
+    if validation_result.get('warnings'):
+        for warning in validation_result['warnings']:
+            logger.info(f"Asset creation warning: {warning}")
 
     # Handle employee_email field (accept both employee_email and email)
     employee_email = data.get('employee_email') or data.get('email', '')
@@ -1138,15 +1148,30 @@ def update_asset(asset_id):
     current_user = get_current_user()
     current_username = current_user.get('username') if current_user else 'system'
 
+    # Phase 3: Comprehensive Validation
+    validation_result = InventoryValidator.validate_asset_update(asset_id, data)
+    
+    if not validation_result['valid']:
+        error_message = '; '.join(validation_result['errors'])
+        logger.warning(f"Asset update validation failed for asset {asset_id}: {error_message}")
+        return jsonify({
+            'error': error_message,
+            'errors': validation_result['errors'],
+            'warnings': validation_result.get('warnings', [])
+        }), 400
+    
+    # If there are warnings, log them
+    if validation_result.get('warnings'):
+        for warning in validation_result['warnings']:
+            logger.info(f"Asset update warning for asset {asset_id}: {warning}")
+
     # Track changes for audit log
     changed_fields = {}
     old_status = asset.status
 
-    # Check serial number uniqueness if changed
+    # Handle serial number changes (already validated above)
     new_serial = data.get('serial_number', asset.serial_number).strip()
     if new_serial != asset.serial_number:
-        if Asset.query.filter_by(serial_number=new_serial).first():
-            return jsonify({'error': 'Serial number already exists'}), 409
         changed_fields['serial_number'] = (asset.serial_number, new_serial)
 
     # Handle employee_email field (accept both employee_email and email)
@@ -1433,6 +1458,170 @@ def delete_asset(asset_id):
     db.session.commit()
     
     logger.info(f"Asset deleted: {name} [{serial}] (ID: {asset_id}) by {username}")
+
+    return jsonify({'success': True}), 200
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PHASE 3: INVENTORY VALIDATION ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/assets/validate/serial-number', methods=['POST'])
+@token_required
+def validate_serial_number():
+    """
+    Phase 3: Validate serial number existence and uniqueness
+    
+    Request body:
+    {
+        "serial_number": "SN-12345",
+        "exclude_asset_id": 123  // Optional, for updates
+    }
+    """
+    data = request.get_json() or {}
+    serial_number = data.get('serial_number', '').strip()
+    exclude_asset_id = data.get('exclude_asset_id')
+    
+    if not serial_number:
+        return jsonify({'valid': False, 'error': 'Serial number is required'}), 400
+    
+    # Check uniqueness
+    is_valid, error = InventoryValidator.validate_serial_number_unique(serial_number, exclude_asset_id)
+    
+    if not is_valid:
+        return jsonify({'valid': False, 'error': error}), 200
+    
+    # Check if exists (for assignment operations)
+    exists_valid, exists_error, asset = InventoryValidator.validate_serial_number_exists(serial_number)
+    
+    return jsonify({
+        'valid': is_valid,
+        'exists': exists_valid,
+        'asset': asset.to_dict() if asset else None
+    }), 200
+
+
+@app.route('/api/assets/validate/assignment', methods=['POST'])
+@token_required
+def validate_asset_assignment_endpoint():
+    """
+    Phase 3: Comprehensive validation for asset assignment
+    
+    Request body:
+    {
+        "asset_id": 123,
+        "emp_id": "EMP001"
+    }
+    
+    Returns complete validation result with all checks
+    """
+    data = request.get_json() or {}
+    asset_id = data.get('asset_id')
+    emp_id = data.get('emp_id', '').strip()
+    
+    if not asset_id:
+        return jsonify({'valid': False, 'errors': ['Asset ID is required']}), 400
+    
+    if not emp_id:
+        return jsonify({'valid': False, 'errors': ['Employee ID is required']}), 400
+    
+    # Perform comprehensive validation
+    validation_result = InventoryValidator.validate_asset_assignment(asset_id, emp_id)
+    
+    response = {
+        'valid': validation_result['valid'],
+        'errors': validation_result['errors'],
+        'warnings': validation_result['warnings'],
+        'asset': validation_result['asset'].to_dict() if validation_result['asset'] else None,
+        'employee': validation_result['employee'].to_dict() if validation_result['employee'] else None
+    }
+    
+    status_code = 200 if validation_result['valid'] else 400
+    return jsonify(response), status_code
+
+
+@app.route('/api/assets/validate/availability/<int:asset_id>', methods=['GET'])
+@token_required
+def validate_asset_availability_endpoint(asset_id):
+    """
+    Phase 3: Check if an asset is available for assignment
+    
+    Returns asset status and whether it can be assigned
+    """
+    asset = Asset.query.get(asset_id)
+    
+    if not asset:
+        return jsonify({'valid': False, 'error': 'Asset not found'}), 404
+    
+    is_valid, error = InventoryValidator.validate_asset_available(asset)
+    
+    return jsonify({
+        'valid': is_valid,
+        'error': error,
+        'asset': asset.to_dict(),
+        'status': asset.status,
+        'assignable': is_valid
+    }), 200
+
+
+@app.route('/api/assets/status-info', methods=['GET'])
+@token_required
+def get_asset_status_info():
+    """
+    Phase 3: Get information about asset statuses
+    
+    Returns valid statuses and their meanings
+    """
+    status_info = InventoryValidator.get_asset_status_info()
+    return jsonify(status_info), 200
+
+
+@app.route('/api/employees/validate/<emp_id>', methods=['GET'])
+@token_required
+def validate_employee_endpoint(emp_id):
+    """
+    Phase 3: Validate if employee exists and is active
+    
+    Returns employee information if valid
+    """
+    is_valid, error, employee = InventoryValidator.validate_employee_exists(emp_id)
+    
+    if not is_valid:
+        return jsonify({'valid': False, 'error': error}), 200
+    
+    # Get assigned assets for the employee
+    assigned_assets = InventoryValidator.get_employee_assigned_assets(emp_id)
+    
+    return jsonify({
+        'valid': True,
+        'employee': employee.to_dict(),
+        'assigned_assets_count': len(assigned_assets),
+        'assigned_assets': [a.to_dict() for a in assigned_assets]
+    }), 200
+
+
+@app.route('/api/employees/<emp_id>/assets', methods=['GET'])
+@token_required
+def get_employee_assets_endpoint(emp_id):
+    """
+    Phase 3: Get all assets assigned to an employee
+    
+    Returns list of assets with their details
+    """
+    # Validate employee exists
+    is_valid, error, employee = InventoryValidator.validate_employee_exists(emp_id)
+    
+    if not is_valid:
+        return jsonify({'error': error}), 404
+    
+    # Get all assigned assets
+    assigned_assets = InventoryValidator.get_employee_assigned_assets(emp_id)
+    
+    return jsonify({
+        'employee': employee.to_dict(),
+        'assets_count': len(assigned_assets),
+        'assets': [a.to_dict() for a in assigned_assets]
+    }), 200
     
     return jsonify({'success': True, 'message': f'Asset "{name}" deleted'}), 200
 

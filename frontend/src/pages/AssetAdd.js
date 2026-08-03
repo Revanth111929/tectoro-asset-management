@@ -259,13 +259,52 @@ function NewDeviceForm({ navigate }) {
       });
       navigate('/assets', { state: { success: 'New device added to inventory!' } });
     } catch (err) {
-      setApiError(err.response?.data?.error || 'Failed to save asset');
+      // Phase 3: Enhanced error handling
+      const errorData = err.response?.data;
+      if (errorData) {
+        // Display main error message
+        const mainError = errorData.error || 'Failed to save asset';
+        setApiError(mainError);
+        
+        // If there are specific field errors, set them
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+          const fieldErrors = {};
+          errorData.errors.forEach(error => {
+            // Try to extract field name from error message
+            const lowerError = error.toLowerCase();
+            if (lowerError.includes('serial number')) {
+              fieldErrors.serial_number = error;
+            } else if (lowerError.includes('asset name')) {
+              fieldErrors.asset_name = error;
+            } else if (lowerError.includes('category')) {
+              fieldErrors.category = error;
+            }
+          });
+          if (Object.keys(fieldErrors).length > 0) {
+            setErrors(fieldErrors);
+          }
+        }
+        
+        // Log warnings if present
+        if (errorData.warnings && Array.isArray(errorData.warnings)) {
+          errorData.warnings.forEach(warning => {
+            console.warn('Validation warning:', warning);
+          });
+        }
+      } else {
+        setApiError('Failed to save asset');
+      }
     } finally { setSaving(false); }
   };
 
   return (
     <>
-      {apiError && <div className="alert alert-danger mb-3">{apiError}</div>}
+      {apiError && (
+        <div className="alert alert-danger mb-3" role="alert">
+          <i className="bi bi-exclamation-triangle-fill me-2"></i>
+          <strong>Error:</strong> {apiError}
+        </div>
+      )}
       
       <DynamicAssetForm
         form={form}
@@ -595,13 +634,51 @@ function ExistingDeviceForm({ navigate }) {
         ? 'Asset updated and acknowledgment email sent!'
         : 'Asset updated successfully!' }});
     } catch (err) {
-      setApiError(err.response?.data?.error || 'Failed to update asset');
+      // Phase 3: Enhanced error handling
+      const errorData = err.response?.data;
+      if (errorData) {
+        // Display main error message
+        const mainError = errorData.error || 'Failed to update asset';
+        setApiError(mainError);
+        
+        // If there are specific field errors, set them
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+          const fieldErrors = {};
+          errorData.errors.forEach(error => {
+            const lowerError = error.toLowerCase();
+            if (lowerError.includes('serial number')) {
+              fieldErrors.serial_number = error;
+            } else if (lowerError.includes('employee')) {
+              fieldErrors.emp_id = error;
+            } else if (lowerError.includes('available') || lowerError.includes('assigned')) {
+              fieldErrors.asset_search = error;
+            }
+          });
+          if (Object.keys(fieldErrors).length > 0) {
+            setErrors(fieldErrors);
+          }
+        }
+        
+        // Log warnings if present
+        if (errorData.warnings && Array.isArray(errorData.warnings)) {
+          errorData.warnings.forEach(warning => {
+            console.warn('Validation warning:', warning);
+          });
+        }
+      } else {
+        setApiError('Failed to update asset');
+      }
     } finally { setSaving(false); }
   };
 
   return (
     <>
-      {apiError && <div className="alert alert-danger mb-3">{apiError}</div>}
+      {apiError && (
+        <div className="alert alert-danger mb-3" role="alert">
+          <i className="bi bi-exclamation-triangle-fill me-2"></i>
+          <strong>Validation Error:</strong> {apiError}
+        </div>
+      )}
       
       {/* Asset Search/Selection Section */}
       <div className="p-3 mb-4 rounded" style={{ background:'rgba(139,92,246,0.06)', border:'1px solid rgba(139,92,246,0.2)' }}>
