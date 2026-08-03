@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { assetAPI, employeeAPI, ackAPI } from '../services/api';
 import DynamicAssetForm from '../components/DynamicAssetForm';
+import EmployeeAutocomplete from '../components/EmployeeAutocomplete'; // Phase 2
 import { CATEGORY_FIELDS, FIELD_METADATA } from '../config/categoryFields';
 
 // ── NEW DEVICE FORM (inventory entry, no employee) ────────────────────────────
@@ -288,6 +289,7 @@ function ExistingDeviceForm({ navigate }) {
   const [apiError,   setApiError]   = useState('');
   const [sendAck,    setSendAck]    = useState(SEND_ACK_DEFAULT);
   const [empSuggestions, setEmpSuggestions] = useState([]);
+  const [selectedEmployee, setSelectedEmployee] = useState(null); // Phase 2
   const [empLookup,  setEmpLookup]  = useState(false);
   
   // Asset search functionality
@@ -502,6 +504,34 @@ function ExistingDeviceForm({ navigate }) {
     setEmpSuggestions([]);
   };
 
+  // Phase 2: Employee Master Integration Handlers
+  const handleEmployeeSelectFromMaster = (employee) => {
+    setSelectedEmployee(employee);
+    setForm(f => ({
+      ...f,
+      emp_id:         employee.emp_id,
+      employee_name:  employee.employee_name,
+      employee_email: employee.email || '',
+      mobile_number:  employee.mobile_number || '',
+      department:     employee.department || '',
+      designation:    employee.designation || '',
+      location:       employee.location || f.location,
+    }));
+    setEmpLookup(true);
+  };
+
+  const handleEmployeeClearFromMaster = () => {
+    setSelectedEmployee(null);
+    setForm(f => ({
+      ...f,
+      emp_id:         '',
+      employee_name:  '',
+      employee_email: '',
+      mobile_number:  '',
+    }));
+    setEmpLookup(false);
+  };
+
   const validate = () => {
     const errs = {};
     
@@ -514,6 +544,12 @@ function ExistingDeviceForm({ navigate }) {
     // Category is always required
     if (!form.category) {
       errs.category = 'Required';
+      return errs;
+    }
+    
+    // Phase 2: Validate employee exists in Employee Master
+    if (!selectedEmployee || !selectedEmployee.emp_id) {
+      errs.emp_id = 'Please select an employee from Employee Master';
       return errs;
     }
     
@@ -748,86 +784,32 @@ function ExistingDeviceForm({ navigate }) {
           {/* Employee Section */}
           <div className="p-3 mb-4 rounded" style={{ background:'rgba(37,99,235,0.06)', border:'1px solid rgba(37,99,235,0.2)' }}>
             <h6 className="fw-bold mb-3" style={{ color:'#2563eb' }}>
-              <i className="bi bi-person-fill me-2"></i>Employee Assignment (Update if needed)
+              <i className="bi bi-person-fill me-2"></i>Employee Assignment (Phase 2: Employee Master)
             </h6>
-            {empLookup && (
-              <div className="alert alert-success py-1 small mb-3">
-                ✅ Employee details auto-filled from records
+            {empLookup && selectedEmployee && (
+              <div className="alert alert-success py-2 small mb-3">
+                ✅ Employee details loaded from Employee Master
               </div>
             )}
             <div className="row g-3">
-              <div className="col-md-3">
-                <label className="form-label fw-500">EMP ID</label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    className="form-control"
-                    name="emp_id"
-                    value={form.emp_id}
-                    onChange={e => handleEmpSearch(e.target.value)}
-                    onBlur={handleEmpIdBlur}
-                    placeholder="e.g. TT001"
-                    autoComplete="off"
-                  />
-                  {empSuggestions.length > 0 && (
-                    <div style={{
-                      position:'absolute', top:'100%', left:0, right:0, zIndex:1000,
-                      background:'var(--card-bg, #fff)', 
-                      border:'1px solid var(--border-color, #e2e8f0)', 
-                      borderRadius:8,
-                      boxShadow:'0 4px 16px rgba(0,0,0,0.12)', maxHeight:200, overflowY:'auto'
-                    }}>
-                      {empSuggestions.map(emp => (
-                        <div key={emp.emp_id}
-                          style={{ 
-                            padding:'10px 14px', 
-                            cursor:'pointer', 
-                            borderBottom:'1px solid var(--border-color, #f1f5f9)',
-                            background: 'var(--card-bg, #fff)'
-                          }}
-                          onMouseDown={() => selectEmployee(emp)}
-                          onMouseEnter={e => e.currentTarget.style.background='var(--hover-bg, #f8fafc)'}
-                          onMouseLeave={e => e.currentTarget.style.background='var(--card-bg, #fff)'}
-                        >
-                          <div style={{ fontWeight:600, fontSize:14 }}>{emp.emp_id} — {emp.employee_name}</div>
-                          <div style={{ fontSize:12, color:'var(--text-muted, #64748b)' }}>
-                            {emp.email} {emp.mobile_number ? `· ${emp.mobile_number}` : ''}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              <div className="col-md-12">
+                <label className="form-label fw-500">
+                  Search Employee <span className="text-danger">*</span>
+                </label>
+                <EmployeeAutocomplete
+                  value={selectedEmployee}
+                  onChange={handleEmployeeSelectFromMaster}
+                  onClear={handleEmployeeClearFromMaster}
+                  required={true}
+                  placeholder="Search by Employee ID, Name, Email, or Phone..."
+                  error={errors.emp_id}
+                  showDetails={true}
+                />
+                <small className="text-muted d-block mt-1">
+                  <i className="bi bi-info-circle me-1"></i>
+                  Employee must exist in Employee Master. <a href="/employees/add" target="_blank">Add new employee</a> if not found.
+                </small>
               </div>
-              <F label="Employee Name" col="col-md-3" error={errors.employee_name}>
-                <input 
-                  type="text" 
-                  className={`form-control ${errors.employee_name ? 'is-invalid' : ''}`}
-                  name="employee_name" 
-                  value={form.employee_name ?? ''} 
-                  onChange={(e) => setForm(f => ({ ...f, employee_name: e.target.value }))} 
-                  placeholder="Full name" 
-                />
-              </F>
-              <F label="Employee Email" col="col-md-3" error={errors.employee_email}>
-                <input 
-                  type="email" 
-                  className={`form-control ${errors.employee_email ? 'is-invalid' : ''}`}
-                  name="employee_email" 
-                  value={form.employee_email ?? ''} 
-                  onChange={(e) => setForm(f => ({ ...f, employee_email: e.target.value }))} 
-                  placeholder="email@company.com" 
-                />
-              </F>
-              <F label="Phone Number" col="col-md-3">
-                <input 
-                  type="tel" 
-                  className="form-control"
-                  name="mobile_number" 
-                  value={form.mobile_number ?? ''} 
-                  onChange={(e) => setForm(f => ({ ...f, mobile_number: e.target.value }))} 
-                  placeholder="+91 9999999999" 
-                />
-              </F>
             </div>
           </div>
 
