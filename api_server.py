@@ -1783,10 +1783,34 @@ def get_employee_asset_history(emp_id):
     from models import Asset, AssetLifecycle, AuditLog, TemporaryAssignment, AssetReplacement, Employee
     from sqlalchemy import or_, and_
     
-    # Get employee details
+    # Get employee details - try Employee table first, then fall back to Asset table
     employee = Employee.query.filter_by(emp_id=emp_id).first()
+    
+    # If not in Employee table, try to get from Asset table
     if not employee:
-        return jsonify({'error': 'Employee not found'}), 404
+        # Get employee info from any asset assigned to this emp_id
+        sample_asset = Asset.query.filter_by(emp_id=emp_id).first()
+        if sample_asset and sample_asset.employee_name:
+            # Create a temporary employee object from asset data
+            class TempEmployee:
+                def __init__(self, emp_id, name, email, mobile, dept=None, desig=None, loc=None):
+                    self.emp_id = emp_id
+                    self.employee_name = name
+                    self.email = email
+                    self.mobile_number = mobile
+                    self.department = dept
+                    self.designation = desig
+                    self.location = loc
+                    self.status = 'Active'
+            
+            employee = TempEmployee(
+                emp_id=sample_asset.emp_id,
+                name=sample_asset.employee_name,
+                email=sample_asset.employee_email or '',
+                mobile=sample_asset.mobile_number or ''
+            )
+        else:
+            return jsonify({'error': 'Employee not found'}), 404
     
     # Get currently assigned assets
     current_assets = Asset.query.filter_by(emp_id=emp_id).all()
