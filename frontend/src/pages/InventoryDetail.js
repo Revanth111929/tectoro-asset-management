@@ -37,9 +37,76 @@ function InventoryDetail() {
           const historyRes = await assetAPI.getHistory(inventoryId);
           const events = historyRes.data.events || [];
           
-          // Calculate summary
+          // Calculate comprehensive summary statistics
           const assignments = events.filter(e => 
-            e.event_type === 'ASSIGNED' || e.action_type === 'ASSET_ASSIGNED'
+            e.event_type === 'ASSIGNED' || e.event_type === 'REASSIGNED' || 
+            e.action_type === 'ASSET_ASSIGNED' || e.action_type === 'ASSET_REASSIGNED'
+          );
+          
+          const repairs = events.filter(e => 
+            e.event_type === 'MAINTENANCE_STARTED' || 
+            e.event_type === 'MAINTENANCE_COMPLETED' ||
+            e.type === 'temp_assignment'
+          );
+          
+          const returns = events.filter(e => 
+            e.event_type === 'RETURNED' || e.action_type === 'ASSET_RETURNED'
+          );
+          
+          const replacements = events.filter(e => 
+            e.event_type === 'REPLACED' || e.action_type === 'ASSET_REPLACED'
+          );
+          
+          // Extract unique users who used this device
+          const usersMap = new Map();
+          
+          assignments.forEach((event, index) => {
+            const empId = event.to_employee_id || event.employee_id;
+            const empName = event.to_employee || event.employee_name;
+            
+            if (empId && empName) {
+              if (!usersMap.has(empId)) {
+                // Find the return event for this assignment
+                const assignmentDate = new Date(event.event_date || event.timestamp || event.date);
+                let returnDate = null;
+                let daysUsed = null;
+                let status = 'Current';
+                
+                // Look for next return event after this assignment
+                for (let i = index + 1; i < events.length; i++) {
+                  const nextEvent = events[i];
+                  if ((nextEvent.event_type === 'RETURNED' || nextEvent.action_type === 'ASSET_RETURNED') &&
+                      (nextEvent.from_employee_id === empId || nextEvent.employee_id === empId)) {
+                    returnDate = new Date(nextEvent.event_date || nextEvent.timestamp || nextEvent.date);
+                    daysUsed = Math.ceil((returnDate - assignmentDate) / (1000 * 60 * 60 * 24));
+                    status = 'Returned';
+                    break;
+                  }
+                }
+                
+                // If no return found and this is current employee, mark as Current
+                if (!returnDate && assetRes.data.emp_id === empId) {
+                  const today = new Date();
+                  daysUsed = Math.ceil((today - assignmentDate) / (1000 * 60 * 60 * 24));
+                  status = 'Current';
+                } else if (!returnDate) {
+                  status = 'Returned';
+                }
+                
+                usersMap.set(empId, {
+                  emp_id: empId,
+                  employee_name: empName,
+                  assigned_date: assignmentDate,
+                  returned_date: returnDate,
+                  days_used: daysUsed,
+                  status: status
+                });
+              }
+            }
+          });
+          
+          const uniqueUsers = Array.from(usersMap.values()).sort((a, b) => 
+            b.assigned_date - a.assigned_date
           );
           
           const firstAssignment = assignments.length > 0 
@@ -56,7 +123,12 @@ function InventoryDetail() {
             firstAssignment,
             currentUser,
             lastActivity,
-            totalAssignments: assignments.length
+            totalAssignments: assignments.length,
+            totalRepairs: repairs.length,
+            totalReplacements: replacements.length,
+            totalReturns: returns.length,
+            uniqueUsers: uniqueUsers,
+            allEvents: events
           });
         } catch (err) {
           console.warn('Could not fetch history summary:', err);
@@ -177,6 +249,55 @@ function InventoryDetail() {
         <div className="text-muted text-end">
           <div className="small">Inventory ID</div>
           <div className="font-monospace fw-bold">#{inventoryId}</div>
+        </div>
+      </div>
+
+      {/* Compact Summary Cards */}
+      <div className="row g-2 mb-4">
+        <div className="col-md-2">
+          <div className="table-card text-center py-2">
+            <div className="text-primary" style={{ fontSize: '1.5rem' }}>
+              <i className="bi bi-people"></i>
+            </div>
+            <div className="fw-bold fs-5">{historySummary?.uniqueUsers?.length || 0}</div>
+            <div className="text-muted small">Total Users</div>
+          </div>
+        </div>
+        <div className="col-md-2">
+          <div className="table-card text-center py-2">
+            <div className="text-danger" style={{ fontSize: '1.5rem' }}>
+              <i className="bi bi-tools"></i>
+            </div>
+            <div className="fw-bold fs-5">{historySummary?.totalRepairs || 0}</div>
+            <div className="text-muted small">Total Repairs</div>
+          </div>
+        </div>
+        <div className="col-md-2">
+          <div className="table-card text-center py-2">
+            <div className="text-warning" style={{ fontSize: '1.5rem' }}>
+              <i className="bi bi-arrow-repeat"></i>
+            </div>
+            <div className="fw-bold fs-5">{historySummary?.totalReplacements || 0}</div>
+            <div className="text-muted small">Replacements</div>
+          </div>
+        </div>
+        <div className="col-md-2">
+          <div className="table-card text-center py-2">
+            <div className="text-success" style={{ fontSize: '1.5rem' }}>
+              <i className="bi bi-file-earmark-check"></i>
+            </div>
+            <div className="fw-bold fs-5">{invoice ? 'Yes' : 'No'}</div>
+            <div className="text-muted small">Invoice</div>
+          </div>
+        </div>
+        <div className="col-md-4">
+          <div className="table-card text-center py-2">
+            <div className={`text-${warranty?.color || 'secondary'}`} style={{ fontSize: '1.5rem' }}>
+              <i className="bi bi-shield-check"></i>
+            </div>
+            <div className="fw-bold">{warranty ? warranty.status : 'N/A'}</div>
+            <div className="text-muted small">{warranty && warranty.days > 0 ? `${warranty.days} days remaining` : warranty && warranty.days < 0 ? `Expired ${Math.abs(warranty.days)} days ago` : 'No Warranty'}</div>
+          </div>
         </div>
       </div>
 
@@ -314,6 +435,86 @@ function InventoryDetail() {
               )}
             </div>
           </Section>
+
+          {/* Users Who Used This Device */}
+          {historySummary?.uniqueUsers && historySummary.uniqueUsers.length > 0 && (
+            <Section title="Users Who Used This Device" icon="people">
+              <div className="table-responsive">
+                <table className="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>Employee ID</th>
+                      <th>Employee Name</th>
+                      <th>Assigned Date</th>
+                      <th>Returned Date</th>
+                      <th>Days Used</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historySummary.uniqueUsers.map((user, index) => (
+                      <tr key={index}>
+                        <td><code>{user.emp_id}</code></td>
+                        <td className="fw-600">{user.employee_name}</td>
+                        <td>{user.assigned_date ? new Date(user.assigned_date).toLocaleDateString() : '—'}</td>
+                        <td>{user.returned_date ? new Date(user.returned_date).toLocaleDateString() : '—'}</td>
+                        <td>{user.days_used ? `${user.days_used} days` : '—'}</td>
+                        <td>
+                          <span className={`badge bg-${user.status === 'Current' ? 'primary' : 'secondary'}`}>
+                            {user.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Section>
+          )}
+
+          {/* Device Lifecycle Timeline */}
+          {historySummary?.allEvents && historySummary.allEvents.length > 0 && (
+            <Section title="Device Lifecycle" icon="clock-history">
+              <div className="mb-3">
+                <div className="timeline-vertical" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                  {historySummary.allEvents.slice(0, 10).map((event, index) => {
+                    const eventType = event.event_type || event.action_type;
+                    const eventDate = event.event_date || event.timestamp || event.date;
+                    const eventEmployee = event.to_employee || event.employee_name || event.from_employee;
+                    
+                    return (
+                      <div key={index} className="timeline-item-vertical mb-3">
+                        <div className="timeline-marker-vertical">
+                          <div className="timeline-icon-badge bg-primary" style={{ width: 24, height: 24 }}>
+                            <i className="bi bi-circle-fill" style={{ fontSize: 8 }}></i>
+                          </div>
+                        </div>
+                        <div className="timeline-content-vertical">
+                          <div className="small">
+                            <div className="fw-600">{eventType?.replace(/_/g, ' ')}</div>
+                            <div className="text-muted">
+                              {eventDate ? new Date(eventDate).toLocaleDateString() : '—'}
+                              {eventEmployee && <span> • {eventEmployee}</span>}
+                            </div>
+                            {(event.reason || event.remarks) && (
+                              <div className="text-muted small">{event.reason || event.remarks}</div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <Link 
+                  to={`/inventory/lifecycle/${inventoryId}`}
+                  className="btn btn-outline-primary btn-sm w-100 mt-3"
+                >
+                  <i className="bi bi-clock-history me-2"></i>
+                  View Complete Lifecycle Timeline
+                </Link>
+              </div>
+            </Section>
+          )}
         </div>
 
         {/* Right Column */}
@@ -383,54 +584,6 @@ function InventoryDetail() {
                 </div>
               </div>
             </div>
-          </Section>
-
-          {/* History Summary */}
-          <Section title="History Summary" icon="clock-history">
-            <div className="mb-3">
-              <div className="text-muted small mb-1">Total Assignments</div>
-              <div className="fw-bold fs-4">{historySummary?.totalAssignments || 0}</div>
-            </div>
-            
-            {historySummary?.firstAssignment && (
-              <div className="mb-3">
-                <div className="text-muted small mb-1">First Assigned</div>
-                <div className="fw-600">{historySummary.firstAssignment.to_employee || historySummary.firstAssignment.employee_name || '—'}</div>
-                <div className="text-muted small">
-                  {historySummary.firstAssignment.event_date 
-                    ? new Date(historySummary.firstAssignment.event_date || historySummary.firstAssignment.timestamp).toLocaleDateString()
-                    : '—'}
-                </div>
-              </div>
-            )}
-            
-            {historySummary?.currentUser && (
-              <div className="mb-3">
-                <div className="text-muted small mb-1">Current User</div>
-                <div className="fw-600">{historySummary.currentUser.name || '—'}</div>
-                <div className="text-muted small">{historySummary.currentUser.emp_id}</div>
-              </div>
-            )}
-            
-            {historySummary?.lastActivity && (
-              <div className="mb-3">
-                <div className="text-muted small mb-1">Last Activity</div>
-                <div className="small">
-                  {historySummary.lastActivity.event_type || historySummary.lastActivity.action_type}
-                </div>
-                <div className="text-muted small">
-                  {new Date(historySummary.lastActivity.event_date || historySummary.lastActivity.timestamp).toLocaleDateString()}
-                </div>
-              </div>
-            )}
-            
-            <Link 
-              to={`/inventory/lifecycle/${inventoryId}`}
-              className="btn btn-outline-primary btn-sm w-100 mt-3"
-            >
-              <i className="bi bi-clock-history me-2"></i>
-              View Complete Lifecycle
-            </Link>
           </Section>
 
           {/* Quick Actions */}
