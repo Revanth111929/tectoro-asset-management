@@ -19,6 +19,7 @@ import ActivityHistory from './pages/ActivityHistory';
 import TemporaryAssignments from './pages/TemporaryAssignments';
 import AssetReplacements from './pages/AssetReplacements';
 import Employees from './pages/Employees';
+import EmployeeAdd from './pages/EmployeeAdd'; // Phase 1
 import EmployeeAssetHistory from './pages/EmployeeAssetHistory';
 import OnboardingList from './pages/OnboardingList';
 import OnboardingAdd from './pages/OnboardingAdd';
@@ -131,6 +132,8 @@ function App() {
           <Route path="/temporary-assignments" element={<NonViewerOnly><TemporaryAssignments /></NonViewerOnly>} />
           <Route path="/asset-replacements" element={<NonViewerOnly><AssetReplacements /></NonViewerOnly>} />
           <Route path="/employees" element={<AdminOnly><Employees /></AdminOnly>} />
+          <Route path="/employees/add" element={<AdminOnly><EmployeeAdd /></AdminOnly>} />
+          <Route path="/employees/edit/:empId" element={<AdminOnly><EmployeeAdd /></AdminOnly>} />
           <Route path="/employees/:employeeId/asset-history" element={<AdminOnly><EmployeeAssetHistory /></AdminOnly>} />
           <Route path="/onboarding"          element={<AdminOnly><OnboardingList /></AdminOnly>} />
           <Route path="/onboarding/add"      element={<AdminOnly><OnboardingAdd /></AdminOnly>} />

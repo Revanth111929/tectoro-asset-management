@@ -1,7 +1,7 @@
 {
   "files": {
     "main.css": "/static/css/main.5534c45c.css",
-    "main.js": "/static/js/main.7e5f8c0e.js",
+    "main.js": "/static/js/main.62e015e6.js",
     "static/js/239.34f2cad3.chunk.js": "/static/js/239.34f2cad3.chunk.js",
     "static/js/977.c1951ede.chunk.js": "/static/js/977.c1951ede.chunk.js",
     "static/js/455.b1beaf2e.chunk.js": "/static/js/455.b1beaf2e.chunk.js",
@@ -11,13 +11,13 @@
     "static/media/tectoro-login-logo.png": "/static/media/tectoro-login-logo.cac63a34d48239d7957e.png",
     "index.html": "/index.html",
     "main.5534c45c.css.map": "/static/css/main.5534c45c.css.map",
-    "main.7e5f8c0e.js.map": "/static/js/main.7e5f8c0e.js.map",
+    "main.62e015e6.js.map": "/static/js/main.62e015e6.js.map",
     "239.34f2cad3.chunk.js.map": "/static/js/239.34f2cad3.chunk.js.map",
     "977.c1951ede.chunk.js.map": "/static/js/977.c1951ede.chunk.js.map",
     "455.b1beaf2e.chunk.js.map": "/static/js/455.b1beaf2e.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.5534c45c.css",
-    "static/js/main.7e5f8c0e.js"
+    "static/js/main.62e015e6.js"
   ]
 }

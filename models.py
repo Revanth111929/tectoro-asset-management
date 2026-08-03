@@ -721,6 +721,10 @@ class Employee(db.Model):
     mobile_number  = db.Column(db.String(30))
     department     = db.Column(db.String(100))
     designation    = db.Column(db.String(100))
+    team           = db.Column(db.String(100))  # Phase 1: New field
+    project        = db.Column(db.String(150))  # Phase 1: New field
+    manager        = db.Column(db.String(150))  # Phase 1: New field - Manager name
+    microsoft_license = db.Column(db.String(100))  # Phase 1: New field - License key/type
     location       = db.Column(db.String(150))
     is_active      = db.Column(db.Boolean, default=True)
     status         = db.Column(db.String(50), default='Active')  # Active, Exited, Inactive
@@ -739,12 +743,18 @@ class Employee(db.Model):
             'mobile_number': self.mobile_number or '',
             'department':    self.department or '',
             'designation':   self.designation or '',
+            'team':          self.team or '',  # Phase 1
+            'project':       self.project or '',  # Phase 1
+            'manager':       self.manager or '',  # Phase 1
+            'microsoft_license': self.microsoft_license or '',  # Phase 1
             'location':      self.location or '',
             'is_active':     self.is_active,
             'status':        self.status or 'Active',
             'exit_date':     self.exit_date.isoformat() if self.exit_date else None,
             'application_access': self.application_access or '',
             'onboarding_id': self.onboarding_id,
+            'created_at':    utc_iso(self.created_at),
+            'updated_at':    utc_iso(self.updated_at),
         }
 
 

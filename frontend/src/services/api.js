@@ -165,6 +165,19 @@ export const employeeAPI = {
   search: (q) => api.get('/employees', { params: { q } }),
   getById: (emp_id) => api.get(`/employees/${emp_id}`),
   createOrUpdate: (data) => api.post('/employees', data),
+  // Phase 1: New methods
+  create: (data) => api.post('/employees', data),
+  update: (emp_id, data) => api.put(`/employees/${emp_id}`, data),
+  disable: (emp_id) => api.post(`/employees/${emp_id}/disable`),
+  bulkImport: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/employees/bulk-import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  downloadTemplate: () => api.get('/employees/template', { responseType: 'blob' }),
+  // Existing methods
   getAssets: (emp_id) => api.get(`/employees/${emp_id}/assets`),
   getAssetHistory: (emp_id) => api.get(`/employees/${emp_id}/asset-history`),
   processExit: (emp_id, data) => api.post(`/employees/${emp_id}/exit`, data),

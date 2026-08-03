@@ -2184,7 +2184,7 @@ def employee_exit(emp_id):
 @app.route('/api/employees', methods=['POST'])
 @admin_required
 def create_or_update_employee():
-    """Create or update employee"""
+    """Create or update employee - Phase 1 enhanced with new fields"""
     from models import Employee
     
     data = request.get_json() or {}
@@ -2192,6 +2192,15 @@ def create_or_update_employee():
     
     if not emp_id:
         return jsonify({'error': 'emp_id is required'}), 400
+    
+    # Validate required fields
+    if not data.get('employee_name', '').strip():
+        return jsonify({'error': 'employee_name is required'}), 400
+    
+    # Validate email format if provided
+    email = data.get('email', '').strip()
+    if email and '@' not in email:
+        return jsonify({'error': 'Invalid email format'}), 400
     
     employee = Employee.query.filter_by(emp_id=emp_id).first()
     current_user = get_current_user()
@@ -2204,6 +2213,13 @@ def create_or_update_employee():
         employee.location = data.get('location', employee.location)
         employee.department = data.get('department', employee.department)
         employee.designation = data.get('designation', employee.designation)
+        # Phase 1: New fields
+        employee.team = data.get('team', employee.team)
+        employee.project = data.get('project', employee.project)
+        employee.manager = data.get('manager', employee.manager)
+        employee.microsoft_license = data.get('microsoft_license', employee.microsoft_license)
+        employee.status = data.get('status', employee.status)
+        employee.is_active = data.get('is_active', employee.is_active)
         employee.updated_at = datetime.utcnow()
         action = 'UPDATE'
     else:
@@ -2215,21 +2231,241 @@ def create_or_update_employee():
             mobile_number=data.get('mobile_number', ''),
             location=data.get('location', ''),
             department=data.get('department', ''),
-            designation=data.get('designation', '')
+            designation=data.get('designation', ''),
+            # Phase 1: New fields
+            team=data.get('team', ''),
+            project=data.get('project', ''),
+            manager=data.get('manager', ''),
+            microsoft_license=data.get('microsoft_license', ''),
+            status=data.get('status', 'Active'),
+            is_active=data.get('is_active', True)
         )
         db.session.add(employee)
         action = 'CREATE'
     
-    log_activity(action, 'Employee', f'{action} employee: {employee.employee_name} [{emp_id}]', current_user)
-    db.session.commit()
+    try:
+        log_activity(action, 'Employee', f'{action} employee: {employee.employee_name} [{emp_id}]', current_user)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'employee': employee.to_dict()
+        }), 200 if action == 'UPDATE' else 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/api/employees/<emp_id>', methods=['PUT'])
+@admin_required
+def update_employee(emp_id):
+    """Update existing employee - Phase 1"""
+    from models import Employee
     
-    return jsonify({'success': True, 'employee': {
-        'emp_id': employee.emp_id,
-        'employee_name': employee.employee_name,
-        'email': employee.email,
-        'mobile_number': employee.mobile_number,
-        'location': employee.location,
-    }}), 200 if action == 'UPDATE' else 201
+    employee = Employee.query.filter_by(emp_id=emp_id).first()
+    if not employee:
+        return jsonify({'error': 'Employee not found'}), 404
+    
+    data = request.get_json() or {}
+    current_user = get_current_user()
+    
+    # Update fields
+    if 'employee_name' in data:
+        employee.employee_name = data['employee_name']
+    if 'email' in data:
+        email = data['email'].strip()
+        if email and '@' not in email:
+            return jsonify({'error': 'Invalid email format'}), 400
+        employee.email = email
+    if 'mobile_number' in data:
+        employee.mobile_number = data['mobile_number']
+    if 'department' in data:
+        employee.department = data['department']
+    if 'designation' in data:
+        employee.designation = data['designation']
+    if 'team' in data:
+        employee.team = data['team']
+    if 'project' in data:
+        employee.project = data['project']
+    if 'manager' in data:
+        employee.manager = data['manager']
+    if 'microsoft_license' in data:
+        employee.microsoft_license = data['microsoft_license']
+    if 'location' in data:
+        employee.location = data['location']
+    if 'status' in data:
+        employee.status = data['status']
+    if 'is_active' in data:
+        employee.is_active = data['is_active']
+    
+    employee.updated_at = datetime.utcnow()
+    
+    try:
+        log_activity('UPDATE', 'Employee', f'Updated employee: {employee.employee_name} [{emp_id}]', current_user)
+        db.session.commit()
+        return jsonify({'success': True, 'employee': employee.to_dict()}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/api/employees/<emp_id>/disable', methods=['POST'])
+@admin_required
+def disable_employee(emp_id):
+    """Disable employee - Phase 1"""
+    from models import Employee
+    
+    employee = Employee.query.filter_by(emp_id=emp_id).first()
+    if not employee:
+        return jsonify({'error': 'Employee not found'}), 404
+    
+    current_user = get_current_user()
+    employee.is_active = False
+    employee.status = 'Inactive'
+    employee.updated_at = datetime.utcnow()
+    
+    try:
+        log_activity('DISABLE', 'Employee', f'Disabled employee: {employee.employee_name} [{emp_id}]', current_user)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Employee disabled successfully'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/api/employees/bulk-import', methods=['POST'])
+@admin_required
+def bulk_import_employees():
+    """Bulk import employees from Excel - Phase 1"""
+    from models import Employee
+    import pandas as pd
+    import io
+    
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        return jsonify({'error': 'Invalid file format. Only Excel files are supported'}), 400
+    
+    try:
+        # Read Excel file
+        df = pd.read_excel(io.BytesIO(file.read()))
+        
+        # Validate required columns
+        required_columns = ['emp_id', 'employee_name']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            return jsonify({'error': f'Missing required columns: {", ".join(missing_columns)}'}), 400
+        
+        current_user = get_current_user()
+        results = {
+            'imported': 0,
+            'skipped': 0,
+            'failed': 0,
+            'errors': []
+        }
+        
+        for index, row in df.iterrows():
+            emp_id = str(row.get('emp_id', '')).strip()
+            employee_name = str(row.get('employee_name', '')).strip()
+            
+            # Skip empty rows
+            if not emp_id or not employee_name:
+                results['skipped'] += 1
+                results['errors'].append(f"Row {index + 2}: Missing emp_id or employee_name")
+                continue
+            
+            # Check for duplicates
+            existing = Employee.query.filter_by(emp_id=emp_id).first()
+            if existing:
+                results['skipped'] += 1
+                results['errors'].append(f"Row {index + 2}: Duplicate Employee ID {emp_id}")
+                continue
+            
+            # Validate email
+            email = str(row.get('email', '')).strip()
+            if email and '@' not in email:
+                results['failed'] += 1
+                results['errors'].append(f"Row {index + 2}: Invalid email format for {emp_id}")
+                continue
+            
+            try:
+                # Create employee
+                employee = Employee(
+                    emp_id=emp_id,
+                    employee_name=employee_name,
+                    designation=str(row.get('designation', '')).strip(),
+                    department=str(row.get('department', '')).strip(),
+                    team=str(row.get('team', '')).strip(),
+                    project=str(row.get('project', '')).strip(),
+                    manager=str(row.get('manager', '')).strip(),
+                    microsoft_license=str(row.get('microsoft_license', '')).strip(),
+                    email=email,
+                    mobile_number=str(row.get('mobile_number', '')).strip(),
+                    location=str(row.get('location', '')).strip(),
+                    status='Active',
+                    is_active=True
+                )
+                db.session.add(employee)
+                results['imported'] += 1
+            except Exception as e:
+                results['failed'] += 1
+                results['errors'].append(f"Row {index + 2}: {str(e)}")
+        
+        db.session.commit()
+        log_activity('BULK_IMPORT', 'Employee', f'Bulk imported {results["imported"]} employees', current_user)
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to process file: {str(e)}'}), 400
+
+
+@app.route('/api/employees/template', methods=['GET'])
+@admin_required
+def download_employee_template():
+    """Download Excel template for bulk import - Phase 1"""
+    import pandas as pd
+    import io
+    
+    # Create template with sample data
+    template_data = {
+        'emp_id': ['EMP001', 'EMP002'],
+        'employee_name': ['John Doe', 'Jane Smith'],
+        'designation': ['Software Engineer', 'Senior Developer'],
+        'department': ['IT', 'Engineering'],
+        'team': ['Backend', 'Frontend'],
+        'project': ['Project Alpha', 'Project Beta'],
+        'manager': ['Manager Name', 'Manager Name'],
+        'microsoft_license': ['E3', 'E5'],
+        'email': ['john.doe@company.com', 'jane.smith@company.com'],
+        'mobile_number': ['+1234567890', '+0987654321'],
+        'location': ['Office - Floor 1', 'Office - Floor 2']
+    }
+    
+    df = pd.DataFrame(template_data)
+    
+    # Create Excel file in memory
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Employees')
+    output.seek(0)
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name='employee_import_template.xlsx'
+    )
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # WARRANTY ALERTS
