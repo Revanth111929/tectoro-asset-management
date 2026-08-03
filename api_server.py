@@ -1703,13 +1703,16 @@ def import_assets():
 @app.route('/api/employees', methods=['GET'])
 @admin_required
 def get_employees():
-    """Get all employees or search by query"""
-    from models import Employee
+    """Get all employees or search by query - searches both Employee table and Assets"""
+    from models import Employee, Asset
     
     query = request.args.get('q', '').strip()
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
     
+    employees_list = []
+    
+    # First, try to get from Employee table
     q = Employee.query
     
     if query:
@@ -1720,19 +1723,51 @@ def get_employees():
             Employee.mobile_number.ilike(f'%{query}%')
         ))
     
-    total = q.count()
-    employees = q.order_by(Employee.created_at.desc()).offset((page-1)*per_page).limit(per_page).all()
+    employees_from_table = q.order_by(Employee.created_at.desc()).offset((page-1)*per_page).limit(per_page).all()
     
-    return jsonify([{
-        'emp_id': e.emp_id,
-        'employee_name': e.employee_name,
-        'email': e.email,
-        'mobile_number': e.mobile_number,
-        'location': e.location,
-        'department': e.department,
-        'designation': e.designation,
-        'created_at': e.created_at.isoformat() if e.created_at else None,
-    } for e in employees]), 200
+    for e in employees_from_table:
+        employees_list.append({
+            'emp_id': e.emp_id,
+            'employee_name': e.employee_name,
+            'email': e.email,
+            'mobile_number': e.mobile_number,
+            'location': e.location,
+            'department': e.department,
+            'designation': e.designation,
+            'created_at': e.created_at.isoformat() if e.created_at else None,
+        })
+    
+    # If no results from Employee table, get unique employees from Assets
+    if not employees_list:
+        asset_query = Asset.query.filter(Asset.emp_id.isnot(None))
+        
+        if query:
+            asset_query = asset_query.filter(or_(
+                Asset.emp_id.ilike(f'%{query}%'),
+                Asset.employee_name.ilike(f'%{query}%'),
+                Asset.employee_email.ilike(f'%{query}%'),
+                Asset.mobile_number.ilike(f'%{query}%')
+            ))
+        
+        # Get distinct employees from assets
+        assets = asset_query.all()
+        seen_emp_ids = set()
+        
+        for asset in assets:
+            if asset.emp_id and asset.emp_id not in seen_emp_ids:
+                seen_emp_ids.add(asset.emp_id)
+                employees_list.append({
+                    'emp_id': asset.emp_id,
+                    'employee_name': asset.employee_name or '',
+                    'email': asset.employee_email or '',
+                    'mobile_number': asset.mobile_number or '',
+                    'location': asset.location or '',
+                    'department': '',
+                    'designation': '',
+                    'created_at': None,
+                })
+    
+    return jsonify(employees_list), 200
 
 @app.route('/api/employees/<emp_id>', methods=['GET'])
 @admin_required
