@@ -1763,8 +1763,81 @@ def return_asset_operation():
             'error': 'Internal server error',
             'details': str(e)
         }), 500
+
+
+@app.route('/api/operations/transfer', methods=['POST'])
+@non_viewer_required
+def transfer_asset_operation():
+    """
+    Phase 4.2: Transfer Asset Between Employees
     
-    return jsonify({'success': True, 'message': f'Asset "{name}" deleted'}), 200
+    Supports two modes:
+    1. Simple Transfer (no swap_asset_id):
+       Transfer asset from current employee to target employee
+       
+    2. Swap (with swap_asset_id):
+       Exchange assets between two employees
+    
+    Request:
+    {
+        "asset_id": 123,
+        "to_emp_id": "EMP002",
+        "reason": "Replacement device" (REQUIRED),
+        "swap_asset_id": 456 (optional, for swap mode),
+        "comments": "Optional additional notes"
+    }
+    
+    Automatically updates:
+    - Asset employee assignments
+    - Lifecycle events (1 or 2 depending on mode)
+    - Audit logs
+    """
+    data = request.get_json() or {}
+    current_user = get_current_user()
+    performed_by = current_user.get('username') if current_user else 'system'
+    
+    asset_id = data.get('asset_id')
+    to_emp_id = data.get('to_emp_id', '').strip()
+    reason = data.get('reason', '').strip()
+    swap_asset_id = data.get('swap_asset_id')
+    comments = data.get('comments', '').strip()
+    
+    if not asset_id:
+        return jsonify({'error': 'asset_id is required'}), 400
+    if not to_emp_id:
+        return jsonify({'error': 'to_emp_id is required'}), 400
+    if not reason:
+        return jsonify({'error': 'reason is required'}), 400
+    
+    try:
+        result = OperationsService.transfer_asset(
+            asset_id=asset_id,
+            to_emp_id=to_emp_id,
+            reason=reason,
+            performed_by=performed_by,
+            swap_asset_id=swap_asset_id,
+            comments=comments if comments else None
+        )
+        
+        operation_type = "swapped" if swap_asset_id else "transferred"
+        logger.info(f"Asset {asset_id} {operation_type} by {performed_by}")
+        return jsonify(result), 200
+        
+    except OperationError as e:
+        logger.warning(f"Operation error in transfer: {e.message}")
+        return jsonify({
+            'success': False,
+            'error': e.message,
+            'code': e.code
+        }), 400
+    except Exception as e:
+        logger.error(f"Unexpected error in transfer operation: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Internal server error',
+            'details': str(e)
+        }), 500
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ASSET IMPORT/EXPORT

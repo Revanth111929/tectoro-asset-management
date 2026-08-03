@@ -10895,3 +10895,22 @@ NameError: name 'func' is not defined
 2026-08-03 21:56:16,262 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 21:56:16] "GET /api/dashboard/activity HTTP/1.1" 200 -
 2026-08-03 21:56:16,269 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 21:56:16] "GET /api/dashboard/stats HTTP/1.1" 200 -
 2026-08-03 21:56:19,453 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 21:56:19] "GET /api/assets?category=Laptop&search=&status=&page=1&per_page=20 HTTP/1.1" 200 -
+2026-08-03 22:01:14,439 [INFO] werkzeug:  * Detected change in '/home/administrator/Desktop/asset-management/services/operations_service.py', reloading
+2026-08-03 22:01:14,593 [INFO] werkzeug:  * Restarting with stat
+2026-08-03 22:01:15,046 [INFO] __main__: Database tables initialized (office database — seeding never runs)
+2026-08-03 22:01:15,057 [WARNING] werkzeug:  * Debugger is active!
+2026-08-03 22:01:15,057 [INFO] werkzeug:  * Debugger PIN: 133-244-723
+2026-08-03 22:01:45,236 [INFO] werkzeug:  * Detected change in '/home/administrator/Desktop/asset-management/api_server.py', reloading
+2026-08-03 22:01:45,422 [INFO] werkzeug:  * Restarting with stat
+2026-08-03 22:05:36,653 [INFO] __main__: Database tables initialized (office database — seeding never runs)
+2026-08-03 22:05:36,676 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:3000
+ * Running on http://192.168.20.180:3000
+2026-08-03 22:05:36,676 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-08-03 22:05:36,677 [INFO] werkzeug:  * Restarting with stat
+2026-08-03 22:05:37,173 [INFO] __main__: Database tables initialized (office database — seeding never runs)
+2026-08-03 22:05:37,185 [WARNING] werkzeug:  * Debugger is active!
+2026-08-03 22:05:37,185 [INFO] werkzeug:  * Debugger PIN: 133-244-723
+2026-08-03 22:05:57,718 [INFO] werkzeug: 127.0.0.1 - - [03/Aug/2026 22:05:57] "GET /api/health HTTP/1.1" 200 -
+2026-08-03 22:07:07,159 [INFO] werkzeug: 127.0.0.1 - - [03/Aug/2026 22:07:07] "OPTIONS /api/operations/transfer HTTP/1.1" 200 -

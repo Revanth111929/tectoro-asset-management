@@ -168,6 +168,11 @@ export const assetAPI = {
     console.log('[assetAPI] returnAsset called with:', data);
     return api.post('/operations/return', data);
   },
+  // Phase 4.2: Transfer Asset
+  transferAsset: (data) => {
+    console.log('[assetAPI] transferAsset called with:', data);
+    return api.post('/operations/transfer', data);
+  },
 };
 
 // ── REPORTS ───────────────────────────────────────────────────────────────────

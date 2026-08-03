@@ -1,5 +1,5 @@
 // AssetOperations.js
-// Phase 4.1: Operations Engine - Assign & Return
+// Phase 4.1-4.2: Operations Engine - Assign, Return, Transfer
 // Context-aware operations component
 
 import React, { useState, useEffect } from 'react';
@@ -20,6 +20,15 @@ const AssetOperations = ({ asset, onOperationComplete }) => {
   
   // Return operation state
   const [returnComments, setReturnComments] = useState('');
+  
+  // Transfer operation state
+  const [transferEmployee, setTransferEmployee] = useState(null);
+  const [transferReason, setTransferReason] = useState('');
+  const [transferComments, setTransferComments] = useState('');
+  const [transferMode, setTransferMode] = useState('simple'); // 'simple' or 'swap'
+  const [employeeAssets, setEmployeeAssets] = useState([]);
+  const [selectedSwapAsset, setSelectedSwapAsset] = useState(null);
+  const [loadingEmployeeAssets, setLoadingEmployeeAssets] = useState(false);
   
   // Load available operations
   useEffect(() => {
@@ -48,6 +57,12 @@ const AssetOperations = ({ asset, onOperationComplete }) => {
     setSelectedEmployee(null);
     setAssignComments('');
     setReturnComments('');
+    setTransferEmployee(null);
+    setTransferReason('');
+    setTransferComments('');
+    setTransferMode('simple');
+    setEmployeeAssets([]);
+    setSelectedSwapAsset(null);
   };
   
   const handleCloseModal = () => {
@@ -99,6 +114,74 @@ const AssetOperations = ({ asset, onOperationComplete }) => {
       }
     } catch (err) {
       const errorMsg = err.response?.data?.error || 'Failed to return asset';
+      toast.error(`❌ ${errorMsg}`);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleTransferEmployeeSelect = async (employee) => {
+    setTransferEmployee(employee);
+    if (employee && employee.emp_id) {
+      // Load employee's current assets to check for swap option
+      setLoadingEmployeeAssets(true);
+      try {
+        const response = await assetAPI.getAll({ emp_id: employee.emp_id, status: 'Assigned' });
+        const assets = response.data.assets || response.data || [];
+        setEmployeeAssets(assets);
+        // If employee has assets in same category, enable swap mode option
+        const sameCategory = assets.filter(a => a.category === asset.category);
+        if (sameCategory.length > 0) {
+          // Don't auto-switch to swap, just show the option
+        }
+      } catch (err) {
+        console.error('Failed to load employee assets:', err);
+        setEmployeeAssets([]);
+      } finally {
+        setLoadingEmployeeAssets(false);
+      }
+    } else {
+      setEmployeeAssets([]);
+      setSelectedSwapAsset(null);
+    }
+  };
+
+  const handleTransfer = async () => {
+    if (!transferEmployee) {
+      toast.error('Please select a target employee');
+      return;
+    }
+    if (!transferReason.trim()) {
+      toast.error('Transfer reason is required');
+      return;
+    }
+    if (transferMode === 'swap' && !selectedSwapAsset) {
+      toast.error('Please select an asset to swap');
+      return;
+    }
+    
+    setProcessing(true);
+    try {
+      const payload = {
+        asset_id: asset.id,
+        to_emp_id: transferEmployee.emp_id,
+        reason: transferReason,
+        comments: transferComments
+      };
+      
+      if (transferMode === 'swap' && selectedSwapAsset) {
+        payload.swap_asset_id = selectedSwapAsset.id;
+      }
+      
+      const response = await assetAPI.transferAsset(payload);
+      
+      toast.success(`✅ ${response.data.message}`);
+      handleCloseModal();
+      if (onOperationComplete) {
+        onOperationComplete(response.data);
+      }
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Failed to transfer asset';
       toast.error(`❌ ${errorMsg}`);
     } finally {
       setProcessing(false);
@@ -199,6 +282,138 @@ const AssetOperations = ({ asset, onOperationComplete }) => {
                     </div>
                   </div>
                 )}
+                
+                {currentOperation.operation === 'transfer' && (
+                  <div>
+                    <p className="text-muted">{currentOperation.description}</p>
+                    
+                    <div className="alert alert-info">
+                      <i className="bi bi-info-circle me-2"></i>
+                      <strong>Current Assignment:</strong><br/>
+                      Employee: {asset.employee_name} ({asset.emp_id})<br/>
+                      Asset: {asset.asset_name} ({asset.serial_number})
+                    </div>
+                    
+                    <div className="mb-3">
+                      <label className="form-label fw-bold">
+                        Target Employee <span className="text-danger">*</span>
+                      </label>
+                      <EmployeeAutocomplete
+                        value={transferEmployee}
+                        onChange={handleTransferEmployeeSelect}
+                        onClear={() => {
+                          setTransferEmployee(null);
+                          setEmployeeAssets([]);
+                          setSelectedSwapAsset(null);
+                        }}
+                        required={true}
+                        placeholder="Search by Employee ID, Name, Email..."
+                      />
+                      {loadingEmployeeAssets && (
+                        <div className="text-muted small mt-1">
+                          <span className="spinner-border spinner-border-sm me-1"></span>
+                          Loading employee assets...
+                        </div>
+                      )}
+                    </div>
+                    
+                    {transferEmployee && employeeAssets.length > 0 && (
+                      <div className="mb-3">
+                        <label className="form-label fw-bold">Transfer Mode</label>
+                        <div className="btn-group w-100" role="group">
+                          <input
+                            type="radio"
+                            className="btn-check"
+                            id="transfer-simple"
+                            checked={transferMode === 'simple'}
+                            onChange={() => {
+                              setTransferMode('simple');
+                              setSelectedSwapAsset(null);
+                            }}
+                          />
+                          <label className="btn btn-outline-primary" htmlFor="transfer-simple">
+                            <i className="bi bi-arrow-right me-1"></i>
+                            Simple Transfer
+                          </label>
+                          
+                          <input
+                            type="radio"
+                            className="btn-check"
+                            id="transfer-swap"
+                            checked={transferMode === 'swap'}
+                            onChange={() => setTransferMode('swap')}
+                          />
+                          <label className="btn btn-outline-info" htmlFor="transfer-swap">
+                            <i className="bi bi-arrow-left-right me-1"></i>
+                            Swap Assets
+                          </label>
+                        </div>
+                        <div className="form-text">
+                          {transferMode === 'simple' 
+                            ? `${asset.employee_name} will lose this asset. ${transferEmployee.employee_name} will receive it.`
+                            : `Exchange assets between ${asset.employee_name} and ${transferEmployee.employee_name}.`
+                          }
+                        </div>
+                      </div>
+                    )}
+                    
+                    {transferMode === 'swap' && employeeAssets.length > 0 && (
+                      <div className="mb-3">
+                        <label className="form-label fw-bold">
+                          Select Asset to Swap <span className="text-danger">*</span>
+                        </label>
+                        <select
+                          className="form-select"
+                          value={selectedSwapAsset?.id || ''}
+                          onChange={(e) => {
+                            const assetId = parseInt(e.target.value);
+                            const swapAsset = employeeAssets.find(a => a.id === assetId);
+                            setSelectedSwapAsset(swapAsset || null);
+                          }}
+                        >
+                          <option value="">-- Select Asset --</option>
+                          {employeeAssets.map(a => (
+                            <option key={a.id} value={a.id}>
+                              {a.asset_name} - {a.serial_number} ({a.category})
+                            </option>
+                          ))}
+                        </select>
+                        {selectedSwapAsset && (
+                          <div className="alert alert-success mt-2 mb-0 small">
+                            <strong>Swap Result:</strong><br/>
+                            • {asset.employee_name} will receive: {selectedSwapAsset.asset_name}<br/>
+                            • {transferEmployee.employee_name} will receive: {asset.asset_name}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    <div className="mb-3">
+                      <label className="form-label fw-bold">
+                        Transfer Reason <span className="text-danger">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={transferReason}
+                        onChange={(e) => setTransferReason(e.target.value)}
+                        placeholder="e.g., Replacement device, Role change, etc."
+                        required
+                      />
+                    </div>
+                    
+                    <div className="mb-3">
+                      <label className="form-label">Additional Comments (Optional)</label>
+                      <textarea
+                        className="form-control"
+                        rows="2"
+                        value={transferComments}
+                        onChange={(e) => setTransferComments(e.target.value)}
+                        placeholder="Any additional notes..."
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
               
               <div className="modal-footer">
@@ -213,7 +428,12 @@ const AssetOperations = ({ asset, onOperationComplete }) => {
                 <button 
                   type="button" 
                   className={`btn btn-${currentOperation.color}`}
-                  onClick={currentOperation.operation === 'assign' ? handleAssign : handleReturn}
+                  onClick={
+                    currentOperation.operation === 'assign' ? handleAssign :
+                    currentOperation.operation === 'return' ? handleReturn :
+                    currentOperation.operation === 'transfer' ? handleTransfer :
+                    null
+                  }
                   disabled={processing}
                 >
                   {processing ? (
