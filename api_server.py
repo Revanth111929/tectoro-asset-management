@@ -1839,6 +1839,161 @@ def transfer_asset_operation():
         }), 500
 
 
+@app.route('/api/operations/send-for-repair', methods=['POST'])
+@non_viewer_required
+def send_for_repair_operation():
+    """Phase 4.3: Send Asset For Repair"""
+    data = request.get_json() or {}
+    current_user = get_current_user()
+    performed_by = current_user.get('username') if current_user else 'system'
+    
+    asset_id = data.get('asset_id')
+    issue_category = data.get('issue_category', '').strip()
+    issue_description = data.get('issue_description', '').strip()
+    priority = data.get('priority', '').strip()
+    vendor = data.get('vendor', '').strip() or None
+    engineer = data.get('engineer', '').strip() or None
+    expected_date = data.get('expected_date', '').strip() or None
+    comments = data.get('comments', '').strip() or None
+    
+    if not asset_id:
+        return jsonify({'error': 'asset_id is required'}), 400
+    if not issue_category:
+        return jsonify({'error': 'issue_category is required'}), 400
+    if not issue_description:
+        return jsonify({'error': 'issue_description is required'}), 400
+    if not priority:
+        return jsonify({'error': 'priority is required'}), 400
+    
+    try:
+        result = OperationsService.send_for_repair(
+            asset_id=asset_id,
+            issue_category=issue_category,
+            issue_description=issue_description,
+            priority=priority,
+            performed_by=performed_by,
+            vendor=vendor,
+            engineer=engineer,
+            expected_date=expected_date,
+            comments=comments
+        )
+        logger.info(f"Asset {asset_id} sent for repair by {performed_by}")
+        return jsonify(result), 200
+    except OperationError as e:
+        logger.warning(f"Operation error in send_for_repair: {e.message}")
+        return jsonify({'success': False, 'error': e.message, 'code': e.code}), 400
+    except Exception as e:
+        logger.error(f"Unexpected error in send_for_repair operation: {e}")
+        return jsonify({'success': False, 'error': 'Internal server error', 'details': str(e)}), 500
+
+
+@app.route('/api/operations/complete-repair', methods=['POST'])
+@non_viewer_required
+def complete_repair_operation():
+    """Phase 4.3: Complete Repair"""
+    data = request.get_json() or {}
+    current_user = get_current_user()
+    performed_by = current_user.get('username') if current_user else 'system'
+    
+    repair_id = data.get('repair_id')
+    completion_action = data.get('completion_action', '').strip()
+    diagnosis = data.get('diagnosis', '').strip() or None
+    resolution = data.get('resolution', '').strip() or None
+    repair_cost = data.get('repair_cost', 0.0)
+    comments = data.get('comments', '').strip() or None
+    
+    if not repair_id:
+        return jsonify({'error': 'repair_id is required'}), 400
+    if not completion_action:
+        return jsonify({'error': 'completion_action is required'}), 400
+    
+    try:
+        result = OperationsService.complete_repair(
+            repair_id=repair_id,
+            completion_action=completion_action,
+            performed_by=performed_by,
+            diagnosis=diagnosis,
+            resolution=resolution,
+            repair_cost=repair_cost,
+            comments=comments
+        )
+        logger.info(f"Repair {repair_id} completed by {performed_by}")
+        return jsonify(result), 200
+    except OperationError as e:
+        logger.warning(f"Operation error in complete_repair: {e.message}")
+        return jsonify({'success': False, 'error': e.message, 'code': e.code}), 400
+    except Exception as e:
+        logger.error(f"Unexpected error in complete_repair operation: {e}")
+        return jsonify({'success': False, 'error': 'Internal server error', 'details': str(e)}), 500
+
+
+@app.route('/api/operations/add-repair-part', methods=['POST'])
+@non_viewer_required
+def add_repair_part_operation():
+    """Phase 4.3: Add Part Replacement to Repair"""
+    data = request.get_json() or {}
+    
+    repair_id = data.get('repair_id')
+    part_name = data.get('part_name', '').strip()
+    vendor = data.get('vendor', '').strip() or None
+    cost = data.get('cost', 0.0)
+    replacement_date = data.get('replacement_date', '').strip() or None
+    warranty = data.get('warranty', '').strip() or None
+    remarks = data.get('remarks', '').strip() or None
+    
+    if not repair_id:
+        return jsonify({'error': 'repair_id is required'}), 400
+    if not part_name:
+        return jsonify({'error': 'part_name is required'}), 400
+    
+    try:
+        result = OperationsService.add_repair_part(
+            repair_id=repair_id,
+            part_name=part_name,
+            vendor=vendor,
+            cost=cost,
+            replacement_date=replacement_date,
+            warranty=warranty,
+            remarks=remarks
+        )
+        logger.info(f"Part '{part_name}' added to repair {repair_id}")
+        return jsonify(result), 200
+    except OperationError as e:
+        logger.warning(f"Operation error in add_repair_part: {e.message}")
+        return jsonify({'success': False, 'error': e.message, 'code': e.code}), 400
+    except Exception as e:
+        logger.error(f"Unexpected error in add_repair_part operation: {e}")
+        return jsonify({'success': False, 'error': 'Internal server error', 'details': str(e)}), 500
+
+
+@app.route('/api/repairs/<int:repair_id>', methods=['GET'])
+@token_required
+def get_repair(repair_id):
+    """Get repair details with parts"""
+    from models import AssetRepair
+    try:
+        repair = AssetRepair.query.get(repair_id)
+        if not repair:
+            return jsonify({'error': 'Repair not found'}), 404
+        return jsonify(repair.to_dict()), 200
+    except Exception as e:
+        logger.error(f"Error getting repair {repair_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/assets/<int:asset_id>/repairs', methods=['GET'])
+@token_required
+def get_asset_repairs(asset_id):
+    """Get all repairs for an asset"""
+    from models import AssetRepair
+    try:
+        repairs = AssetRepair.query.filter_by(asset_id=asset_id).order_by(AssetRepair.created_at.desc()).all()
+        return jsonify({'repairs': [r.to_dict() for r in repairs], 'total': len(repairs)}), 200
+    except Exception as e:
+        logger.error(f"Error getting repairs for asset {asset_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # ASSET IMPORT/EXPORT
 # ══════════════════════════════════════════════════════════════════════════════

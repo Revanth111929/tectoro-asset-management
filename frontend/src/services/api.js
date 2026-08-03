@@ -173,6 +173,27 @@ export const assetAPI = {
     console.log('[assetAPI] transferAsset called with:', data);
     return api.post('/operations/transfer', data);
   },
+  // Phase 4.3: Repair Operations
+  sendForRepair: (data) => {
+    console.log('[assetAPI] sendForRepair called with:', data);
+    return api.post('/operations/send-for-repair', data);
+  },
+  completeRepair: (data) => {
+    console.log('[assetAPI] completeRepair called with:', data);
+    return api.post('/operations/complete-repair', data);
+  },
+  addRepairPart: (data) => {
+    console.log('[assetAPI] addRepairPart called with:', data);
+    return api.post('/operations/add-repair-part', data);
+  },
+  getRepair: (repairId) => {
+    console.log('[assetAPI] getRepair called for:', repairId);
+    return api.get(`/repairs/${repairId}`);
+  },
+  getAssetRepairs: (assetId) => {
+    console.log('[assetAPI] getAssetRepairs called for asset:', assetId);
+    return api.get(`/assets/${assetId}/repairs`);
+  },
 };
 
 // ── REPORTS ───────────────────────────────────────────────────────────────────

@@ -577,3 +577,361 @@ class OperationsService:
             'available_operations': operations,
             'asset': asset.to_dict()
         }
+
+
+    @staticmethod
+    def send_for_repair(asset_id: int, issue_category: str, issue_description: str,
+                       priority: str, performed_by: str, vendor: str = None,
+                       engineer: str = None, expected_date: str = None,
+                       comments: str = None) -> Dict:
+        """
+        Operation 4: Send Asset For Repair
+        
+        Validates:
+        - Asset exists and is Assigned
+        
+        Updates:
+        - Asset status → Under Repair
+        - Clear employee assignment
+        - Create repair record
+        - Lifecycle event
+        - Audit log
+        
+        Returns operation result with repair_id
+        """
+        from models import AssetRepair
+        
+        try:
+            # Get asset
+            asset = Asset.query.get(asset_id)
+            if not asset:
+                raise OperationError(f"Asset ID {asset_id} not found", "ASSET_NOT_FOUND")
+            
+            # Validate status
+            if asset.status != 'Assigned':
+                raise OperationError(
+                    f"Asset is not assigned (Status: {asset.status}). "
+                    f"Only 'Assigned' assets can be sent for repair.",
+                    "INVALID_STATUS"
+                )
+            
+            # Validate required fields
+            if not issue_category or not issue_description or not priority:
+                raise OperationError("Issue category, description, and priority are required", "MISSING_REQUIRED_FIELDS")
+            
+            # Store employee context
+            previous_emp_id = asset.emp_id
+            previous_emp_name = asset.employee_name
+            old_status = asset.status
+            
+            # Generate repair number
+            from datetime import datetime as dt
+            repair_count = AssetRepair.query.count() + 1
+            repair_number = f"REP-{dt.now().year}-{repair_count:04d}"
+            
+            # Create repair record
+            repair = AssetRepair(
+                repair_number=repair_number,
+                asset_id=asset.id,
+                issue_category=issue_category,
+                issue_description=issue_description,
+                priority=priority,
+                reported_by=performed_by,
+                reported_date=date.today(),
+                vendor=vendor,
+                engineer=engineer,
+                expected_completion_date=datetime.strptime(expected_date, '%Y-%m-%d').date() if expected_date else None,
+                remarks=comments,
+                status='In Progress',
+                previous_emp_id=previous_emp_id,
+                previous_employee_name=previous_emp_name
+            )
+            db.session.add(repair)
+            
+            # Update asset
+            asset.status = 'Under Repair'
+            asset.emp_id = ''
+            asset.employee_name = ''
+            asset.employee_email = ''
+            asset.mobile_number = ''
+            if comments:
+                asset.comments = comments
+            
+            # Create lifecycle event
+            LifecycleService.record_event(
+                asset_id=asset.id,
+                event_type='REPAIR_STARTED',
+                from_employee_id=previous_emp_id,
+                from_employee=previous_emp_name,
+                from_status=old_status,
+                to_status='Under Repair',
+                reason=f"{issue_category}: {issue_description[:100]}",
+                performed_by=performed_by,
+                remarks=f"Repair #{repair_number} - Priority: {priority}"
+            )
+            
+            # Create audit log
+            AuditService.log(
+                action_type='REPAIR_STARTED',
+                module='Operations',
+                asset_id=asset.id,
+                asset_name=asset.asset_name,
+                asset_serial=asset.serial_number,
+                category=asset.category,
+                employee_id=previous_emp_id,
+                employee_name=previous_emp_name,
+                old_value=f"Status: {old_status}, Employee: {previous_emp_name}",
+                new_value=f"Status: Under Repair, Repair #{repair_number}",
+                performed_by=performed_by,
+                remarks=f"{issue_category} - {priority} priority"
+            )
+            
+            db.session.commit()
+            
+            logger.info(f"Asset {asset.id} sent for repair ({repair_number}) by {performed_by}")
+            
+            return {
+                'success': True,
+                'operation': 'send_for_repair',
+                'message': f"Asset '{asset.asset_name}' sent for repair",
+                'asset': asset.to_dict(),
+                'repair': repair.to_dict(),
+                'repair_number': repair_number
+            }
+            
+        except OperationError:
+            db.session.rollback()
+            raise
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error in send_for_repair: {e}")
+            raise OperationError(f"Failed to send asset for repair: {str(e)}", "REPAIR_START_FAILED")
+
+
+    @staticmethod
+    def complete_repair(repair_id: int, completion_action: str, performed_by: str,
+                       diagnosis: str = None, resolution: str = None,
+                       repair_cost: float = 0.0, comments: str = None) -> Dict:
+        """
+        Operation 5: Complete Repair
+        
+        Completion actions:
+        - return_to_employee: Return to previous employee
+        - return_to_inventory: Make Available
+        - retire: Mark as Retired
+        
+        Validates:
+        - Repair exists and is In Progress
+        - Asset status is Under Repair
+        
+        Updates:
+        - Repair record completed
+        - Asset status based on action
+        - Lifecycle event
+        - Audit log
+        
+        Returns operation result
+        """
+        from models import AssetRepair
+        
+        try:
+            # Get repair
+            repair = AssetRepair.query.get(repair_id)
+            if not repair:
+                raise OperationError(f"Repair ID {repair_id} not found", "REPAIR_NOT_FOUND")
+            
+            if repair.status != 'In Progress':
+                raise OperationError(
+                    f"Repair is not in progress (Status: {repair.status})",
+                    "INVALID_REPAIR_STATUS"
+                )
+            
+            # Get asset
+            asset = Asset.query.get(repair.asset_id)
+            if not asset:
+                raise OperationError(f"Asset ID {repair.asset_id} not found", "ASSET_NOT_FOUND")
+            
+            if asset.status != 'Under Repair':
+                raise OperationError(
+                    f"Asset is not under repair (Status: {asset.status})",
+                    "INVALID_ASSET_STATUS"
+                )
+            
+            # Validate completion action
+            valid_actions = ['return_to_employee', 'return_to_inventory', 'retire']
+            if completion_action not in valid_actions:
+                raise OperationError(
+                    f"Invalid completion action: {completion_action}. Must be one of: {', '.join(valid_actions)}",
+                    "INVALID_COMPLETION_ACTION"
+                )
+            
+            old_status = asset.status
+            
+            # Update repair record
+            repair.status = 'Completed'
+            repair.completion_action = completion_action
+            repair.diagnosis = diagnosis
+            repair.resolution = resolution
+            repair.repair_cost = repair_cost or 0.0
+            repair.actual_completion_date = date.today()
+            repair.completed_at = datetime.now()
+            if comments:
+                repair.remarks = (repair.remarks or '') + '\n' + comments
+            
+            # Execute completion action
+            if completion_action == 'return_to_employee':
+                # Return to previous employee
+                if not repair.previous_emp_id:
+                    raise OperationError("No previous employee found for this repair", "NO_PREVIOUS_EMPLOYEE")
+                
+                # Verify employee still exists and is active
+                employee = Employee.query.filter_by(emp_id=repair.previous_emp_id).first()
+                if not employee or not employee.is_active:
+                    raise OperationError(
+                        f"Previous employee {repair.previous_emp_id} is no longer active. "
+                        f"Please choose 'return_to_inventory' instead.",
+                        "EMPLOYEE_INACTIVE"
+                    )
+                
+                asset.status = 'Assigned'
+                asset.emp_id = repair.previous_emp_id
+                asset.employee_name = repair.previous_employee_name
+                asset.employee_email = employee.email
+                asset.mobile_number = employee.mobile_number
+                asset.date = date.today()
+                
+                new_status_desc = f"Assigned to {repair.previous_employee_name}"
+                
+            elif completion_action == 'return_to_inventory':
+                # Make Available
+                asset.status = 'Available'
+                asset.emp_id = ''
+                asset.employee_name = ''
+                asset.employee_email = ''
+                asset.mobile_number = ''
+                
+                new_status_desc = "Available (Inventory)"
+                
+            elif completion_action == 'retire':
+                # Retire asset
+                asset.status = 'Retired'
+                asset.emp_id = ''
+                asset.employee_name = ''
+                asset.employee_email = ''
+                asset.mobile_number = ''
+                
+                new_status_desc = "Retired"
+            
+            # Create lifecycle event
+            LifecycleService.record_event(
+                asset_id=asset.id,
+                event_type='REPAIR_COMPLETED',
+                to_employee_id=asset.emp_id if completion_action == 'return_to_employee' else None,
+                to_employee=asset.employee_name if completion_action == 'return_to_employee' else None,
+                from_status=old_status,
+                to_status=asset.status,
+                reason=f"Repair completed - {repair.repair_number}",
+                performed_by=performed_by,
+                remarks=f"Action: {completion_action}, Cost: ${repair_cost}"
+            )
+            
+            # Create audit log
+            AuditService.log(
+                action_type='REPAIR_COMPLETED',
+                module='Operations',
+                asset_id=asset.id,
+                asset_name=asset.asset_name,
+                asset_serial=asset.serial_number,
+                category=asset.category,
+                employee_id=asset.emp_id if completion_action == 'return_to_employee' else None,
+                employee_name=asset.employee_name if completion_action == 'return_to_employee' else None,
+                old_value=f"Status: {old_status}, Repair: {repair.repair_number}",
+                new_value=f"Status: {new_status_desc}",
+                performed_by=performed_by,
+                remarks=f"Repair cost: ${repair_cost}, Action: {completion_action}"
+            )
+            
+            db.session.commit()
+            
+            logger.info(f"Repair {repair_id} completed for asset {asset.id} by {performed_by}")
+            
+            return {
+                'success': True,
+                'operation': 'complete_repair',
+                'message': f"Repair completed - Asset {new_status_desc}",
+                'asset': asset.to_dict(),
+                'repair': repair.to_dict(),
+                'completion_action': completion_action
+            }
+            
+        except OperationError:
+            db.session.rollback()
+            raise
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error in complete_repair: {e}")
+            raise OperationError(f"Failed to complete repair: {str(e)}", "REPAIR_COMPLETE_FAILED")
+
+
+    @staticmethod
+    def add_repair_part(repair_id: int, part_name: str, vendor: str = None,
+                       cost: float = 0.0, replacement_date: str = None,
+                       warranty: str = None, remarks: str = None) -> Dict:
+        """
+        Operation 6: Add Part Replacement to Repair
+        
+        Validates:
+        - Repair exists
+        - Part name provided
+        
+        Creates:
+        - RepairPart record
+        - Updates repair cost
+        
+        Returns operation result
+        """
+        from models import AssetRepair, RepairPart
+        
+        try:
+            # Get repair
+            repair = AssetRepair.query.get(repair_id)
+            if not repair:
+                raise OperationError(f"Repair ID {repair_id} not found", "REPAIR_NOT_FOUND")
+            
+            if not part_name or not part_name.strip():
+                raise OperationError("Part name is required", "PART_NAME_REQUIRED")
+            
+            # Create part record
+            part = RepairPart(
+                repair_id=repair_id,
+                part_name=part_name,
+                vendor=vendor,
+                cost=cost or 0.0,
+                replacement_date=datetime.strptime(replacement_date, '%Y-%m-%d').date() if replacement_date else date.today(),
+                warranty=warranty,
+                remarks=remarks
+            )
+            db.session.add(part)
+            
+            # Update repair total cost
+            repair.repair_cost = (repair.repair_cost or 0.0) + (cost or 0.0)
+            
+            db.session.commit()
+            
+            logger.info(f"Part '{part_name}' added to repair {repair_id}")
+            
+            return {
+                'success': True,
+                'operation': 'add_repair_part',
+                'message': f"Part '{part_name}' added to repair",
+                'part': part.to_dict(),
+                'repair': repair.to_dict()
+            }
+            
+        except OperationError:
+            db.session.rollback()
+            raise
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error in add_repair_part: {e}")
+            raise OperationError(f"Failed to add repair part: {str(e)}", "ADD_PART_FAILED")

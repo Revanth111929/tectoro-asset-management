@@ -1047,3 +1047,120 @@ class Inventory(db.Model):
             'created_at': utc_iso(self.created_at),
             'updated_at': utc_iso(self.updated_at),
         }
+
+
+# ─────────────────────────────────────────────
+# ASSET REPAIR TABLE – Phase 4.3
+# ─────────────────────────────────────────────
+class AssetRepair(db.Model):
+    __tablename__ = 'asset_repairs'
+
+    id                      = db.Column(db.Integer, primary_key=True)
+    repair_number           = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    asset_id                = db.Column(db.Integer, db.ForeignKey('assets.id', ondelete='CASCADE'), nullable=False, index=True)
+    
+    # Issue Details
+    issue_category          = db.Column(db.String(50), nullable=False)  # Hardware, Software, Battery, Display, etc.
+    issue_description       = db.Column(db.Text, nullable=False)
+    priority                = db.Column(db.String(20), nullable=False)  # Low, Medium, High, Critical
+    
+    # Reporting
+    reported_by             = db.Column(db.String(100), nullable=False)
+    reported_date           = db.Column(db.Date, nullable=False)
+    
+    # Repair Details
+    vendor                  = db.Column(db.String(200))
+    engineer                = db.Column(db.String(150))
+    repair_cost             = db.Column(db.Float, default=0.0)
+    expected_completion_date = db.Column(db.Date)
+    actual_completion_date  = db.Column(db.Date)
+    diagnosis               = db.Column(db.Text)
+    resolution              = db.Column(db.Text)
+    remarks                 = db.Column(db.Text)
+    
+    # Status Tracking
+    status                  = db.Column(db.String(50), default='Pending', nullable=False)  # Pending, In Progress, Completed, Cancelled
+    
+    # Employee Context (who had it when repair started)
+    previous_emp_id         = db.Column(db.String(50))
+    previous_employee_name  = db.Column(db.String(150))
+    
+    # Completion Action
+    completion_action       = db.Column(db.String(50))  # return_to_employee, return_to_inventory, retire
+    
+    # Timestamps
+    created_at              = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at              = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    completed_at            = db.Column(db.DateTime)
+
+    # Relationships
+    asset = db.relationship('Asset', backref='repairs', foreign_keys=[asset_id])
+    parts = db.relationship('RepairPart', backref='repair', lazy=True, cascade='all, delete-orphan')
+
+    def to_dict(self):
+        return {
+            'id':                      self.id,
+            'repair_number':           self.repair_number,
+            'asset_id':                self.asset_id,
+            'issue_category':          self.issue_category,
+            'issue_description':       self.issue_description,
+            'priority':                self.priority,
+            'reported_by':             self.reported_by,
+            'reported_date':           self.reported_date.isoformat() if self.reported_date else '',
+            'vendor':                  self.vendor or '',
+            'engineer':                self.engineer or '',
+            'repair_cost':             self.repair_cost or 0.0,
+            'expected_completion_date': self.expected_completion_date.isoformat() if self.expected_completion_date else '',
+            'actual_completion_date':  self.actual_completion_date.isoformat() if self.actual_completion_date else '',
+            'diagnosis':               self.diagnosis or '',
+            'resolution':              self.resolution or '',
+            'remarks':                 self.remarks or '',
+            'status':                  self.status,
+            'previous_emp_id':         self.previous_emp_id or '',
+            'previous_employee_name':  self.previous_employee_name or '',
+            'completion_action':       self.completion_action or '',
+            'created_at':              utc_iso(self.created_at),
+            'updated_at':              utc_iso(self.updated_at),
+            'completed_at':            utc_iso(self.completed_at),
+            'parts':                   [p.to_dict() for p in self.parts] if self.parts else [],
+        }
+
+    def __repr__(self):
+        return f'<AssetRepair {self.repair_number} - {self.status}>'
+
+
+# ─────────────────────────────────────────────
+# REPAIR PART TABLE – Phase 4.3
+# ─────────────────────────────────────────────
+class RepairPart(db.Model):
+    __tablename__ = 'repair_parts'
+
+    id                  = db.Column(db.Integer, primary_key=True)
+    repair_id           = db.Column(db.Integer, db.ForeignKey('asset_repairs.id', ondelete='CASCADE'), nullable=False, index=True)
+    
+    # Part Details
+    part_name           = db.Column(db.String(100), nullable=False)  # Battery, SSD, RAM, Keyboard, Screen, etc.
+    vendor              = db.Column(db.String(200))
+    cost                = db.Column(db.Float, default=0.0)
+    replacement_date    = db.Column(db.Date)
+    warranty            = db.Column(db.String(100))  # e.g., "6 months", "1 year"
+    remarks             = db.Column(db.Text)
+    
+    # Timestamps
+    created_at          = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id':              self.id,
+            'repair_id':       self.repair_id,
+            'part_name':       self.part_name,
+            'vendor':          self.vendor or '',
+            'cost':            self.cost or 0.0,
+            'replacement_date': self.replacement_date.isoformat() if self.replacement_date else '',
+            'warranty':        self.warranty or '',
+            'remarks':         self.remarks or '',
+            'created_at':      utc_iso(self.created_at),
+        }
+
+    def __repr__(self):
+        return f'<RepairPart {self.part_name} for Repair {self.repair_id}>'
