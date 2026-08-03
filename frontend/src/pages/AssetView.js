@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { assetAPI } from '../services/api';
+import AssetOperations from '../components/AssetOperations';
 
 function AssetView() {
   const { id }   = useParams();
@@ -13,11 +14,21 @@ function AssetView() {
   const [error,   setError]   = useState('');
 
   useEffect(() => {
+    loadAsset();
+  }, [id]);
+
+  const loadAsset = () => {
+    setLoading(true);
     assetAPI.getById(id)
       .then(res => setAsset(res.data))
       .catch(() => setError('Asset not found'))
       .finally(() => setLoading(false));
-  }, [id]);
+  };
+
+  const handleOperationComplete = (result) => {
+    // Reload asset data after operation
+    loadAsset();
+  };
 
   if (loading) return (
     <div className="d-flex justify-content-center align-items-center" style={{ height: '60vh' }}>
@@ -60,6 +71,7 @@ function AssetView() {
           </div>
         </div>
         <div className="d-flex gap-2">
+          <AssetOperations asset={asset} onOperationComplete={handleOperationComplete} />
           <Link to={`/assets/edit/${asset.id}`} state={{ returnTo: viewUrl }} className="btn btn-primary">
             <i className="bi bi-pencil me-2"></i>Edit
           </Link>

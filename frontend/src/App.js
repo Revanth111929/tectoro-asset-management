@@ -1,6 +1,8 @@
 // App.js – Root component with routing and auth guard
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import LoginPage    from './pages/LoginPage';
 import Dashboard    from './pages/Dashboard';
 import AssetList    from './pages/AssetList';
@@ -106,6 +108,18 @@ function App() {
   return (
     <ErrorBoundary>
       <Router>
+        <ToastContainer
+          position="top-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          newestOnTop={true}
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme="light"
+        />
         <Routes>
         {/* Public */}
         <Route path="/" element={<Navigate to="/login" replace />} />
@@ -151,7 +165,7 @@ function App() {
         {/* Catch-all */}
         <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
       </Routes>
-    </Router>
+      </Router>
     </ErrorBoundary>
   );
 }

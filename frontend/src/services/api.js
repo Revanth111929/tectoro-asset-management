@@ -155,6 +155,19 @@ export const assetAPI = {
     console.log('[assetAPI] getStatusInfo called');
     return api.get('/assets/status-info');
   },
+  // Phase 4.1: Operations Engine
+  getAvailableOperations: (assetId) => {
+    console.log('[assetAPI] getAvailableOperations called for asset:', assetId);
+    return api.get(`/operations/available/${assetId}`);
+  },
+  assignAsset: (data) => {
+    console.log('[assetAPI] assignAsset called with:', data);
+    return api.post('/operations/assign', data);
+  },
+  returnAsset: (data) => {
+    console.log('[assetAPI] returnAsset called with:', data);
+    return api.post('/operations/return', data);
+  },
 };
 
 // ── REPORTS ───────────────────────────────────────────────────────────────────

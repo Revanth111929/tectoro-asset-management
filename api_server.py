@@ -74,6 +74,7 @@ from services.audit_service import AuditService, LifecycleService
 from utils.auth import generate_access_token, generate_refresh_token, token_required, admin_required, get_current_user, non_viewer_required
 from utils.rate_limit import init_limiter, limit_login, limit_api, limit_expensive
 from utils.inventory_validator import InventoryValidator, ValidationError  # Phase 3
+from services.operations_service import OperationsService, OperationError  # Phase 4.1
 
 db.init_app(app)
 
@@ -1630,6 +1631,138 @@ def get_employee_assets_endpoint(emp_id):
         'assets_count': len(assigned_assets),
         'assets': [a.to_dict() for a in assigned_assets]
     }), 200
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PHASE 4.1: OPERATIONS ENGINE - ASSIGN & RETURN
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/operations/available/<int:asset_id>', methods=['GET'])
+@token_required
+def get_available_operations(asset_id):
+    """
+    Get list of valid operations for an asset based on its current status
+    Phase 4.1: Context-aware operations display
+    """
+    try:
+        result = OperationsService.get_available_operations(asset_id)
+        return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Error getting available operations for asset {asset_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/operations/assign', methods=['POST'])
+@non_viewer_required
+def assign_asset_operation():
+    """
+    Phase 4.1: Assign Asset to Employee
+    
+    Request:
+    {
+        "asset_id": 123,
+        "emp_id": "EMP001",
+        "comments": "Optional comments"
+    }
+    
+    Automatically updates:
+    - Asset status and employee fields
+    - Lifecycle event
+    - Audit log
+    """
+    data = request.get_json() or {}
+    current_user = get_current_user()
+    performed_by = current_user.get('username') if current_user else 'system'
+    
+    asset_id = data.get('asset_id')
+    emp_id = data.get('emp_id', '').strip()
+    comments = data.get('comments', '').strip()
+    
+    if not asset_id:
+        return jsonify({'error': 'asset_id is required'}), 400
+    
+    if not emp_id:
+        return jsonify({'error': 'emp_id is required'}), 400
+    
+    try:
+        result = OperationsService.assign_asset(
+            asset_id=asset_id,
+            emp_id=emp_id,
+            performed_by=performed_by,
+            comments=comments if comments else None
+        )
+        
+        logger.info(f"Asset {asset_id} assigned to {emp_id} by {performed_by}")
+        return jsonify(result), 200
+        
+    except OperationError as e:
+        logger.warning(f"Operation error in assign: {e.message}")
+        return jsonify({
+            'success': False,
+            'error': e.message,
+            'code': e.code
+        }), 400
+    except Exception as e:
+        logger.error(f"Unexpected error in assign operation: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Internal server error',
+            'details': str(e)
+        }), 500
+
+
+@app.route('/api/operations/return', methods=['POST'])
+@non_viewer_required  
+def return_asset_operation():
+    """
+    Phase 4.1: Return Asset to Inventory
+    
+    Request:
+    {
+        "asset_id": 123,
+        "comments": "Optional comments"
+    }
+    
+    Automatically updates:
+    - Asset status → Available
+    - Clear employee fields
+    - Lifecycle event
+    - Audit log
+    """
+    data = request.get_json() or {}
+    current_user = get_current_user()
+    performed_by = current_user.get('username') if current_user else 'system'
+    
+    asset_id = data.get('asset_id')
+    comments = data.get('comments', '').strip()
+    
+    if not asset_id:
+        return jsonify({'error': 'asset_id is required'}), 400
+    
+    try:
+        result = OperationsService.return_asset(
+            asset_id=asset_id,
+            performed_by=performed_by,
+            comments=comments if comments else None
+        )
+        
+        logger.info(f"Asset {asset_id} returned by {performed_by}")
+        return jsonify(result), 200
+        
+    except OperationError as e:
+        logger.warning(f"Operation error in return: {e.message}")
+        return jsonify({
+            'success': False,
+            'error': e.message,
+            'code': e.code
+        }), 400
+    except Exception as e:
+        logger.error(f"Unexpected error in return operation: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Internal server error',
+            'details': str(e)
+        }), 500
     
     return jsonify({'success': True, 'message': f'Asset "{name}" deleted'}), 200
 
