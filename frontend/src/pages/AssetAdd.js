@@ -331,6 +331,11 @@ function ExistingDeviceForm({ navigate }) {
   const [selectedEmployee, setSelectedEmployee] = useState(null); // Phase 2
   const [empLookup,  setEmpLookup]  = useState(false);
   
+  // Phase 3 Enhancement: Employee's current assets and category validation
+  const [employeeCurrentAssets, setEmployeeCurrentAssets] = useState([]);
+  const [categoryConflict, setCategoryConflict] = useState(null);
+  const [showCategoryOptions, setShowCategoryOptions] = useState(false);
+  
   // Asset search functionality
   const [assetSearch, setAssetSearch] = useState('');
   const [assetSuggestions, setAssetSuggestions] = useState([]);
@@ -544,7 +549,7 @@ function ExistingDeviceForm({ navigate }) {
   };
 
   // Phase 2: Employee Master Integration Handlers
-  const handleEmployeeSelectFromMaster = (employee) => {
+  const handleEmployeeSelectFromMaster = async (employee) => {
     setSelectedEmployee(employee);
     setForm(f => ({
       ...f,
@@ -557,10 +562,37 @@ function ExistingDeviceForm({ navigate }) {
       location:       employee.location || f.location,
     }));
     setEmpLookup(true);
+    
+    // Phase 3 Enhancement: Load employee's current assets
+    try {
+      const response = await employeeAPI.getAssets(employee.emp_id);
+      const currentAssets = response.data.assets || [];
+      setEmployeeCurrentAssets(currentAssets);
+      
+      // Check for category conflict with selected asset
+      if (form.category && currentAssets.length > 0) {
+        const sameCategory = currentAssets.filter(a => a.category === form.category);
+        if (sameCategory.length > 0) {
+          setCategoryConflict({
+            category: form.category,
+            existing: sameCategory,
+            newAsset: form.asset_name
+          });
+        } else {
+          setCategoryConflict(null);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load employee assets:', err);
+      // Non-blocking error - continue with assignment
+    }
   };
 
   const handleEmployeeClearFromMaster = () => {
     setSelectedEmployee(null);
+    setEmployeeCurrentAssets([]); // Phase 3: Clear current assets
+    setCategoryConflict(null); // Phase 3: Clear category conflict
+    setShowCategoryOptions(false);
     setForm(f => ({
       ...f,
       emp_id:         '',
@@ -589,6 +621,12 @@ function ExistingDeviceForm({ navigate }) {
     // Phase 2: Validate employee exists in Employee Master
     if (!selectedEmployee || !selectedEmployee.emp_id) {
       errs.emp_id = 'Please select an employee from Employee Master';
+      return errs;
+    }
+    
+    // Phase 3 Enhancement: Validate category conflict resolution
+    if (categoryConflict && !showCategoryOptions) {
+      errs.category_conflict = 'Please choose an option: Replace or Keep Both';
       return errs;
     }
     
@@ -884,10 +922,108 @@ function ExistingDeviceForm({ navigate }) {
                 />
                 <small className="text-muted d-block mt-1">
                   <i className="bi bi-info-circle me-1"></i>
-                  Employee must exist in Employee Master. <a href="/employees/add" target="_blank">Add new employee</a> if not found.
+                  Employee must exist in Employee Master. <a href="/employees/add" target="_blank" rel="noopener noreferrer">Add new employee</a> if not found.
                 </small>
               </div>
             </div>
+            
+            {/* Phase 3 Enhancement: Show Employee's Current Assets */}
+            {selectedEmployee && employeeCurrentAssets.length > 0 && (
+              <div className="mt-3 p-3 rounded" style={{ background: 'rgba(13,110,253,0.08)', border: '1px solid rgba(13,110,253,0.25)' }}>
+                <h6 className="fw-bold mb-2" style={{ color: '#0d6efd' }}>
+                  <i className="bi bi-box-seam me-2"></i>
+                  Current Assets Assigned to {selectedEmployee.employee_name}
+                </h6>
+                <div className="table-responsive">
+                  <table className="table table-sm table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th>Category</th>
+                        <th>Asset Name</th>
+                        <th>Serial Number</th>
+                        <th>Assigned Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {employeeCurrentAssets.map((asset, idx) => (
+                        <tr key={idx} className={asset.category === form.category ? 'table-warning' : ''}>
+                          <td>
+                            <span className="badge bg-secondary">{asset.category}</span>
+                            {asset.category === form.category && (
+                              <i className="bi bi-exclamation-triangle-fill text-warning ms-2" title="Same category"></i>
+                            )}
+                          </td>
+                          <td>{asset.asset_name}</td>
+                          <td><code className="small">{asset.serial_number}</code></td>
+                          <td>{asset.assigned_date ? new Date(asset.assigned_date).toLocaleDateString() : 'N/A'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {/* Phase 3 Enhancement: Category Conflict Warning */}
+                {categoryConflict && (
+                  <div className="alert alert-warning mt-3 mb-0 d-flex align-items-start" role="alert">
+                    <i className="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
+                    <div className="flex-grow-1">
+                      <strong>Category Conflict Detected:</strong>
+                      <p className="mb-2 mt-1">
+                        Employee already has {categoryConflict.existing.length} {categoryConflict.category}(s): 
+                        <strong> {categoryConflict.existing.map(a => a.asset_name).join(', ')}</strong>
+                      </p>
+                      <p className="mb-2">
+                        You are assigning another <strong>{categoryConflict.category}</strong>: <strong>{categoryConflict.newAsset}</strong>
+                      </p>
+                      <div className="mt-2">
+                        <p className="mb-2 small"><strong>What would you like to do?</strong></p>
+                        <div className="btn-group btn-group-sm" role="group">
+                          <button 
+                            type="button" 
+                            className={`btn ${showCategoryOptions === 'replace' ? 'btn-primary' : 'btn-outline-primary'}`}
+                            onClick={() => setShowCategoryOptions('replace')}
+                          >
+                            <i className="bi bi-arrow-repeat me-1"></i>
+                            Replace Existing {categoryConflict.category}
+                          </button>
+                          <button 
+                            type="button" 
+                            className={`btn ${showCategoryOptions === 'keep_both' ? 'btn-success' : 'btn-outline-success'}`}
+                            onClick={() => setShowCategoryOptions('keep_both')}
+                          >
+                            <i className="bi bi-plus-circle me-1"></i>
+                            Keep Both {categoryConflict.category}s
+                          </button>
+                        </div>
+                        {showCategoryOptions === 'replace' && (
+                          <div className="alert alert-info mt-2 mb-0 small">
+                            <i className="bi bi-info-circle me-1"></i>
+                            The existing {categoryConflict.category} will be returned to inventory (status: Available) when you submit.
+                          </div>
+                        )}
+                        {showCategoryOptions === 'keep_both' && (
+                          <div className="alert alert-info mt-2 mb-0 small">
+                            <i className="bi bi-info-circle me-1"></i>
+                            Both {categoryConflict.category}s will remain assigned to the employee.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* No conflict - just informational */}
+                {!categoryConflict && (
+                  <div className="alert alert-info mt-3 mb-0 small d-flex align-items-center">
+                    <i className="bi bi-info-circle me-2"></i>
+                    <span>
+                      Total: <strong>{employeeCurrentAssets.length}</strong> asset(s) currently assigned. 
+                      The new <strong>{form.category || 'asset'}</strong> will be added to this employee's inventory.
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Dynamic Asset Form - without purchase section */}

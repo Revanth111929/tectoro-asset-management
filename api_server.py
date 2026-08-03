@@ -1505,7 +1505,7 @@ def validate_serial_number():
 @token_required
 def validate_asset_assignment_endpoint():
     """
-    Phase 3: Comprehensive validation for asset assignment
+    Phase 3 Enhancement: Comprehensive validation for asset assignment
     
     Request body:
     {
@@ -1513,7 +1513,11 @@ def validate_asset_assignment_endpoint():
         "emp_id": "EMP001"
     }
     
-    Returns complete validation result with all checks
+    Returns complete validation result with actionable information:
+    - Current assignee details (if already assigned)
+    - Employee's current assets (before assignment)
+    - Category conflict options (replace or keep both)
+    - Available actions based on asset status
     """
     data = request.get_json() or {}
     asset_id = data.get('asset_id')
@@ -1525,7 +1529,7 @@ def validate_asset_assignment_endpoint():
     if not emp_id:
         return jsonify({'valid': False, 'errors': ['Employee ID is required']}), 400
     
-    # Perform comprehensive validation
+    # Perform comprehensive validation with enhancements
     validation_result = InventoryValidator.validate_asset_assignment(asset_id, emp_id)
     
     response = {
@@ -1533,10 +1537,13 @@ def validate_asset_assignment_endpoint():
         'errors': validation_result['errors'],
         'warnings': validation_result['warnings'],
         'asset': validation_result['asset'].to_dict() if validation_result['asset'] else None,
-        'employee': validation_result['employee'].to_dict() if validation_result['employee'] else None
+        'employee': validation_result['employee'].to_dict() if validation_result['employee'] else None,
+        'employee_current_assets': validation_result.get('employee_current_assets', []),
+        'details': validation_result.get('details', {}),
+        'category_options': validation_result.get('category_options')
     }
     
-    status_code = 200 if validation_result['valid'] else 400
+    status_code = 200  # Always 200, client checks 'valid' field
     return jsonify(response), status_code
 
 
@@ -1544,23 +1551,24 @@ def validate_asset_assignment_endpoint():
 @token_required
 def validate_asset_availability_endpoint(asset_id):
     """
-    Phase 3: Check if an asset is available for assignment
+    Phase 3 Enhancement: Check if an asset is available for assignment
     
-    Returns asset status and whether it can be assigned
+    Returns asset status, actionable information, and available operations
     """
     asset = Asset.query.get(asset_id)
     
     if not asset:
         return jsonify({'valid': False, 'error': 'Asset not found'}), 404
     
-    is_valid, error = InventoryValidator.validate_asset_available(asset)
+    is_valid, error, details = InventoryValidator.validate_asset_available(asset, include_details=True)
     
     return jsonify({
         'valid': is_valid,
         'error': error,
         'asset': asset.to_dict(),
         'status': asset.status,
-        'assignable': is_valid
+        'assignable': is_valid,
+        'details': details or {}
     }), 200
 
 

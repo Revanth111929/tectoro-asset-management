@@ -138,6 +138,23 @@ export const assetAPI = {
   getExpiring: (days) => api.get('/assets/warranty/expiring', { params: { days } }),
   getHistory: (id) => api.get(`/assets/${id}/history`),
   bulkUpdate: (ids, data) => api.put('/assets/bulk', { ids, ...data }),
+  // Phase 3: Validation endpoints
+  validateSerialNumber: (data) => {
+    console.log('[assetAPI] validateSerialNumber called with:', data);
+    return api.post('/assets/validate/serial-number', data);
+  },
+  validateAssignment: (data) => {
+    console.log('[assetAPI] validateAssignment called with:', data);
+    return api.post('/assets/validate/assignment', data);
+  },
+  validateAvailability: (assetId) => {
+    console.log('[assetAPI] validateAvailability called for asset:', assetId);
+    return api.get(`/assets/validate/availability/${assetId}`);
+  },
+  getStatusInfo: () => {
+    console.log('[assetAPI] getStatusInfo called');
+    return api.get('/assets/status-info');
+  },
 };
 
 // ── REPORTS ───────────────────────────────────────────────────────────────────
@@ -181,6 +198,11 @@ export const employeeAPI = {
   getAssets: (emp_id) => api.get(`/employees/${emp_id}/assets`),
   getAssetHistory: (emp_id) => api.get(`/employees/${emp_id}/asset-history`),
   processExit: (emp_id, data) => api.post(`/employees/${emp_id}/exit`, data),
+  // Phase 3: Validation endpoint
+  validate: (emp_id) => {
+    console.log('[employeeAPI] validate called for employee:', emp_id);
+    return api.get(`/employees/validate/${emp_id}`);
+  },
 };
 
 // ── ADMIN PROFILE ─────────────────────────────────────────────────────────────
