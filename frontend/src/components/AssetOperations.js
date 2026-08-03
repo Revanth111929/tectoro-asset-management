@@ -30,6 +30,25 @@ const AssetOperations = ({ asset, onOperationComplete }) => {
   const [selectedSwapAsset, setSelectedSwapAsset] = useState(null);
   const [loadingEmployeeAssets, setLoadingEmployeeAssets] = useState(false);
   
+  // Repair operation state
+  const [repairCategory, setRepairCategory] = useState('Hardware');
+  const [repairDescription, setRepairDescription] = useState('');
+  const [repairPriority, setRepairPriority] = useState('Medium');
+  const [repairVendor, setRepairVendor] = useState('');
+  const [repairEngineer, setRepairEngineer] = useState('');
+  const [repairExpectedDate, setRepairExpectedDate] = useState('');
+  const [repairComments, setRepairComments] = useState('');
+  
+  // Complete repair state
+  const [completionAction, setCompletionAction] = useState('return_to_inventory');
+  const [repairDiagnosis, setRepairDiagnosis] = useState('');
+  const [repairResolution, setRepairResolution] = useState('');
+  const [repairCost, setRepairCost] = useState('');
+  const [completeComments, setCompleteComments] = useState('');
+  const [assetRepairs, setAssetRepairs] = useState([]);
+  const [selectedRepair, setSelectedRepair] = useState(null);
+  const [loadingRepairs, setLoadingRepairs] = useState(false);
+  
   // Load available operations
   useEffect(() => {
     if (asset && asset.id) {
@@ -50,7 +69,7 @@ const AssetOperations = ({ asset, onOperationComplete }) => {
     }
   };
   
-  const handleOperationClick = (operation) => {
+  const handleOperationClick = async (operation) => {
     setCurrentOperation(operation);
     setShowModal(true);
     // Reset form state
@@ -63,6 +82,24 @@ const AssetOperations = ({ asset, onOperationComplete }) => {
     setTransferMode('simple');
     setEmployeeAssets([]);
     setSelectedSwapAsset(null);
+    setRepairCategory('Hardware');
+    setRepairDescription('');
+    setRepairPriority('Medium');
+    setRepairVendor('');
+    setRepairEngineer('');
+    setRepairExpectedDate('');
+    setRepairComments('');
+    setCompletionAction('return_to_inventory');
+    setRepairDiagnosis('');
+    setRepairResolution('');
+    setRepairCost('');
+    setCompleteComments('');
+    setSelectedRepair(null);
+    
+    // Load repairs for complete_repair operation
+    if (operation.operation === 'complete_repair') {
+      await loadAssetRepairs();
+    }
   };
   
   const handleCloseModal = () => {
@@ -182,6 +219,87 @@ const AssetOperations = ({ asset, onOperationComplete }) => {
       }
     } catch (err) {
       const errorMsg = err.response?.data?.error || 'Failed to transfer asset';
+      toast.error(`❌ ${errorMsg}`);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const loadAssetRepairs = async () => {
+    setLoadingRepairs(true);
+    try {
+      const response = await assetAPI.getAssetRepairs(asset.id);
+      const repairs = response.data.repairs || [];
+      // Filter for In Progress repairs
+      const inProgressRepairs = repairs.filter(r => r.status === 'In Progress');
+      setAssetRepairs(inProgressRepairs);
+      if (inProgressRepairs.length > 0) {
+        setSelectedRepair(inProgressRepairs[0]);
+      }
+    } catch (err) {
+      console.error('Failed to load repairs:', err);
+      setAssetRepairs([]);
+    } finally {
+      setLoadingRepairs(false);
+    }
+  };
+
+  const handleSendForRepair = async () => {
+    if (!repairDescription.trim()) {
+      toast.error('Issue description is required');
+      return;
+    }
+    
+    setProcessing(true);
+    try {
+      const response = await assetAPI.sendForRepair({
+        asset_id: asset.id,
+        issue_category: repairCategory,
+        issue_description: repairDescription,
+        priority: repairPriority,
+        vendor: repairVendor || undefined,
+        engineer: repairEngineer || undefined,
+        expected_date: repairExpectedDate || undefined,
+        comments: repairComments || undefined
+      });
+      
+      toast.success(`✅ ${response.data.message} - Repair #${response.data.repair_number}`);
+      handleCloseModal();
+      if (onOperationComplete) {
+        onOperationComplete(response.data);
+      }
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Failed to send asset for repair';
+      toast.error(`❌ ${errorMsg}`);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleCompleteRepair = async () => {
+    if (!selectedRepair) {
+      toast.error('No repair selected');
+      return;
+    }
+    
+    setProcessing(true);
+    try {
+      const response = await assetAPI.completeRepair({
+        repair_id: selectedRepair.id,
+        completion_action: completionAction,
+        diagnosis: repairDiagnosis || undefined,
+        resolution: repairResolution || undefined,
+        repair_cost: parseFloat(repairCost) || 0,
+        comments: completeComments || undefined
+      });
+      
+      toast.success(`✅ ${response.data.message}`);
+      handleCloseModal();
+      if (onOperationComplete) {
+        onOperationComplete(response.data);
+      }
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Failed to complete repair';
       toast.error(`❌ ${errorMsg}`);
     } finally {
       setProcessing(false);
@@ -414,6 +532,155 @@ const AssetOperations = ({ asset, onOperationComplete }) => {
                     </div>
                   </div>
                 )}
+                
+                {currentOperation.operation === 'repair' && (
+                  <div>
+                    <p className="text-muted">{currentOperation.description}</p>
+                    
+                    <div className="alert alert-info">
+                      <i className="bi bi-info-circle me-2"></i>
+                      <strong>Current Assignment:</strong><br/>
+                      Employee: {asset.employee_name} ({asset.emp_id})<br/>
+                      Asset will be sent for repair and unassigned from employee
+                    </div>
+                    
+                    <div className="mb-3">
+                      <label className="form-label fw-bold">Issue Category <span className="text-danger">*</span></label>
+                      <select className="form-select" value={repairCategory} onChange={(e) => setRepairCategory(e.target.value)}>
+                        <option value="Hardware">Hardware</option>
+                        <option value="Software">Software</option>
+                        <option value="Battery">Battery</option>
+                        <option value="Display">Display</option>
+                        <option value="Keyboard">Keyboard</option>
+                        <option value="Touchpad">Touchpad</option>
+                        <option value="Motherboard">Motherboard</option>
+                        <option value="Storage">Storage</option>
+                        <option value="RAM">RAM</option>
+                        <option value="Network">Network</option>
+                        <option value="Power">Power</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    
+                    <div className="mb-3">
+                      <label className="form-label fw-bold">Issue Description <span className="text-danger">*</span></label>
+                      <textarea
+                        className="form-control"
+                        rows="3"
+                        value={repairDescription}
+                        onChange={(e) => setRepairDescription(e.target.value)}
+                        placeholder="Describe the issue in detail..."
+                        required
+                      />
+                    </div>
+                    
+                    <div className="mb-3">
+                      <label className="form-label fw-bold">Priority <span className="text-danger">*</span></label>
+                      <select className="form-select" value={repairPriority} onChange={(e) => setRepairPriority(e.target.value)}>
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Critical">Critical</option>
+                      </select>
+                    </div>
+                    
+                    <div className="row">
+                      <div className="col-md-6 mb-3">
+                        <label className="form-label">Vendor</label>
+                        <input type="text" className="form-control" value={repairVendor} onChange={(e) => setRepairVendor(e.target.value)} placeholder="Service center name" />
+                      </div>
+                      <div className="col-md-6 mb-3">
+                        <label className="form-label">Engineer</label>
+                        <input type="text" className="form-control" value={repairEngineer} onChange={(e) => setRepairEngineer(e.target.value)} placeholder="Technician name" />
+                      </div>
+                    </div>
+                    
+                    <div className="mb-3">
+                      <label className="form-label">Expected Completion Date</label>
+                      <input type="date" className="form-control" value={repairExpectedDate} onChange={(e) => setRepairExpectedDate(e.target.value)} />
+                    </div>
+                    
+                    <div className="mb-3">
+                      <label className="form-label">Additional Notes</label>
+                      <textarea className="form-control" rows="2" value={repairComments} onChange={(e) => setRepairComments(e.target.value)} placeholder="Any additional information..." />
+                    </div>
+                  </div>
+                )}
+                
+                {currentOperation.operation === 'complete_repair' && (
+                  <div>
+                    <p className="text-muted">{currentOperation.description}</p>
+                    
+                    {loadingRepairs ? (
+                      <div className="text-center py-3">
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        Loading repairs...
+                      </div>
+                    ) : assetRepairs.length === 0 ? (
+                      <div className="alert alert-warning">
+                        <i className="bi bi-exclamation-triangle me-2"></i>
+                        No active repairs found for this asset
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mb-3">
+                          <label className="form-label fw-bold">Select Repair</label>
+                          <select className="form-select" value={selectedRepair?.id || ''} onChange={(e) => {
+                            const repair = assetRepairs.find(r => r.id === parseInt(e.target.value));
+                            setSelectedRepair(repair);
+                          }}>
+                            {assetRepairs.map(r => (
+                              <option key={r.id} value={r.id}>
+                                {r.repair_number} - {r.issue_category} ({r.priority}) - Started: {r.reported_date}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        
+                        {selectedRepair && (
+                          <div className="alert alert-info small mb-3">
+                            <strong>Issue:</strong> {selectedRepair.issue_description}<br/>
+                            <strong>Previous Employee:</strong> {selectedRepair.previous_employee_name || 'N/A'}
+                          </div>
+                        )}
+                        
+                        <div className="mb-3">
+                          <label className="form-label fw-bold">Completion Action <span className="text-danger">*</span></label>
+                          <select className="form-select" value={completionAction} onChange={(e) => setCompletionAction(e.target.value)}>
+                            <option value="return_to_inventory">Return to Inventory (Available)</option>
+                            <option value="return_to_employee">Return to Previous Employee</option>
+                            <option value="retire">Retire Asset</option>
+                          </select>
+                          <div className="form-text">
+                            {completionAction === 'return_to_inventory' && 'Asset will be available for assignment'}
+                            {completionAction === 'return_to_employee' && `Asset will be reassigned to ${selectedRepair?.previous_employee_name || 'previous employee'}`}
+                            {completionAction === 'retire' && 'Asset will be marked as retired'}
+                          </div>
+                        </div>
+                        
+                        <div className="mb-3">
+                          <label className="form-label">Diagnosis</label>
+                          <textarea className="form-control" rows="2" value={repairDiagnosis} onChange={(e) => setRepairDiagnosis(e.target.value)} placeholder="What was found during inspection..." />
+                        </div>
+                        
+                        <div className="mb-3">
+                          <label className="form-label">Resolution</label>
+                          <textarea className="form-control" rows="2" value={repairResolution} onChange={(e) => setRepairResolution(e.target.value)} placeholder="What was done to fix the issue..." />
+                        </div>
+                        
+                        <div className="mb-3">
+                          <label className="form-label">Repair Cost ($)</label>
+                          <input type="number" className="form-control" value={repairCost} onChange={(e) => setRepairCost(e.target.value)} placeholder="0.00" step="0.01" min="0" />
+                        </div>
+                        
+                        <div className="mb-3">
+                          <label className="form-label">Additional Comments</label>
+                          <textarea className="form-control" rows="2" value={completeComments} onChange={(e) => setCompleteComments(e.target.value)} placeholder="Any final notes..." />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
               
               <div className="modal-footer">
@@ -432,9 +699,11 @@ const AssetOperations = ({ asset, onOperationComplete }) => {
                     currentOperation.operation === 'assign' ? handleAssign :
                     currentOperation.operation === 'return' ? handleReturn :
                     currentOperation.operation === 'transfer' ? handleTransfer :
+                    currentOperation.operation === 'repair' ? handleSendForRepair :
+                    currentOperation.operation === 'complete_repair' ? handleCompleteRepair :
                     null
                   }
-                  disabled={processing}
+                  disabled={processing || (currentOperation.operation === 'complete_repair' && assetRepairs.length === 0)}
                 >
                   {processing ? (
                     <>

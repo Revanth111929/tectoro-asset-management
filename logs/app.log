@@ -10929,3 +10929,16 @@ NameError: name 'func' is not defined
 2026-08-03 22:17:06,099 [INFO] __main__: Database tables initialized (office database — seeding never runs)
 2026-08-03 22:17:06,111 [WARNING] werkzeug:  * Debugger is active!
 2026-08-03 22:17:06,111 [INFO] werkzeug:  * Debugger PIN: 133-244-723
+2026-08-03 22:32:14,858 [INFO] __main__: Database tables initialized (office database — seeding never runs)
+2026-08-03 22:32:14,869 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:3000
+ * Running on http://192.168.20.180:3000
+2026-08-03 22:32:14,869 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-08-03 22:32:14,870 [INFO] werkzeug:  * Restarting with stat
+2026-08-03 22:32:15,340 [INFO] __main__: Database tables initialized (office database — seeding never runs)
+2026-08-03 22:32:15,350 [WARNING] werkzeug:  * Debugger is active!
+2026-08-03 22:32:15,351 [INFO] werkzeug:  * Debugger PIN: 470-249-354
+2026-08-03 22:32:24,680 [INFO] werkzeug: 127.0.0.1 - - [03/Aug/2026 22:32:24] "GET /api/health HTTP/1.1" 200 -
+2026-08-03 22:33:06,740 [INFO] werkzeug: 127.0.0.1 - - [03/Aug/2026 22:33:06] "OPTIONS /api/operations/send-for-repair HTTP/1.1" 200 -
+2026-08-03 22:33:06,749 [INFO] werkzeug: 127.0.0.1 - - [03/Aug/2026 22:33:06] "OPTIONS /api/operations/complete-repair HTTP/1.1" 200 -
