@@ -1,40 +1,36 @@
- * Serving Flask app 'app'
+============================================================
+Backend:            api_server.py
+Environment:        office
+Database URI:       sqlite:////home/administrator/Desktop/asset-management/databases/local_assets.db
+Resolved DB file:   /home/administrator/Desktop/asset-management/databases/local_assets.db
+SQLAlchemy Engine:  sqlite:////home/administrator/Desktop/asset-management/databases/local_assets.db
+PID:                45245
+============================================================
+2026-08-03 13:15:41,735 [INFO] __main__: Database tables initialized (office database — seeding never runs)
+============================================================
+🚀  IT Asset Management API
+============================================================
+✅  API:    http://0.0.0.0:3000
+✅  Health: http://localhost:3000/api/health
+⚛️   React:  Served from /frontend/build
+============================================================
+ * Serving Flask app 'api_server'
  * Debug mode: on
-[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+2026-08-03 13:15:41,791 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
  * Running on all addresses (0.0.0.0)
  * Running on http://127.0.0.1:3000
  * Running on http://192.168.20.180:3000
-[33mPress CTRL+C to quit[0m
- * Restarting with stat
- * Debugger is active!
- * Debugger PIN: 529-038-501
-192.168.20.180 - - [29/Jul/2026 13:21:30] "[31m[1mGET /ws HTTP/1.1[0m" 400 -
-127.0.0.1 - - [29/Jul/2026 13:21:31] "GET /dashboard HTTP/1.1" 200 -
-127.0.0.1 - - [29/Jul/2026 13:21:31] "GET /static/css/main.88101b86.css HTTP/1.1" 200 -
-127.0.0.1 - - [29/Jul/2026 13:21:31] "GET /static/js/main.96db90b5.js HTTP/1.1" 200 -
-127.0.0.1 - - [29/Jul/2026 13:21:31] "GET /static/media/bootstrap-icons.92ea18a81d737146ff04.woff2 HTTP/1.1" 200 -
-127.0.0.1 - - [29/Jul/2026 13:21:31] "GET /static/media/tectoro-login-logo.cac63a34d48239d7957e.png HTTP/1.1" 200 -
-127.0.0.1 - - [29/Jul/2026 13:21:31] "GET /favicon.ico HTTP/1.1" 200 -
-127.0.0.1 - - [29/Jul/2026 13:21:31] "[36mGET /favicon.ico HTTP/1.1[0m" 304 -
-127.0.0.1 - - [29/Jul/2026 13:21:31] "[36mGET /favicon.ico HTTP/1.1[0m" 304 -
-127.0.0.1 - - [29/Jul/2026 13:21:31] "[36mGET /favicon.ico HTTP/1.1[0m" 304 -
-127.0.0.1 - - [29/Jul/2026 13:21:32] "[36mGET /favicon.ico HTTP/1.1[0m" 304 -
-192.168.20.180 - - [29/Jul/2026 13:21:33] "GET /api/dashboard/stats HTTP/1.1" 200 -
-192.168.20.180 - - [29/Jul/2026 13:21:33] "[31m[1mGET /ws HTTP/1.1[0m" 400 -
-192.168.20.180 - - [29/Jul/2026 13:21:38] "[31m[1mGET /ws HTTP/1.1[0m" 400 -
-192.168.20.180 - - [29/Jul/2026 13:21:47] "[31m[1mGET /ws HTTP/1.1[0m" 400 -
-127.0.0.1 - - [29/Jul/2026 13:21:51] "GET /login HTTP/1.1" 200 -
-127.0.0.1 - - [29/Jul/2026 13:21:51] "[36mGET /static/css/main.88101b86.css HTTP/1.1[0m" 304 -
-127.0.0.1 - - [29/Jul/2026 13:21:51] "[36mGET /static/js/main.96db90b5.js HTTP/1.1[0m" 304 -
-127.0.0.1 - - [29/Jul/2026 13:21:51] "[36mGET /static/media/tectoro-login-logo.cac63a34d48239d7957e.png HTTP/1.1[0m" 304 -
-127.0.0.1 - - [29/Jul/2026 13:21:51] "[36mGET /static/media/bootstrap-icons.92ea18a81d737146ff04.woff2 HTTP/1.1[0m" 304 -
-127.0.0.1 - - [29/Jul/2026 13:21:51] "[36mGET /favicon.ico HTTP/1.1[0m" 304 -
-127.0.0.1 - - [29/Jul/2026 13:21:51] "[36mGET /favicon.ico HTTP/1.1[0m" 304 -
-127.0.0.1 - - [29/Jul/2026 13:21:52] "[36mGET /favicon.ico HTTP/1.1[0m" 304 -
-127.0.0.1 - - [29/Jul/2026 13:21:56] "[36mGET /login HTTP/1.1[0m" 304 -
-127.0.0.1 - - [29/Jul/2026 13:21:56] "[36mGET /static/css/main.88101b86.css HTTP/1.1[0m" 304 -
-127.0.0.1 - - [29/Jul/2026 13:21:56] "[36mGET /static/js/main.96db90b5.js HTTP/1.1[0m" 304 -
-127.0.0.1 - - [29/Jul/2026 13:21:56] "[36mGET /static/media/tectoro-login-logo.cac63a34d48239d7957e.png HTTP/1.1[0m" 304 -
-127.0.0.1 - - [29/Jul/2026 13:21:56] "[36mGET /static/media/bootstrap-icons.92ea18a81d737146ff04.woff2 HTTP/1.1[0m" 304 -
-127.0.0.1 - - [29/Jul/2026 13:21:57] "[36mGET /favicon.ico HTTP/1.1[0m" 304 -
-192.168.20.180 - - [29/Jul/2026 13:22:04] "[31m[1mGET /ws HTTP/1.1[0m" 400 -
+2026-08-03 13:15:41,791 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-08-03 13:15:41,791 [INFO] werkzeug:  * Restarting with stat
+============================================================
+Backend:            api_server.py
+Environment:        office
+Database URI:       sqlite:////home/administrator/Desktop/asset-management/databases/local_assets.db
+Resolved DB file:   /home/administrator/Desktop/asset-management/databases/local_assets.db
+SQLAlchemy Engine:  sqlite:////home/administrator/Desktop/asset-management/databases/local_assets.db
+PID:                45252
+============================================================
+2026-08-03 13:15:42,207 [INFO] __main__: Database tables initialized (office database — seeding never runs)
+2026-08-03 13:15:42,217 [WARNING] werkzeug:  * Debugger is active!
+2026-08-03 13:15:42,217 [INFO] werkzeug:  * Debugger PIN: 136-377-553
+2026-08-03 13:15:44,418 [INFO] werkzeug: 192.168.20.180 - - [03/Aug/2026 13:15:44] "GET /api/dashboard/stats HTTP/1.1" 200 -

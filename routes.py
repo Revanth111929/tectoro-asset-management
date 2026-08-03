@@ -415,6 +415,8 @@ def api_asset_detail(asset_id):
 def api_delete_asset(asset_id):
     """Delete an asset"""
     try:
+        from models import AssetLifecycle, InvoiceAttachment
+        
         asset = Asset.query.get_or_404(asset_id)
         asset_name = asset.asset_name
         serial = asset.serial_number
@@ -422,6 +424,25 @@ def api_delete_asset(asset_id):
         # Create audit log before deletion
         AuditService.log_asset_deleted(asset, 'admin')
         
+        # Delete related records first to avoid foreign key constraint errors
+        # 1. Delete lifecycle events
+        AssetLifecycle.query.filter_by(asset_id=asset_id).delete()
+        
+        # 2. Delete invoice attachment if exists
+        invoice = InvoiceAttachment.query.filter_by(asset_id=asset_id).first()
+        if invoice:
+            # Delete the physical file
+            import os
+            file_path = os.path.join(os.path.dirname(__file__), invoice.storage_path)
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except:
+                    pass
+            # Delete database record
+            db.session.delete(invoice)
+        
+        # 3. Now delete the asset
         db.session.delete(asset)
         
         # Log activity (legacy)
@@ -1404,20 +1425,49 @@ def test_email_config():
 
 @api_bp.route('/employees', methods=['GET'])
 def get_employees():
-    from models import Employee
+    # NOTE: employees are not created via a separate onboarding flow in
+    # this deployment - the Employee table is empty. Every real employee
+    # record lives only in Asset.emp_id / employee_name / employee_email /
+    # mobile_number / location, exactly as the main Employees.js page
+    # already derives its list. This query mirrors that, server-side,
+    # so autocomplete search actually finds real data instead of querying
+    # an empty table. Root cause fix only - no frontend/component changes.
     q = request.args.get('q', '').strip()
-    # Filter for active employees (including NULL is_active which means active)
-    query = Employee.query.filter(
-        or_(Employee.is_active == True, Employee.is_active == None)
-    )
+
+    asset_query = Asset.query.filter(Asset.emp_id != None, Asset.emp_id != '')
     if q:
-        query = query.filter(
-            or_(Employee.emp_id.ilike(f'%{q}%'),
-                Employee.employee_name.ilike(f'%{q}%'),
-                Employee.email.ilike(f'%{q}%'))
+        asset_query = asset_query.filter(
+            or_(Asset.emp_id.ilike(f'%{q}%'),
+                Asset.employee_name.ilike(f'%{q}%'),
+                Asset.employee_email.ilike(f'%{q}%'))
         )
-    employees = query.order_by(Employee.employee_name).limit(20).all()
-    return jsonify([e.to_dict() for e in employees])
+    rows = asset_query.order_by(Asset.employee_name).all()
+
+    seen = set()
+    results = []
+    for a in rows:
+        if a.emp_id in seen:
+            continue
+        seen.add(a.emp_id)
+        results.append({
+            'id': None,
+            'emp_id': a.emp_id,
+            'employee_name': a.employee_name or '',
+            'email': a.employee_email or '',
+            'mobile_number': a.mobile_number or '',
+            'department': '',
+            'designation': '',
+            'location': a.location or '',
+            'is_active': True,
+            'status': 'Active',
+            'exit_date': None,
+            'application_access': '',
+            'onboarding_id': None,
+        })
+        if len(results) >= 20:
+            break
+
+    return jsonify(results)
 
 @api_bp.route('/employees/<string:emp_id>', methods=['GET'])
 def get_employee(emp_id):
@@ -1824,3 +1874,83 @@ def get_corporate_sim_stats():
         'damaged': damaged,
         'carriers': [{'name': c[0], 'count': c[1]} for c in carrier_stats]
     })
+
+
+@api_bp.route('/assets/<int:asset_id>/assignment-form', methods=['GET'])
+def api_generate_assignment_form_pdf(asset_id):
+    """Generate PDF assignment form for a single asset.
+    Ported from api_server.py so it works on the actual production
+    entry point (app.py / routes.py), which previously lacked this
+    route entirely. No @token_required here (unlike the original) -
+    routes.py does not use JWT tokens, it uses the signed itsdangerous
+    token from api_login, so this matches every other route in this
+    file (no auth decorator on read endpoints like GET /assets)."""
+    from models import Employee
+    from services.pdf_generator import create_pdf_generator
+
+    try:
+        asset = Asset.query.get(asset_id)
+        if not asset:
+            return jsonify({'error': 'Asset not found'}), 404
+
+        asset_data = {
+            'asset_id': asset.id,
+            'asset_name': asset.asset_name or 'N/A',
+            'category': asset.category or 'N/A',
+            'serial_number': asset.serial_number or 'N/A',
+            'model': asset.model_name or 'N/A',
+            'status': asset.status or 'N/A',
+            'processor': asset.processor or 'N/A',
+            'ram': asset.ram or 'N/A',
+            'storage_capacity': asset.storage_capacity or 'N/A',
+            'operating_system': asset.os or 'N/A',
+            'invoice_number': asset.invoice_number or 'N/A',
+            'invoice_date': asset.invoice_date.strftime('%d-%m-%Y') if asset.invoice_date else 'N/A',
+            'warranty_date': asset.warranty_date.strftime('%d-%m-%Y') if asset.warranty_date else 'N/A',
+            'charger_serial': asset.charger_serial or 'N/A',
+            'assignment_date': asset.date.strftime('%d-%m-%Y') if asset.date else datetime.now().strftime('%d-%m-%Y'),
+            'issued_by': 'Admin',
+        }
+
+        if asset.emp_id:
+            employee = Employee.query.filter_by(emp_id=asset.emp_id).first()
+            if employee:
+                asset_data['employee_id'] = employee.emp_id
+                asset_data['employee_name'] = employee.employee_name
+                asset_data['department'] = employee.department or 'N/A'
+                asset_data['mobile'] = employee.mobile_number or 'N/A'
+                asset_data['email'] = employee.email or 'N/A'
+                asset_data['location'] = employee.location or 'N/A'
+            else:
+                asset_data['employee_id'] = asset.emp_id
+                asset_data['employee_name'] = asset.employee_name or 'N/A'
+                asset_data['department'] = 'N/A'
+                asset_data['mobile'] = asset.mobile_number or 'N/A'
+                asset_data['email'] = asset.employee_email or 'N/A'
+                asset_data['location'] = asset.location or 'N/A'
+        else:
+            asset_data['employee_id'] = 'N/A'
+            asset_data['employee_name'] = 'Unassigned'
+            asset_data['department'] = 'N/A'
+            asset_data['mobile'] = 'N/A'
+            asset_data['email'] = 'N/A'
+            asset_data['location'] = asset.location or 'N/A'
+
+        pdf_generator = create_pdf_generator()
+        pdf_bytes = pdf_generator.generate_assignment_form(asset_data)
+
+        pdf_buffer = io.BytesIO(pdf_bytes)
+        pdf_buffer.seek(0)
+
+        return send_file(
+            pdf_buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'Assignment_Form_{asset_id}_{asset.asset_name or "Asset"}.pdf'.replace(' ', '_')
+        )
+
+    except Exception as e:
+        print('Error generating assignment form PDF:', e)
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500

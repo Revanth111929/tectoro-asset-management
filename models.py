@@ -186,6 +186,7 @@ class Asset(db.Model):
     status               = db.Column(db.String(30), default='Available', index=True)  # Available / Assigned / Maintenance / Retired
     created_at           = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at           = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    inventory_id         = db.Column(db.Integer, db.ForeignKey('inventory.id'), nullable=True, index=True)
 
     def __repr__(self):
         return f'<Asset {self.asset_name} [{self.serial_number}]>'
@@ -371,7 +372,7 @@ class AssetLifecycle(db.Model):
     __tablename__ = 'asset_lifecycle'
 
     id                = db.Column(db.Integer, primary_key=True)
-    asset_id          = db.Column(db.Integer, db.ForeignKey('assets.id'), nullable=False, index=True)
+    asset_id          = db.Column(db.Integer, db.ForeignKey('assets.id', ondelete='CASCADE'), nullable=False, index=True)
     event_type        = db.Column(db.String(50), nullable=False)  # PROCURED, ASSIGNED, RETURNED, REPAIR, REPLACED, RETIRED
     event_date        = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
     
@@ -456,8 +457,10 @@ class TemporaryAssignment(db.Model):
     updated_at             = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    original_asset = db.relationship('Asset', foreign_keys=[original_asset_id], backref='original_temp_assignments')
-    temp_asset = db.relationship('Asset', foreign_keys=[temp_asset_id], backref='temp_assignments')
+    original_asset = db.relationship('Asset', foreign_keys=[original_asset_id],
+                                      backref=db.backref('original_temp_assignments', cascade='all, delete-orphan'))
+    temp_asset = db.relationship('Asset', foreign_keys=[temp_asset_id],
+                                  backref=db.backref('temp_assignments', cascade='all, delete-orphan'))
 
     def to_dict(self):
         return {
@@ -499,12 +502,12 @@ class AssetReplacement(db.Model):
     employee_email       = db.Column(db.String(150))
     
     # Old asset being replaced
-    old_asset_id         = db.Column(db.Integer, db.ForeignKey('assets.id'), nullable=False)
+    old_asset_id         = db.Column(db.Integer, db.ForeignKey('assets.id'), nullable=True)
     old_asset_name       = db.Column(db.String(200))
     old_asset_serial     = db.Column(db.String(100))
     
     # New replacement asset
-    new_asset_id         = db.Column(db.Integer, db.ForeignKey('assets.id'), nullable=False)
+    new_asset_id         = db.Column(db.Integer, db.ForeignKey('assets.id'), nullable=True)
     new_asset_name       = db.Column(db.String(200))
     new_asset_serial     = db.Column(db.String(100))
     
@@ -643,7 +646,7 @@ class ExitAssetCollection(db.Model):
     created_at          = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
-    asset = db.relationship('Asset', backref='exit_collections')
+    asset = db.relationship('Asset', backref=db.backref('exit_collections', cascade='all, delete-orphan'))
 
     def to_dict(self):
         return {
@@ -845,12 +848,14 @@ class OnboardingAssetAssignment(db.Model):
     onboarding_id   = db.Column(db.Integer, db.ForeignKey('onboarding.id'), nullable=False)
 
     # Real link into the existing assets table — this is what keeps inventory in sync
-    asset_id        = db.Column(db.Integer, db.ForeignKey('assets.id'), nullable=False)
+    asset_id        = db.Column(db.Integer, db.ForeignKey('assets.id'), nullable=True)
     asset_name      = db.Column(db.String(150))   # denormalized snapshot for fast display
     asset_serial    = db.Column(db.String(100))   # denormalized snapshot for fast display
     asset_category  = db.Column(db.String(100))   # denormalized snapshot for fast display
 
     assigned_at     = db.Column(db.DateTime, default=datetime.utcnow)
+
+    asset = db.relationship('Asset', backref='onboarding_assignments', foreign_keys=[asset_id])
 
     def to_dict(self):
         return {
@@ -961,3 +966,74 @@ class CorporateSIM(db.Model):
 
     def __repr__(self):
         return f'<CorporateSIM {self.iccid} - {self.carrier} [{self.status}]>'
+
+
+class Inventory(db.Model):
+    __tablename__ = 'inventory'
+
+    id                    = db.Column(db.Integer, primary_key=True)
+    category              = db.Column(db.String(100))
+    asset_type            = db.Column(db.String(100))
+    manufacturer          = db.Column(db.String(150))
+    brand_name            = db.Column(db.String(150))
+    model_name            = db.Column(db.String(150))
+    part_number           = db.Column(db.String(100))
+    sku                   = db.Column(db.String(100))
+    description           = db.Column(db.Text)
+    vendor                = db.Column(db.String(200))
+    purchase_order_number = db.Column(db.String(100))
+    purchase_mode         = db.Column(db.String(20))
+    quantity_purchased    = db.Column(db.Integer)
+    currency              = db.Column(db.String(10))
+    cost                  = db.Column(db.Float)
+    invoice_number        = db.Column(db.String(100))
+    invoice_date          = db.Column(db.Date)
+    purchase_date         = db.Column(db.Date)
+    warranty_start_date   = db.Column(db.Date)
+    warranty_end_date     = db.Column(db.Date)
+    stock_quantity        = db.Column(db.Integer)
+    available_quantity    = db.Column(db.Integer)
+    reorder_level         = db.Column(db.Integer)
+    stock_status          = db.Column(db.String(30))
+    location              = db.Column(db.String(150))
+    remarks               = db.Column(db.Text)
+    created_by            = db.Column(db.String(100))
+    updated_by            = db.Column(db.String(100))
+    created_at            = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at            = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    assets = db.relationship('Asset', backref='inventory', lazy=True, foreign_keys='Asset.inventory_id')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'category': self.category or '',
+            'asset_type': self.asset_type or '',
+            'manufacturer': self.manufacturer or '',
+            'brand_name': self.brand_name or '',
+            'model_name': self.model_name or '',
+            'part_number': self.part_number or '',
+            'sku': self.sku or '',
+            'description': self.description or '',
+            'vendor': self.vendor or '',
+            'purchase_order_number': self.purchase_order_number or '',
+            'purchase_mode': self.purchase_mode or '',
+            'quantity_purchased': self.quantity_purchased or 0,
+            'currency': self.currency or '',
+            'cost': self.cost or 0,
+            'invoice_number': self.invoice_number or '',
+            'invoice_date': self.invoice_date.isoformat() if self.invoice_date else '',
+            'purchase_date': self.purchase_date.isoformat() if self.purchase_date else '',
+            'warranty_start_date': self.warranty_start_date.isoformat() if self.warranty_start_date else '',
+            'warranty_end_date': self.warranty_end_date.isoformat() if self.warranty_end_date else '',
+            'stock_quantity': self.stock_quantity or 0,
+            'available_quantity': self.available_quantity or 0,
+            'reorder_level': self.reorder_level or 0,
+            'stock_status': self.stock_status or '',
+            'location': self.location or '',
+            'remarks': self.remarks or '',
+            'created_by': self.created_by or '',
+            'updated_by': self.updated_by or '',
+            'created_at': utc_iso(self.created_at),
+            'updated_at': utc_iso(self.updated_at),
+        }

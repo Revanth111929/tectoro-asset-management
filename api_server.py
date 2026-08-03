@@ -1646,11 +1646,15 @@ def import_assets():
                     status=asset_status
                 )
                 
+                
+                
                 db.session.add(asset)
                 db.session.flush()  # Flush to get the asset ID
-                imported_ids.append(asset.asset_id)  # Track the ID
+                imported_ids.append(asset.id)  # Track the ID
                 imported_count += 1
-                
+
+               
+               
                 # Create audit log
                 AuditService.log(
                     action_type='ASSET_IMPORTED',

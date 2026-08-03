@@ -206,4 +206,25 @@ export const corporateSimAPI = {
   getStats: () => api.get('/corporate-sims/stats'),
 };
 
+// ── INVOICE ATTACHMENT ────────────────────────────────────────────────────────
+export const invoiceAPI = {
+  upload: (assetId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/assets/${assetId}/invoice/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  getInfo: (assetId) => api.get(`/assets/${assetId}/invoice`),
+  download: (assetId) => {
+    return api.get(`/assets/${assetId}/invoice/download`, {
+      responseType: 'blob',
+    });
+  },
+  view: (assetId) => {
+    // Returns the file URL for inline viewing
+    return `${API_BASE_URL}/assets/${assetId}/invoice/view`;
+  },
+};
+
 export default api;

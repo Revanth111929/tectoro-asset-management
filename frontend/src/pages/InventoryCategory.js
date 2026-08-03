@@ -408,7 +408,10 @@ function InventoryCategory() {
                       ))}
                       <td>
                         <div className="btn-group btn-group-sm">
-                          <Link to={`/assets/view/${a.id}`} state={{ returnTo: listUrl }} onClick={() => markLastSelected(listUrl, a.id)} className="btn btn-outline-primary" title="View">
+                          <Link to={`/inventory/detail/${a.id}`} state={{ returnTo: listUrl }} onClick={() => markLastSelected(listUrl, a.id)} className="btn btn-outline-primary" title="Inventory Details">
+                            <i className="bi bi-box-seam"></i>
+                          </Link>
+                          <Link to={`/assets/view/${a.id}`} state={{ returnTo: listUrl }} onClick={() => markLastSelected(listUrl, a.id)} className="btn btn-outline-secondary" title="View">
                             <i className="bi bi-eye"></i>
                           </Link>
                           {canPerform('edit') && (

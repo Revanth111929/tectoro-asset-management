@@ -10,6 +10,7 @@ import AssetView    from './pages/AssetView';
 import AssetImport  from './pages/AssetImport';
 import AssetTimeline from './pages/AssetTimeline';
 import InventoryCategory from './pages/InventoryCategory';
+import InventoryDetail from './pages/InventoryDetail';
 import Reports      from './pages/Reports';
 import Warranty    from './pages/Warranty';
 import Settings   from './pages/Settings';
@@ -119,6 +120,7 @@ function App() {
           <Route path="/assets/edit/:id" element={<NonViewerOnly><AssetEdit /></NonViewerOnly>} />
           <Route path="/assets/view/:id" element={<Protected><AssetView /></Protected>} />
           <Route path="/assets/timeline/:assetId" element={<Protected><AssetTimeline /></Protected>} />
+          <Route path="/inventory/detail/:inventoryId" element={<Protected><InventoryDetail /></Protected>} />
           <Route path="/inventory/:type" element={<Protected><InventoryCategory /></Protected>} />
           <Route path="/reports"         element={<Protected><Reports /></Protected>} />
           <Route path="/warranty"        element={<Protected><Warranty /></Protected>} />
