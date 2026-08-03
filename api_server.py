@@ -2756,7 +2756,7 @@ def global_search():
     Searches by: asset tag, serial, name, brand, model, category, employee name, 
     employee ID, email, invoice number, vendor, etc.
     """
-    from models import Asset, Employee, InvoiceAttachment
+    from models import Asset, Employee
     from sqlalchemy import or_, and_
     
     query = request.args.get('q', '').strip()
