@@ -166,6 +166,7 @@ export const employeeAPI = {
   getById: (emp_id) => api.get(`/employees/${emp_id}`),
   createOrUpdate: (data) => api.post('/employees', data),
   getAssets: (emp_id) => api.get(`/employees/${emp_id}/assets`),
+  getAssetHistory: (emp_id) => api.get(`/employees/${emp_id}/asset-history`),
   processExit: (emp_id, data) => api.post(`/employees/${emp_id}/exit`, data),
 };
 

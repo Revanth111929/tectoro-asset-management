@@ -1776,6 +1776,216 @@ def get_employee_assets(emp_id):
         'status': a.status,
     } for a in assets]), 200
 
+@app.route('/api/employees/<emp_id>/asset-history', methods=['GET'])
+@admin_required
+def get_employee_asset_history(emp_id):
+    """Get complete asset history for an employee - every device they've ever used"""
+    from models import Asset, AssetLifecycle, AuditLog, TemporaryAssignment, AssetReplacement, Employee
+    from sqlalchemy import or_, and_
+    
+    # Get employee details
+    employee = Employee.query.filter_by(emp_id=emp_id).first()
+    if not employee:
+        return jsonify({'error': 'Employee not found'}), 404
+    
+    # Get currently assigned assets
+    current_assets = Asset.query.filter_by(emp_id=emp_id).all()
+    
+    # Collect all events for this employee from different sources
+    events = []
+    
+    # 1. AssetLifecycle events where this employee is involved
+    lifecycle_events = AssetLifecycle.query.filter(
+        or_(
+            AssetLifecycle.to_employee_id == emp_id,
+            AssetLifecycle.from_employee_id == emp_id,
+            AssetLifecycle.to_employee == employee.employee_name,
+            AssetLifecycle.from_employee == employee.employee_name
+        )
+    ).order_by(AssetLifecycle.event_date.desc()).all()
+    
+    for event in lifecycle_events:
+        asset = Asset.query.get(event.asset_id) if event.asset_id else None
+        events.append({
+            'type': 'lifecycle',
+            'event_type': event.event_type,
+            'date': event.event_date.isoformat() if event.event_date else None,
+            'timestamp': event.event_date.isoformat() if event.event_date else None,
+            'asset_id': event.asset_id,
+            'asset_name': asset.asset_name if asset else None,
+            'asset_serial': asset.serial_number if asset else None,
+            'category': asset.category if asset else None,
+            'brand_name': asset.brand_name if asset else None,
+            'model_name': asset.model_name if asset else None,
+            'to_employee': event.to_employee,
+            'to_employee_id': event.to_employee_id,
+            'from_employee': event.from_employee,
+            'from_employee_id': event.from_employee_id,
+            'from_status': event.from_status,
+            'to_status': event.to_status,
+            'reason': event.reason,
+            'location': event.location,
+            'performed_by': event.performed_by,
+            'remarks': event.remarks,
+        })
+    
+    # 2. AuditLog events involving this employee
+    audit_events = AuditLog.query.filter(
+        or_(
+            AuditLog.employee_id == emp_id,
+            AuditLog.employee_name == employee.employee_name
+        )
+    ).order_by(AuditLog.timestamp.desc()).all()
+    
+    for event in audit_events:
+        asset = Asset.query.get(event.asset_id) if event.asset_id else None
+        events.append({
+            'type': 'audit',
+            'action_type': event.action_type,
+            'date': event.timestamp.isoformat() if event.timestamp else None,
+            'timestamp': event.timestamp.isoformat() if event.timestamp else None,
+            'asset_id': event.asset_id,
+            'asset_name': event.asset_name or (asset.asset_name if asset else None),
+            'asset_serial': event.asset_serial or (asset.serial_number if asset else None),
+            'category': event.category or (asset.category if asset else None),
+            'brand_name': asset.brand_name if asset else None,
+            'model_name': asset.model_name if asset else None,
+            'employee_name': event.employee_name,
+            'employee_id': event.employee_id,
+            'old_value': event.old_value,
+            'new_value': event.new_value,
+            'performed_by': event.performed_by,
+            'remarks': event.remarks,
+            'module': event.module,
+        })
+    
+    # 3. Temporary assignments (both as recipient and as original owner)
+    temp_assignments = TemporaryAssignment.query.filter_by(employee_id=emp_id).order_by(
+        TemporaryAssignment.created_at.desc()
+    ).all()
+    
+    for temp in temp_assignments:
+        # Original asset event
+        original_asset = Asset.query.get(temp.original_asset_id) if temp.original_asset_id else None
+        events.append({
+            'type': 'temp_assignment',
+            'sub_type': 'original',
+            'date': temp.start_date.isoformat() if temp.start_date else None,
+            'timestamp': temp.created_at.isoformat() if temp.created_at else None,
+            'asset_id': temp.original_asset_id,
+            'asset_name': temp.original_asset_name or (original_asset.asset_name if original_asset else None),
+            'asset_serial': temp.original_asset_serial or (original_asset.serial_number if original_asset else None),
+            'category': original_asset.category if original_asset else None,
+            'brand_name': original_asset.brand_name if original_asset else None,
+            'model_name': original_asset.model_name if original_asset else None,
+            'employee_name': temp.employee_name,
+            'employee_id': temp.employee_id,
+            'reason': temp.reason,
+            'status': temp.status,
+            'remarks': f"Original device sent for repair. Loaner: {temp.temp_asset_name}",
+        })
+        
+        # Temporary replacement asset event
+        temp_asset = Asset.query.get(temp.temp_asset_id) if temp.temp_asset_id else None
+        events.append({
+            'type': 'temp_assignment',
+            'sub_type': 'temp',
+            'date': temp.start_date.isoformat() if temp.start_date else None,
+            'timestamp': temp.created_at.isoformat() if temp.created_at else None,
+            'asset_id': temp.temp_asset_id,
+            'asset_name': temp.temp_asset_name or (temp_asset.asset_name if temp_asset else None),
+            'asset_serial': temp.temp_asset_serial or (temp_asset.serial_number if temp_asset else None),
+            'category': temp_asset.category if temp_asset else None,
+            'brand_name': temp_asset.brand_name if temp_asset else None,
+            'model_name': temp_asset.model_name if temp_asset else None,
+            'employee_name': temp.employee_name,
+            'employee_id': temp.employee_id,
+            'reason': temp.reason,
+            'status': temp.status,
+            'remarks': f"Temporary replacement while {temp.original_asset_name} is in repair",
+        })
+    
+    # 4. Asset replacements (permanent swaps)
+    replacements = AssetReplacement.query.filter_by(employee_id=emp_id).order_by(
+        AssetReplacement.replacement_date.desc()
+    ).all()
+    
+    for replacement in replacements:
+        old_asset = Asset.query.get(replacement.old_asset_id) if replacement.old_asset_id else None
+        new_asset = Asset.query.get(replacement.new_asset_id) if replacement.new_asset_id else None
+        
+        events.append({
+            'type': 'replacement',
+            'date': replacement.replacement_date.isoformat() if replacement.replacement_date else None,
+            'timestamp': replacement.created_at.isoformat() if replacement.created_at else None,
+            'old_asset_id': replacement.old_asset_id,
+            'old_asset_name': replacement.old_asset_name or (old_asset.asset_name if old_asset else None),
+            'old_asset_serial': replacement.old_asset_serial or (old_asset.serial_number if old_asset else None),
+            'new_asset_id': replacement.new_asset_id,
+            'asset_id': replacement.new_asset_id,  # For consistency
+            'asset_name': replacement.new_asset_name or (new_asset.asset_name if new_asset else None),
+            'asset_serial': replacement.new_asset_serial or (new_asset.serial_number if new_asset else None),
+            'category': new_asset.category if new_asset else None,
+            'brand_name': new_asset.brand_name if new_asset else None,
+            'model_name': new_asset.model_name if new_asset else None,
+            'employee_name': replacement.employee_name,
+            'employee_id': replacement.employee_id,
+            'reason': replacement.reason,
+            'old_asset_condition': replacement.old_asset_condition,
+            'performed_by': replacement.performed_by,
+            'remarks': replacement.remarks,
+        })
+    
+    # Sort all events by date (newest first)
+    events.sort(key=lambda x: x.get('timestamp') or x.get('date') or '', reverse=True)
+    
+    # Calculate statistics
+    total_assignments = len([e for e in events if e.get('type') in ['lifecycle', 'audit'] and 
+                            e.get('event_type') == 'ASSIGNED' or e.get('action_type') == 'ASSET_ASSIGNED'])
+    total_returns = len([e for e in events if e.get('type') in ['lifecycle', 'audit'] and 
+                        e.get('event_type') == 'RETURNED' or e.get('action_type') == 'ASSET_RETURNED'])
+    total_replacements = len([e for e in events if e.get('type') == 'replacement'])
+    total_temp_assignments = len([e for e in events if e.get('type') == 'temp_assignment'])
+    
+    # Get unique assets this employee has used
+    unique_asset_ids = set()
+    for event in events:
+        if event.get('asset_id'):
+            unique_asset_ids.add(event.get('asset_id'))
+    
+    return jsonify({
+        'employee': {
+            'emp_id': employee.emp_id,
+            'employee_name': employee.employee_name,
+            'email': employee.email,
+            'mobile_number': employee.mobile_number,
+            'department': employee.department,
+            'designation': employee.designation,
+            'location': employee.location,
+            'status': employee.status,
+        },
+        'current_assets': [{
+            'id': a.id,
+            'asset_name': a.asset_name,
+            'category': a.category,
+            'serial_number': a.serial_number,
+            'model_name': a.model_name,
+            'brand_name': a.brand_name,
+            'status': a.status,
+            'date': a.date.isoformat() if a.date else None,
+        } for a in current_assets],
+        'statistics': {
+            'total_devices_used': len(unique_asset_ids),
+            'current_assigned_devices': len(current_assets),
+            'total_assignments': total_assignments,
+            'total_returns': total_returns,
+            'total_replacements': total_replacements,
+            'total_temp_assignments': total_temp_assignments,
+            'total_events': len(events),
+        },
+        'events': events,
+    }), 200
+
 @app.route('/api/employees/<emp_id>/exit', methods=['POST'])
 @admin_required
 def employee_exit(emp_id):

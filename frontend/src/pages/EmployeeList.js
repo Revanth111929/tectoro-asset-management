@@ -46,6 +46,13 @@ function EmployeeList() {
                   <td>{emp.position}</td>
                   <td>
                     <div className="btn-group btn-group-sm">
+                      <Link 
+                        to={`/employees/${emp.empId}/asset-history`}
+                        className="btn btn-outline-info"
+                        title="View Asset History"
+                      >
+                        <i className="bi bi-clock-history"></i>
+                      </Link>
                       <button className="btn btn-outline-primary">
                         <i className="bi bi-box-arrow-up-right"></i> Assign
                       </button>
