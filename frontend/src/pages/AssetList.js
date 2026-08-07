@@ -63,7 +63,7 @@ function AssetList() {
   const [total,    setTotal]    = useState(0);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState('');
-  const [deleting, setDeleting] = useState(null);
+  // BUG-025: Removed deleting state - delete functionality moved to Inventory only
   
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState([]);
@@ -233,36 +233,7 @@ function AssetList() {
     }
   };
 
-  const handleDelete = async (id, name) => {
-    console.log('[AssetList] Delete requested:', { id, name });
-    
-    if (!window.confirm(`Delete asset "${name}"? This cannot be undone.`)) {
-      console.log('[AssetList] Delete cancelled by user');
-      return;
-    }
-    
-    setDeleting(id);
-    console.log('[AssetList] Starting delete operation for asset ID:', id);
-    
-    try {
-      console.log('[AssetList] Calling assetAPI.delete()...');
-      const response = await assetAPI.delete(id);
-      console.log('[AssetList] Delete successful:', response.data);
-      
-      alert(`✓ Asset "${name}" deleted successfully`);
-      fetchAssets();
-    } catch (error) {
-      console.error('[AssetList] Delete failed:', error);
-      console.error('[AssetList] Error response:', error.response?.data);
-      console.error('[AssetList] Error status:', error.response?.status);
-      
-      const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || 'Failed to delete asset';
-      alert(`❌ Delete failed: ${errorMsg}`);
-    } finally {
-      setDeleting(null);
-      console.log('[AssetList] Delete operation completed');
-    }
-  };
+  // BUG-025: handleDelete removed - delete functionality only available in Inventory page
 
   // Warranty row highlight
   const warrantyClass = (dateStr) => {
@@ -503,17 +474,7 @@ function AssetList() {
                               <i className="bi bi-pencil"></i>
                             </Link>
                           )}
-                          <button
-                            className={canPerform('delete') ? "btn btn-outline-danger" : "d-none"}
-                            title="Delete"
-                            disabled={deleting === a.id}
-                            onClick={() => handleDelete(a.id, a.asset_name)}
-                          >
-                            {deleting === a.id
-                              ? <span className="spinner-border spinner-border-sm"></span>
-                              : <i className="bi bi-trash"></i>
-                            }
-                          </button>
+                          {/* Delete button removed - BUG-025: Delete only available in Inventory */}
                         </div>
                       </td>
                     </tr>

@@ -4,11 +4,11 @@ import React from 'react';
 import { CATEGORY_FIELDS, FIELD_METADATA, CATEGORIES } from '../config/categoryFields';
 
 // Reusable Field Component
-const Field = ({ fieldName, value, onChange, error, colClass = 'col-md-4' }) => {
+const Field = ({ fieldName, value, onChange, error, colClass = 'col-md-4', onFileChange, currentFile, onRemoveFile }) => {
   const metadata = FIELD_METADATA[fieldName];
   if (!metadata) return null;
 
-  const { label, type, placeholder, options, required, rows, min, step } = metadata;
+  const { label, type, placeholder, options, required, rows, min, step, accept, maxSize } = metadata;
   const inputClass = `form-control ${error ? 'is-invalid' : ''}`;
 
   return (
@@ -26,6 +26,7 @@ const Field = ({ fieldName, value, onChange, error, colClass = 'col-md-4' }) => 
           value={value || ''}
           onChange={onChange}
           placeholder={placeholder}
+          autoComplete="off"
         />
       )}
       
@@ -77,6 +78,39 @@ const Field = ({ fieldName, value, onChange, error, colClass = 'col-md-4' }) => 
         />
       )}
       
+      {type === 'file' && (
+        <div>
+          {/* Show current file if exists */}
+          {currentFile && (
+            <div className="mb-2 p-2 border rounded d-flex align-items-center justify-content-between" style={{background: '#f8f9fa'}}>
+              <div className="d-flex align-items-center gap-2">
+                <i className="bi bi-file-earmark-pdf text-danger"></i>
+                <span className="small">{currentFile}</span>
+              </div>
+              <button 
+                type="button" 
+                className="btn btn-sm btn-outline-danger"
+                onClick={onRemoveFile}
+                title="Remove invoice"
+              >
+                <i className="bi bi-trash"></i>
+              </button>
+            </div>
+          )}
+          
+          <input
+            type="file"
+            name={fieldName}
+            className={inputClass}
+            onChange={onFileChange}
+            accept={accept}
+          />
+          <small className="text-muted d-block mt-1">
+            Supported: PDF, JPG, PNG (Max: 10 MB)
+          </small>
+        </div>
+      )}
+      
       {error && <div className="invalid-feedback">{error}</div>}
     </div>
   );
@@ -109,7 +143,10 @@ const DynamicAssetForm = ({
   isExistingDevice = false,
   hidePurchaseSection = false,
   renderExtraButtons = null,
-  submitButtonText = null
+  submitButtonText = null,
+  invoiceFile = null,
+  setInvoiceFile = null,
+  currentInvoiceAttachment = null
 }) => {
   const category = form.category;
   const fields = category ? CATEGORY_FIELDS[category] : null;
@@ -117,6 +154,39 @@ const DynamicAssetForm = ({
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(f => ({ ...f, [name]: value }));
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file size (10MB)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      alert(`File size (${(file.size / 1024 / 1024).toFixed(2)} MB) exceeds maximum allowed size (10 MB)`);
+      e.target.value = '';
+      return;
+    }
+
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Invalid file type. Only PDF, JPG, JPEG, and PNG files are allowed.');
+      e.target.value = '';
+      return;
+    }
+
+    if (setInvoiceFile) {
+      setInvoiceFile(file);
+    }
+  };
+
+  const handleRemoveInvoice = () => {
+    if (setInvoiceFile) {
+      setInvoiceFile(null);
+    }
+    // Mark for removal in form
+    setForm(f => ({ ...f, remove_invoice_attachment: true }));
   };
 
   const handleCategoryChange = (e) => {
@@ -253,6 +323,9 @@ const DynamicAssetForm = ({
                 value={form[fieldName]}
                 onChange={handleChange}
                 error={errors[fieldName]}
+                onFileChange={fieldName === 'invoice_attachment' ? handleFileChange : undefined}
+                currentFile={fieldName === 'invoice_attachment' && currentInvoiceAttachment ? currentInvoiceAttachment : (fieldName === 'invoice_attachment' && invoiceFile ? invoiceFile.name : null)}
+                onRemoveFile={fieldName === 'invoice_attachment' ? handleRemoveInvoice : undefined}
               />
             ))}
           </Section>

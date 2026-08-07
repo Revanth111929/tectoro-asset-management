@@ -677,12 +677,43 @@ def complete_temporary_assignment(assignment_id):
     
     # Update asset statuses
     if original_asset:
-        original_asset.status = 'Assigned'  # Back to assigned to employee
+        # Restore original asset to employee (complete repair and return)
+        # First, get complete employee information
+        from models import Employee
+        employee = Employee.query.filter_by(emp_id=assignment.employee_id).first()
+        
+        if not employee:
+            return jsonify({'error': f'Employee {assignment.employee_id} not found. Cannot complete temporary assignment.'}), 400
+        
+        # Validate employee has all required information
+        missing_fields = []
+        if not employee.emp_id or not str(employee.emp_id).strip():
+            missing_fields.append('Employee ID')
+        if not employee.employee_name or not str(employee.employee_name).strip():
+            missing_fields.append('Employee Name')
+        if not employee.email or not str(employee.email).strip():
+            missing_fields.append('Employee Email')
+        if not employee.mobile_number or not str(employee.mobile_number).strip():
+            missing_fields.append('Mobile Number')
+        
+        if missing_fields:
+            return jsonify({
+                'error': f'Cannot restore asset to employee {employee.emp_id}. Missing required information: {", ".join(missing_fields)}. Please update employee record first.'
+            }), 400
+        
+        # All validation passed, restore asset to employee
+        original_asset.status = 'Assigned'
+        original_asset.emp_id = employee.emp_id
+        original_asset.employee_name = employee.employee_name
+        original_asset.employee_email = employee.email
+        original_asset.mobile_number = employee.mobile_number
     
     if temp_asset:
         temp_asset.status = 'Available'  # Return to inventory
         temp_asset.emp_id = ''
         temp_asset.employee_name = ''
+        temp_asset.employee_email = ''
+        temp_asset.mobile_number = ''
     
     # Create audit logs
     AuditService.log(
@@ -704,6 +735,9 @@ def complete_temporary_assignment(assignment_id):
             event_type='MAINTENANCE_COMPLETED',
             from_status='Maintenance',
             to_status='Assigned',
+            to_employee_id=assignment.employee_id,
+            to_employee=assignment.employee_name,
+            reason=f"Temporary assignment completed",
             performed_by=current_username
         )
     
@@ -883,12 +917,13 @@ def dashboard_stats():
         Asset.warranty_date >= today
     ).count()
 
-    # Category breakdown (only assigned assets)
+    # Category breakdown (only assigned assets, exclude Desktop)
     from sqlalchemy import func
     cat_rows = db.session.query(Asset.category, func.count(Asset.id))\
                          .filter(Asset.status == 'Assigned')\
+                         .filter(Asset.category != 'Desktop')\
                          .group_by(Asset.category).all()
-    categories = [{'name': r[0] or 'Unknown', 'count': r[1]} for r in cat_rows]
+    categories = [{'name': r[0] or 'Unknown', 'count': r[1]} for r in cat_rows if r[0] != 'Desktop']
 
     # Laptop status breakdown
     laptop_total = Asset.query.filter_by(category='Laptop').count()
@@ -921,22 +956,37 @@ def dashboard_activity():
 @app.route('/api/dashboard/lifecycle-stats', methods=['GET'])
 @non_viewer_required
 def lifecycle_stats():
-    from sqlalchemy import func
+    from sqlalchemy import func, extract
+    from models import AssetLifecycle, TemporaryAssignment, AssetReplacement
+    
     today = date.today()
     month_start = today.replace(day=1)
     
     try:
-        from models import AssetLifecycleEvent
-        active_temp = AssetLifecycleEvent.query.filter_by(event_type='TEMP_ASSIGNED').count()
-        under_repair = Asset.query.filter_by(status='Maintenance').count()
-        replaced = AssetLifecycleEvent.query.filter(
-            AssetLifecycleEvent.event_type == 'REPLACED',
-            AssetLifecycleEvent.created_at >= month_start
+        # Active Temp Assignments - count assignments with status='Active'
+        active_temp = TemporaryAssignment.query.filter_by(status='Active').count()
+        
+        # Assets Under Repair - count assets with status='Maintenance' or 'Under Repair'
+        under_repair = Asset.query.filter(
+            or_(Asset.status == 'Maintenance', Asset.status == 'Under Repair')
         ).count()
-        total_events = AssetLifecycleEvent.query.count()
-    except Exception:
+        
+        # Replaced This Month - count replacements created this month
+        replaced = AssetReplacement.query.filter(
+            extract('year', AssetReplacement.replacement_date) == today.year,
+            extract('month', AssetReplacement.replacement_date) == today.month
+        ).count()
+        
+        # Total Lifecycle Events - sum of all lifecycle events from AssetLifecycle table
+        total_events = AssetLifecycle.query.count()
+        
+    except Exception as e:
+        print(f"Error fetching lifecycle stats: {e}")
+        # Fallback values if tables don't exist or query fails
         active_temp = 0
-        under_repair = Asset.query.filter_by(status='Maintenance').count()
+        under_repair = Asset.query.filter(
+            or_(Asset.status == 'Maintenance', Asset.status == 'Under Repair')
+        ).count() if Asset.query.first() else 0
         replaced = 0
         total_events = 0
 
@@ -1016,9 +1066,23 @@ def get_asset(asset_id):
 @app.route('/api/assets', methods=['POST'])
 @non_viewer_required
 def create_asset():
-    data = request.get_json() or {}
+    """
+    Create asset - supports both JSON and multipart/form-data
+    """
+    from utils.file_upload import save_invoice_file
+    
     current_user = get_current_user()
-
+    current_username = current_user.get('username') if current_user else 'system'
+    
+    # Handle multipart/form-data (with file upload)
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        data = request.form.to_dict()
+        invoice_file = request.files.get('invoice_attachment')
+    else:
+        # Handle JSON (backward compatibility)
+        data = request.get_json() or {}
+        invoice_file = None
+    
     # Phase 3: Comprehensive Validation
     validation_result = InventoryValidator.validate_new_asset(data)
     
@@ -1038,6 +1102,14 @@ def create_asset():
 
     # Handle employee_email field (accept both employee_email and email)
     employee_email = data.get('employee_email') or data.get('email', '')
+    
+    # Handle invoice file upload
+    invoice_attachment_path = None
+    if invoice_file and invoice_file.filename:
+        success, error_msg, file_path = save_invoice_file(invoice_file)
+        if not success:
+            return jsonify({'error': error_msg}), 400
+        invoice_attachment_path = file_path
 
     asset = Asset(
         emp_id          = data.get('emp_id', ''),
@@ -1054,6 +1126,7 @@ def create_asset():
         location        = data.get('location', ''),
         invoice_number  = data.get('invoice_number', ''),
         invoice_date    = parse_date(data.get('invoice_date')),
+        invoice_attachment = invoice_attachment_path,  # New field
         warranty_date   = parse_date(data.get('warranty_date')),
         charger_serial  = data.get('charger_serial', ''),
         old_user        = data.get('old_user', ''),
@@ -1144,13 +1217,51 @@ def create_asset():
 @app.route('/api/assets/<int:asset_id>', methods=['PUT'])
 @non_viewer_required
 def update_asset(asset_id):
+    """
+    Update asset - supports both JSON and multipart/form-data
+    """
+    from utils.file_upload import save_invoice_file, delete_invoice_file
+    
     asset = Asset.query.get_or_404(asset_id)
-    data  = request.get_json() or {}
     current_user = get_current_user()
     current_username = current_user.get('username') if current_user else 'system'
+    
+    # Handle multipart/form-data (with file upload)
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        data = request.form.to_dict()
+        invoice_file = request.files.get('invoice_attachment')
+        remove_attachment = data.get('remove_invoice_attachment') == 'true'
+    else:
+        # Handle JSON (backward compatibility)
+        data = request.get_json() or {}
+        invoice_file = None
+        remove_attachment = data.get('remove_invoice_attachment') == True
+
+    # DEBUG: Log complete request for Existing Device assignment debugging
+    logger.info(f"=" * 80)
+    logger.info(f"PUT /api/assets/{asset_id} - REQUEST RECEIVED")
+    logger.info(f"Content-Type: {request.content_type}")
+    logger.info(f"Request Data: {data}")
+    logger.info(f"Current Asset State:")
+    logger.info(f"  - asset_id: {asset.id}")
+    logger.info(f"  - asset_name: {asset.asset_name}")
+    logger.info(f"  - serial_number: {asset.serial_number}")
+    logger.info(f"  - status: {asset.status}")
+    logger.info(f"  - emp_id: {asset.emp_id}")
+    logger.info(f"  - employee_name: {asset.employee_name}")
+    logger.info(f"  - employee_email: {asset.employee_email}")
+    logger.info(f"  - mobile_number: {asset.mobile_number}")
+    logger.info(f"=" * 80)
 
     # Phase 3: Comprehensive Validation
     validation_result = InventoryValidator.validate_asset_update(asset_id, data)
+    
+    # DEBUG: Log validation result
+    logger.info(f"VALIDATION RESULT:")
+    logger.info(f"  - valid: {validation_result['valid']}")
+    logger.info(f"  - errors: {validation_result['errors']}")
+    logger.info(f"  - warnings: {validation_result.get('warnings', [])}")
+    logger.info(f"=" * 80)
     
     if not validation_result['valid']:
         error_message = '; '.join(validation_result['errors'])
@@ -1174,6 +1285,26 @@ def update_asset(asset_id):
     new_serial = data.get('serial_number', asset.serial_number).strip()
     if new_serial != asset.serial_number:
         changed_fields['serial_number'] = (asset.serial_number, new_serial)
+    
+    # Handle invoice attachment
+    if remove_attachment and asset.invoice_attachment:
+        # User wants to remove the attachment
+        delete_invoice_file(asset.invoice_attachment)
+        changed_fields['invoice_attachment'] = (asset.invoice_attachment, None)
+        asset.invoice_attachment = None
+    elif invoice_file and invoice_file.filename:
+        # User is uploading a new file
+        # Delete old file if exists
+        if asset.invoice_attachment:
+            delete_invoice_file(asset.invoice_attachment)
+        
+        # Save new file
+        success, error_msg, file_path = save_invoice_file(invoice_file, asset_id)
+        if not success:
+            return jsonify({'error': error_msg}), 400
+        
+        changed_fields['invoice_attachment'] = (asset.invoice_attachment, file_path)
+        asset.invoice_attachment = file_path
 
     # Handle employee_email field (accept both employee_email and email)
     if 'employee_email' in data or 'email' in data:
@@ -1415,9 +1546,10 @@ def update_asset(asset_id):
     return jsonify({'success': True, 'asset': asset.to_dict()}), 200
 
 @app.route('/api/assets/<int:asset_id>', methods=['DELETE'])
-@token_required
+@non_viewer_required
 def delete_asset(asset_id):
     from models import AssetLifecycle, AssetReplacement, TemporaryAssignment, ExitAssetCollection, OnboardingAssetAssignment
+    from utils.file_upload import delete_invoice_file
     
     asset = Asset.query.get_or_404(asset_id)
     current_user = get_current_user()
@@ -1427,6 +1559,12 @@ def delete_asset(asset_id):
     
     # Get username from current_user dict
     username = current_user.get('username') if current_user else 'system'
+    
+    # Delete invoice attachment file if exists
+    if asset.invoice_attachment:
+        success, error_msg = delete_invoice_file(asset.invoice_attachment)
+        if not success:
+            logger.warning(f"Failed to delete invoice file for asset {asset_id}: {error_msg}")
     
     # Create audit log before deletion
     AuditService.log_asset_deleted(asset, username)
@@ -2086,25 +2224,34 @@ def import_assets():
         import openpyxl
         from datetime import datetime
         
+        logger.info(f"[Asset Import] Starting import, request.files keys: {list(request.files.keys())}")
+        
         if 'file' not in request.files:
+            logger.error("[Asset Import] No 'file' key in request.files")
             return jsonify({'error': 'No file uploaded'}), 400
         
         file = request.files['file']
+        logger.info(f"[Asset Import] File received: {file.filename}")
+        
         if file.filename == '':
+            logger.error("[Asset Import] Empty filename")
             return jsonify({'error': 'No file selected'}), 400
         
         if not file.filename.endswith(('.xlsx', '.xls')):
+            logger.error(f"[Asset Import] Invalid file extension: {file.filename}")
             return jsonify({'error': 'Invalid file format. Please upload .xlsx or .xls file'}), 400
         
         current_user = get_current_user()
         current_username = current_user.get('username') if current_user else 'system'
         
         # Read Excel file
+        logger.info(f"[Asset Import] Loading workbook")
         wb = openpyxl.load_workbook(file)
         ws = wb.active
         
         # Get headers from first row
         headers = [cell.value for cell in ws[1]]
+        logger.info(f"[Asset Import] Headers found: {headers}")
         
         imported_count = 0
         error_count = 0
@@ -2119,6 +2266,7 @@ def import_assets():
                 
                 # Skip empty rows
                 if not data.get('Asset NAME') and not data.get('SERIAL NUMBER'):
+                    logger.debug(f"[Asset Import] Row {row_num}: Skipping empty row")
                     continue
                 
                 # Validate required fields
@@ -2172,6 +2320,19 @@ def import_assets():
                 # Determine status - default to Assigned if employee info exists, otherwise Available
                 emp_id = str(data.get('EMP ID', '')).strip() if data.get('EMP ID') else ''
                 emp_name = str(data.get('EMPLOYEE NAME', '')).strip() if data.get('EMPLOYEE NAME') else ''
+                emp_email = str(data.get('employee_email', '')).strip() if data.get('employee_email') else ''
+                mobile_num = str(data.get('MOBILE NUMBER', '')).strip() if data.get('MOBILE NUMBER') else ''
+                
+                # If employee info exists, get/validate from Employee table
+                employee = None
+                if emp_id:
+                    from models import Employee
+                    employee = Employee.query.filter_by(emp_id=emp_id).first()
+                    if employee:
+                        # Use employee record for complete information
+                        emp_name = employee.employee_name
+                        emp_email = employee.email or emp_email
+                        mobile_num = employee.mobile_number or mobile_num
                 
                 # If either EMP ID or EMPLOYEE NAME is filled, mark as Assigned
                 # Otherwise, mark as Available
@@ -2200,30 +2361,59 @@ def import_assets():
                     comments=str(data.get('Comments', '')).strip() if data.get('Comments') else '',
                     emp_id=emp_id,
                     employee_name=emp_name,
-                    mobile_number=str(data.get('MOBILE NUMBER', '')).strip() if data.get('MOBILE NUMBER') else '',
+                    employee_email=emp_email,
+                    mobile_number=mobile_num,
                     status=asset_status
                 )
-                
-                
                 
                 db.session.add(asset)
                 db.session.flush()  # Flush to get the asset ID
                 imported_ids.append(asset.id)  # Track the ID
                 imported_count += 1
 
-               
-               
-                # Create audit log
+                # Create audit log for import
                 AuditService.log(
                     action_type='ASSET_IMPORTED',
                     module='Asset',
-                    asset_id=None,
+                    asset_id=asset.id,
                     asset_name=asset.asset_name,
                     asset_serial=asset.serial_number,
                     category=asset.category,
+                    employee_id=emp_id if asset_status == 'Assigned' else None,
+                    employee_name=emp_name if asset_status == 'Assigned' else None,
                     performed_by=current_username,
                     remarks=f'Imported from Excel (Row {row_num})'
                 )
+                
+                # If asset is assigned, create lifecycle event (same as manual assignment)
+                if asset_status == 'Assigned' and emp_id and emp_name:
+                    LifecycleService.record_event(
+                        asset_id=asset.id,
+                        event_type='ASSIGNED',
+                        to_employee_id=emp_id,
+                        to_employee=emp_name,
+                        from_status='Available',
+                        to_status='Assigned',
+                        reason='Asset imported with assignment',
+                        performed_by=current_username,
+                        remarks=f'Imported from Excel - Initially assigned to {emp_name}'
+                    )
+                    
+                    # Also create audit log for the assignment (for consistency with manual assignment)
+                    AuditService.log(
+                        action_type='ASSET_ASSIGNED',
+                        module='Asset',
+                        asset_id=asset.id,
+                        asset_name=asset.asset_name,
+                        asset_serial=asset.serial_number,
+                        category=asset.category,
+                        employee_id=emp_id,
+                        employee_name=emp_name,
+                        performed_by=current_username,
+                        old_value='Available',
+                        new_value='Assigned',
+                        remarks=f'Initial assignment via import (Row {row_num})'
+                    )
                 
             except Exception as e:
                 error_details.append(f"Row {row_num}: {str(e)}")
@@ -2231,6 +2421,8 @@ def import_assets():
                 logger.error(f"Error importing row {row_num}: {e}")
         
         db.session.commit()
+        
+        logger.info(f"[Asset Import] Import completed - imported: {imported_count}, errors: {error_count}")
         
         message = f'Successfully imported {imported_count} assets'
         if error_count > 0:
@@ -2245,14 +2437,15 @@ def import_assets():
             'imported_ids': imported_ids  # Return imported asset IDs
         }), 200
         
-    except ImportError:
+    except ImportError as e:
+        logger.error(f"[Asset Import] ImportError: {e}")
         return jsonify({
             'error': 'openpyxl library not installed. Please install it: pip install openpyxl'
         }), 500
     except Exception as e:
-        logger.error(f"Error importing assets: {e}")
+        logger.error(f"[Asset Import] Unexpected error: {e}", exc_info=True)
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f'Import failed: {str(e)}'}), 500
 
 # ══════════════════════════════════════════════════════════════════════════════
 # EMPLOYEE ROUTES
@@ -2261,17 +2454,39 @@ def import_assets():
 @app.route('/api/employees', methods=['GET'])
 @admin_required
 def get_employees():
-    """Get all employees or search by query - searches both Employee table and Assets"""
+    """Get all employees or search by query - searches both Employee table and Assets
+    
+    Query Parameters:
+        q (str): Search term
+        page (int): Page number (default: 1)
+        per_page (int): Results per page (default: 50)
+        active_only (bool): Filter to only Active employees (default: false)
+                           Used during asset assignment to prevent assigning to inactive/exited employees
+    """
     from models import Employee, Asset
+    
+    # STEP 4: Log what Flask receives
+    logger.info(f"[Employee Search] request.args: {dict(request.args)}")
     
     query = request.args.get('q', '').strip()
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
+    active_only = request.args.get('active_only', 'false').lower() in ('true', '1', 'yes')
+    
+    # STEP 4: Log the parsed values
+    logger.info(f"[Employee Search] Parsed - q='{query}', active_only={active_only}, page={page}, per_page={per_page}")
     
     employees_list = []
     
     # First, try to get from Employee table
     q = Employee.query
+    
+    # BUG FIX: Filter to only Active employees when active_only=true
+    if active_only:
+        logger.info(f"[Employee Search] Applying Active-only filter: status='Active' AND is_active=True")
+        q = q.filter(Employee.status == 'Active', Employee.is_active == True)
+    else:
+        logger.info(f"[Employee Search] No status filter applied (showing all employees)")
     
     if query:
         q = q.filter(or_(
@@ -2281,7 +2496,13 @@ def get_employees():
             Employee.mobile_number.ilike(f'%{query}%')
         ))
     
+    # STEP 5: Log the query
+    logger.info(f"[Employee Search] Executing query...")
+    
     employees_from_table = q.order_by(Employee.created_at.desc()).offset((page-1)*per_page).limit(per_page).all()
+    
+    # STEP 6: Log results
+    logger.info(f"[Employee Search] Found {len(employees_from_table)} employees from Employee Master")
     
     for e in employees_from_table:
         employees_list.append({
@@ -2292,11 +2513,13 @@ def get_employees():
             'location': e.location,
             'department': e.department,
             'designation': e.designation,
+            'status': e.status,  # CRITICAL: Include status field
             'created_at': e.created_at.isoformat() if e.created_at else None,
         })
     
     # If no results from Employee table, get unique employees from Assets
     if not employees_list:
+        logger.info(f"[Employee Search] No results from Employee Master, falling back to Assets table")
         asset_query = Asset.query.filter(Asset.emp_id.isnot(None))
         
         if query:
@@ -2324,6 +2547,17 @@ def get_employees():
                     'designation': '',
                     'created_at': None,
                 })
+        logger.info(f"[Employee Search] Found {len(employees_list)} unique employees from Assets table")
+    
+    # STEP 6: Log final response
+    logger.info(f"[Employee Search] Returning {len(employees_list)} total employees")
+    if employees_list:
+        status_counts = {}
+        for e in employees_list:
+            status = e.get('status', 'N/A')
+            status_counts[status] = status_counts.get(status, 0) + 1
+        logger.info(f"[Employee Search] Status breakdown: {status_counts}")
+        logger.info(f"[Employee Search] First 3 results: {[{k: e.get(k) for k in ['emp_id', 'employee_name', 'status']} for e in employees_list[:3]]}")
     
     return jsonify(employees_list), 200
 
@@ -2555,6 +2789,39 @@ def get_employee_asset_history(emp_id):
     
     # Sort all events by date (newest first)
     events.sort(key=lambda x: x.get('timestamp') or x.get('date') or '', reverse=True)
+    
+    # Deduplicate lifecycle and audit events (same assignment recorded in both tables)
+    # Group by (asset_id, timestamp_minute, action_type) and keep only one
+    deduplicated_events = []
+    seen_events = set()
+    
+    for event in events:
+        # Create a unique key for this event
+        event_timestamp = event.get('timestamp') or event.get('date') or ''
+        # Truncate to minute precision to catch duplicates within same minute
+        timestamp_key = event_timestamp[:16] if len(event_timestamp) >= 16 else event_timestamp
+        
+        # Determine the action type
+        action = None
+        if event.get('type') == 'lifecycle':
+            action = event.get('event_type')
+        elif event.get('type') == 'audit':
+            action = event.get('action_type')
+        
+        # For lifecycle/audit events with assignment/return actions, deduplicate
+        if event.get('type') in ['lifecycle', 'audit'] and action in ['ASSIGNED', 'ASSET_ASSIGNED', 'RETURNED', 'ASSET_RETURNED', 'UNASSIGNED', 'ASSET_UNASSIGNED']:
+            # Normalize action names
+            normalized_action = action.replace('ASSET_', '')
+            event_key = (event.get('asset_id'), timestamp_key, normalized_action)
+            
+            if event_key in seen_events:
+                # Skip duplicate
+                continue
+            seen_events.add(event_key)
+        
+        deduplicated_events.append(event)
+    
+    events = deduplicated_events
     
     # Calculate statistics
     total_assignments = len([e for e in events if e.get('type') in ['lifecycle', 'audit'] and 
@@ -4811,6 +5078,141 @@ def get_corporate_sim_stats():
         'damaged': damaged,
         'carriers': [{'name': c[0], 'count': c[1]} for c in carrier_stats]
     })
+
+
+# ==================================================================================
+# INVOICE ATTACHMENT ENDPOINTS
+# ==================================================================================
+
+@app.route('/api/assets/invoice/<path:filename>', methods=['GET'])
+@token_required
+def serve_invoice_file(filename):
+    """
+    Serve invoice file for viewing or downloading
+    Security: Only authenticated users can access files
+    """
+    from flask import send_from_directory
+    import os
+    from werkzeug.utils import secure_filename
+    import subprocess
+    
+    print(f"\n[DOWNLOAD] ========== Invoice Download Request ==========")
+    print(f"[DOWNLOAD] Requested filename: {filename}")
+    
+    # Secure the filename to prevent directory traversal
+    safe_filename = secure_filename(filename)
+    print(f"[DOWNLOAD] Secured filename: {safe_filename}")
+    
+    # Invoice files directory
+    invoice_dir = os.path.join(os.getcwd(), 'uploads', 'invoices')
+    file_path = os.path.join(invoice_dir, safe_filename)
+    print(f"[DOWNLOAD] Full path: {file_path}")
+    
+    # Security check: ensure file is within uploads directory
+    real_path = os.path.realpath(file_path)
+    real_upload_dir = os.path.realpath(invoice_dir)
+    
+    if not real_path.startswith(real_upload_dir):
+        logger.warning(f"Attempted directory traversal attack: {filename}")
+        print(f"[DOWNLOAD] ⚠️  Security violation: path outside upload dir")
+        return jsonify({'error': 'Invalid file path'}), 403
+    
+    # Check if file exists
+    if not os.path.exists(file_path):
+        print(f"[DOWNLOAD] ⚠️  File not found: {file_path}")
+        return jsonify({'error': 'File not found'}), 404
+    
+    # STEP 2: Verify file before serving
+    file_size = os.path.getsize(file_path)
+    print(f"[DOWNLOAD] File exists: {os.path.exists(file_path)}")
+    print(f"[DOWNLOAD] File size: {file_size} bytes ({file_size / 1024:.2f} KB)")
+    
+    # Check file type
+    try:
+        result = subprocess.run(['file', file_path], capture_output=True, text=True, timeout=2)
+        print(f"[DOWNLOAD] File type: {result.stdout.strip()}")
+    except:
+        print(f"[DOWNLOAD] Could not determine file type")
+    
+    # Check first bytes
+    try:
+        with open(file_path, 'rb') as f:
+            first_bytes = f.read(32)
+        hex_str = ' '.join(f'{b:02x}' for b in first_bytes[:16])
+        print(f"[DOWNLOAD] First 16 bytes (hex): {hex_str}")
+        
+        # Verify signatures
+        if file_path.lower().endswith('.png'):
+            png_sig = bytes([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+            if first_bytes[:8] == png_sig:
+                print(f"[DOWNLOAD] ✅ Valid PNG signature")
+            else:
+                print(f"[DOWNLOAD] ⚠️  WARNING: Invalid PNG signature!")
+        elif file_path.lower().endswith('.pdf'):
+            if first_bytes[:4] == b'%PDF':
+                print(f"[DOWNLOAD] ✅ Valid PDF signature")
+            else:
+                print(f"[DOWNLOAD] ⚠️  WARNING: Invalid PDF signature!")
+        elif file_path.lower().endswith(('.jpg', '.jpeg')):
+            if first_bytes[:2] == bytes([0xFF, 0xD8]):
+                print(f"[DOWNLOAD] ✅ Valid JPEG signature")
+            else:
+                print(f"[DOWNLOAD] ⚠️  WARNING: Invalid JPEG signature!")
+    except Exception as e:
+        print(f"[DOWNLOAD] Error reading file: {e}")
+    
+    # Determine if it's a download request
+    download = request.args.get('download', 'false').lower() == 'true'
+    print(f"[DOWNLOAD] Download mode: {download}")
+    print(f"[DOWNLOAD] Serving file using send_from_directory...")
+    
+    try:
+        response = send_from_directory(
+            invoice_dir,
+            safe_filename,
+            as_attachment=download,
+            mimetype=None  # Auto-detect based on extension
+        )
+        print(f"[DOWNLOAD] Response headers: {dict(response.headers)}")
+        print(f"[DOWNLOAD] Content-Length: {response.content_length}")
+        print(f"[DOWNLOAD] ✅ File served successfully")
+        return response
+    except Exception as e:
+        logger.error(f"Error serving invoice file {filename}: {e}")
+        print(f"[DOWNLOAD] ⚠️  Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to serve file'}), 500
+
+
+@app.route('/api/assets/<int:asset_id>/invoice', methods=['GET'])
+@token_required
+def get_asset_invoice_info(asset_id):
+    """
+    Get invoice attachment information for an asset
+    """
+    from utils.file_upload import get_invoice_file_info, get_file_url
+    
+    asset = Asset.query.get_or_404(asset_id)
+    
+    if not asset.invoice_attachment:
+        return jsonify({
+            'has_invoice': False,
+            'invoice_attachment': None
+        })
+    
+    file_info = get_invoice_file_info(asset.invoice_attachment)
+    
+    if file_info['exists']:
+        file_info['view_url'] = get_file_url(asset.invoice_attachment)
+        file_info['download_url'] = get_file_url(asset.invoice_attachment) + '?download=true'
+    
+    return jsonify({
+        'has_invoice': file_info['exists'],
+        'invoice_attachment': file_info
+    })
+
+
 if __name__ == '__main__':
     print("=" * 60)
     print("🚀  IT Asset Management API")

@@ -1,8 +1,10 @@
 import React from 'react';
 import './AssetDetailsCard.css';
+import { assetAPI } from '../services/api';
 
 function AssetDetailsCard({ asset, title = "Asset Details", collapsible = false }) {
   const [isCollapsed, setIsCollapsed] = React.useState(false);
+  const [error, setError] = React.useState('');
 
   if (!asset) return null;
 
@@ -43,6 +45,42 @@ function AssetDetailsCard({ asset, title = "Asset Details", collapsible = false 
 
   const warranty = getWarrantyStatus(asset.warranty_date);
 
+  const handleViewInvoice = async () => {
+    try {
+      setError('');
+      const filename = asset.invoice_attachment.split('/').pop();
+      const response = await assetAPI.viewInvoiceFile(filename);
+      const blob = new Blob([response.data], { type: response.headers['content-type'] });
+      const blobUrl = window.URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+      // Cleanup after a delay
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 30000);
+    } catch (err) {
+      console.error('Failed to view invoice:', err);
+      setError('Failed to view invoice: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleDownloadInvoice = async () => {
+    try {
+      setError('');
+      const filename = asset.invoice_attachment.split('/').pop();
+      const response = await assetAPI.downloadInvoiceFile(filename);
+      const blob = new Blob([response.data], { type: response.headers['content-type'] });
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Failed to download invoice:', err);
+      setError('Failed to download invoice: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
   return (
     <div className="asset-details-card">
       <div className="asset-details-header">
@@ -64,6 +102,13 @@ function AssetDetailsCard({ asset, title = "Asset Details", collapsible = false 
 
       {!isCollapsed && (
         <div className="asset-details-body">
+          {/* Error message */}
+          {error && (
+            <div className="alert alert-danger alert-sm mb-3">
+              <i className="bi bi-exclamation-triangle-fill me-2"></i>
+              {error}
+            </div>
+          )}
           {/* Primary Info */}
           <div className="detail-section">
             <div className="asset-name">{asset.asset_name || 'N/A'}</div>
@@ -169,7 +214,7 @@ function AssetDetailsCard({ asset, title = "Asset Details", collapsible = false 
           )}
 
           {/* Warranty & Purchase */}
-          {(asset.purchase_date || asset.warranty_date || asset.invoice_number) && (
+          {(asset.purchase_date || asset.warranty_date || asset.invoice_number || asset.invoice_attachment) && (
             <div className="detail-section">
               <div className="section-title">
                 <i className="bi bi-shield-check me-1"></i>Warranty & Purchase
@@ -198,10 +243,41 @@ function AssetDetailsCard({ asset, title = "Asset Details", collapsible = false 
                     <span className="detail-value">{asset.invoice_number}</span>
                   </div>
                 )}
+                {asset.invoice_date && (
+                  <div className="detail-item">
+                    <span className="detail-label">Invoice Date:</span>
+                    <span className="detail-value">{formatDate(asset.invoice_date)}</span>
+                  </div>
+                )}
                 {asset.purchase_vendor && (
                   <div className="detail-item">
                     <span className="detail-label">Vendor:</span>
                     <span className="detail-value">{asset.purchase_vendor}</span>
+                  </div>
+                )}
+                {asset.invoice_attachment && (
+                  <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
+                    <span className="detail-label">Invoice Attachment:</span>
+                    <div className="mt-2 p-2 border rounded d-flex align-items-center gap-2" style={{background: '#f8f9fa', display: 'inline-flex'}}>
+                      <i className="bi bi-file-earmark-pdf text-danger"></i>
+                      <span className="small">{asset.invoice_attachment.split('/').pop()}</span>
+                      <button 
+                        type="button"
+                        className="btn btn-sm btn-outline-primary"
+                        onClick={handleViewInvoice}
+                        title="View invoice"
+                      >
+                        <i className="bi bi-eye"></i> View
+                      </button>
+                      <button 
+                        type="button"
+                        className="btn btn-sm btn-outline-success"
+                        onClick={handleDownloadInvoice}
+                        title="Download invoice"
+                      >
+                        <i className="bi bi-download"></i> Download
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

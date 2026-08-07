@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { assetAPI } from '../services/api';
+import EmployeeAutocomplete from '../components/EmployeeAutocomplete';
 
 const CATEGORIES = ['Laptop', 'CPU', 'Monitor', 'Printer', 'Phone', 'Server', 'Other'];
 const OS_LIST    = ['Windows 11', 'Windows 10', 'Ubuntu', 'macOS', 'Chrome OS', 'Other'];
@@ -22,10 +23,28 @@ function AssetEdit() {
   const [recipientEmail, setRecipientEmail] = useState('');
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailMsg, setEmailMsg] = useState('');
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [invoiceFile, setInvoiceFile] = useState(null);
+  const [currentInvoice, setCurrentInvoice] = useState(null);
 
   useEffect(() => {
     assetAPI.getById(id)
-      .then(res => setForm(res.data))
+      .then(res => {
+        setForm(res.data);
+        // Store current invoice attachment
+        if (res.data.invoice_attachment) {
+          setCurrentInvoice(res.data.invoice_attachment);
+        }
+        // Initialize selectedEmployee if asset has employee assigned
+        if (res.data.emp_id && res.data.employee_name) {
+          setSelectedEmployee({
+            emp_id: res.data.emp_id,
+            employee_name: res.data.employee_name,
+            email: res.data.employee_email || '',
+            mobile_number: res.data.mobile_number || ''
+          });
+        }
+      })
       .catch(() => setApiError('Asset not found'))
       .finally(() => setLoading(false));
   }, [id]);
@@ -43,6 +62,66 @@ function AssetEdit() {
     });
   };
 
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file size (10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setApiError(`File size (${(file.size / 1024 / 1024).toFixed(2)} MB) exceeds maximum allowed size (10 MB)`);
+      e.target.value = '';
+      return;
+    }
+
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      setApiError('Invalid file type. Only PDF, JPG, JPEG, and PNG files are allowed.');
+      e.target.value = '';
+      return;
+    }
+
+    setInvoiceFile(file);
+    setApiError('');
+  };
+
+  const handleRemoveInvoice = () => {
+    setInvoiceFile(null);
+    setCurrentInvoice(null);
+    setForm(f => ({ ...f, remove_invoice_attachment: true }));
+  };
+
+  // BUG-023 FIX: Employee autocomplete handlers
+  const handleEmployeeSelect = (employee) => {
+    setSelectedEmployee(employee);
+    setForm(f => ({
+      ...f,
+      emp_id: employee.emp_id,
+      employee_name: employee.employee_name,
+      employee_email: employee.email || '',
+      mobile_number: employee.mobile_number || '',
+      department: employee.department || '',  // BUG-029 FIX: Added missing field
+      designation: employee.designation || '', // BUG-029 FIX: Added missing field
+      location: employee.location || f.location // BUG-029 FIX: Added missing field (preserve existing if empty)
+    }));
+    if (employee.email) {
+      setRecipientEmail(employee.email);
+    }
+  };
+
+  const handleEmployeeClear = () => {
+    setSelectedEmployee(null);
+    setForm(f => ({
+      ...f,
+      emp_id: '',
+      employee_name: '',
+      employee_email: '',
+      mobile_number: ''
+    }));
+    setRecipientEmail('');
+  };
+
   const validate = () => {
     const errs = {};
     if (!form.asset_name?.trim())   errs.asset_name   = 'Asset name is required';
@@ -58,7 +137,7 @@ function AssetEdit() {
     setSaving(true);
     setApiError('');
     try {
-      await assetAPI.update(id, form);
+      await assetAPI.update(id, form, invoiceFile);
       navigate(returnTo, { state: { success: 'Asset updated successfully!' } });
     } catch (err) {
       setApiError(err.response?.data?.error || 'Failed to update asset');
@@ -221,24 +300,64 @@ function AssetEdit() {
             <i className="bi bi-person me-2"></i>Employee Information
           </h6>
           <div className="row g-3">
-            {[
-              { label: 'EMP ID',         name: 'emp_id' },
-              { label: 'Employee Name',  name: 'employee_name' },
-              { label: 'Mobile Number',  name: 'mobile_number', type: 'tel' },
-              { label: 'Employee Email', name: 'employee_email', type: 'email' },
-            ].map(f => (
-              <div className="col-md-4" key={f.name}>
-                <label className="form-label">{f.label}</label>
+            <div className="col-md-12">
+              <label className="form-label">Search Employee</label>
+              <EmployeeAutocomplete
+                value={selectedEmployee}
+                onChange={handleEmployeeSelect}
+                onClear={handleEmployeeClear}
+                placeholder="Search by Employee ID, Name, Email, or Phone..."
+                showDetails={true}
+                activeOnly={true}
+              />
+              <small className="text-muted d-block mt-1">
+                <i className="bi bi-info-circle me-1"></i>
+                Search and select an employee to auto-fill all fields. Leave empty if asset is unassigned.
+              </small>
+            </div>
+          </div>
+          
+          {/* Read-only employee details display */}
+          {selectedEmployee && (
+            <div className="row g-3 mt-2">
+              <div className="col-md-3">
+                <label className="form-label text-muted">Employee ID</label>
                 <input
-                  type={f.type || 'text'}
-                  name={f.name}
-                  className="form-control"
-                  value={form[f.name] || ''}
-                  onChange={handleChange}
+                  type="text"
+                  className="form-control-plaintext"
+                  value={form.emp_id || ''}
+                  readOnly
                 />
               </div>
-            ))}
-          </div>
+              <div className="col-md-3">
+                <label className="form-label text-muted">Employee Name</label>
+                <input
+                  type="text"
+                  className="form-control-plaintext"
+                  value={form.employee_name || ''}
+                  readOnly
+                />
+              </div>
+              <div className="col-md-3">
+                <label className="form-label text-muted">Mobile Number</label>
+                <input
+                  type="text"
+                  className="form-control-plaintext"
+                  value={form.mobile_number || ''}
+                  readOnly
+                />
+              </div>
+              <div className="col-md-3">
+                <label className="form-label text-muted">Employee Email</label>
+                <input
+                  type="text"
+                  className="form-control-plaintext"
+                  value={form.employee_email || ''}
+                  readOnly
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Asset Details ─────────────────────────────────────────────── */}
@@ -255,6 +374,7 @@ function AssetEdit() {
                 className={`form-control ${errors.asset_name ? 'is-invalid' : ''}`}
                 value={form.asset_name || ''}
                 onChange={handleChange}
+                autoComplete="off"
               />
               {errors.asset_name && <div className="invalid-feedback">{errors.asset_name}</div>}
             </div>
@@ -282,18 +402,19 @@ function AssetEdit() {
                 className={`form-control ${errors.serial_number ? 'is-invalid' : ''}`}
                 value={form.serial_number || ''}
                 onChange={handleChange}
+                autoComplete="off"
               />
               {errors.serial_number && <div className="invalid-feedback">{errors.serial_number}</div>}
             </div>
 
             <div className="col-md-4">
               <label className="form-label">Model Name</label>
-              <input type="text" name="model_name" className="form-control" value={form.model_name || ''} onChange={handleChange} />
+              <input type="text" name="model_name" className="form-control" value={form.model_name || ''} onChange={handleChange} autoComplete="off" />
             </div>
 
             <div className="col-md-4">
               <label className="form-label">Location</label>
-              <input type="text" name="location" className="form-control" value={form.location || ''} onChange={handleChange} />
+              <input type="text" name="location" className="form-control" value={form.location || ''} onChange={handleChange} autoComplete="off" />
             </div>
 
             <div className="col-md-3">
@@ -306,7 +427,7 @@ function AssetEdit() {
 
             <div className="col-md-3">
               <label className="form-label">OS Version</label>
-              <input type="text" name="version" className="form-control" value={form.version || ''} onChange={handleChange} />
+              <input type="text" name="version" className="form-control" value={form.version || ''} onChange={handleChange} autoComplete="off" />
             </div>
 
             <div className="col-md-3">
@@ -319,7 +440,7 @@ function AssetEdit() {
 
             <div className="col-md-3">
               <label className="form-label">Charger Serial Number</label>
-              <input type="text" name="charger_serial" className="form-control" value={form.charger_serial || ''} onChange={handleChange} />
+              <input type="text" name="charger_serial" className="form-control" value={form.charger_serial || ''} onChange={handleChange} autoComplete="off" />
             </div>
           </div>
         </div>
@@ -332,7 +453,7 @@ function AssetEdit() {
           <div className="row g-3">
             <div className="col-md-4">
               <label className="form-label">Invoice Number</label>
-              <input type="text" name="invoice_number" className="form-control" value={form.invoice_number || ''} onChange={handleChange} />
+              <input type="text" name="invoice_number" className="form-control" value={form.invoice_number || ''} onChange={handleChange} autoComplete="off" />
             </div>
             <div className="col-md-4">
               <label className="form-label">Invoice Date</label>
@@ -341,6 +462,93 @@ function AssetEdit() {
             <div className="col-md-4">
               <label className="form-label">Warranty Date</label>
               <input type="date" name="warranty_date" className="form-control" value={form.warranty_date || ''} onChange={handleChange} />
+            </div>
+            <div className="col-md-12">
+              <label className="form-label">Invoice Attachment</label>
+              
+              {/* Show current invoice if exists */}
+              {currentInvoice && !form.remove_invoice_attachment && (
+                <div className="mb-2 p-2 border rounded d-flex align-items-center justify-content-between" style={{background: '#f8f9fa'}}>
+                  <div className="d-flex align-items-center gap-2">
+                    <i className="bi bi-file-earmark-pdf text-danger"></i>
+                    <span className="small">{currentInvoice.split('/').pop()}</span>
+                    <button 
+                      type="button"
+                      className="btn btn-sm btn-outline-primary"
+                      onClick={async () => {
+                        try {
+                          const filename = currentInvoice.split('/').pop();
+                          const response = await assetAPI.viewInvoiceFile(filename);
+                          const blob = new Blob([response.data], { type: response.headers['content-type'] });
+                          const blobUrl = window.URL.createObjectURL(blob);
+                          window.open(blobUrl, '_blank');
+                          // Cleanup after a delay
+                          setTimeout(() => window.URL.revokeObjectURL(blobUrl), 30000);
+                        } catch (err) {
+                          setApiError('Failed to view invoice: ' + (err.response?.data?.error || err.message));
+                        }
+                      }}
+                    >
+                      <i className="bi bi-eye"></i> View
+                    </button>
+                    <button 
+                      type="button"
+                      className="btn btn-sm btn-outline-success"
+                      onClick={async () => {
+                        try {
+                          const filename = currentInvoice.split('/').pop();
+                          const response = await assetAPI.downloadInvoiceFile(filename);
+                          const blob = new Blob([response.data], { type: response.headers['content-type'] });
+                          const blobUrl = window.URL.createObjectURL(blob);
+                          const link = document.createElement('a');
+                          link.href = blobUrl;
+                          link.download = filename;
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                          window.URL.revokeObjectURL(blobUrl);
+                        } catch (err) {
+                          setApiError('Failed to download invoice: ' + (err.response?.data?.error || err.message));
+                        }
+                      }}
+                    >
+                      <i className="bi bi-download"></i> Download
+                    </button>
+                  </div>
+                  <button 
+                    type="button" 
+                    className="btn btn-sm btn-outline-danger"
+                    onClick={handleRemoveInvoice}
+                    title="Remove invoice"
+                  >
+                    <i className="bi bi-trash"></i> Remove
+                  </button>
+                </div>
+              )}
+              
+              {/* Show new file selector or replacement message */}
+              {(!currentInvoice || form.remove_invoice_attachment) && (
+                <>
+                  <input
+                    type="file"
+                    name="invoice_attachment"
+                    className="form-control"
+                    onChange={handleFileChange}
+                    accept=".pdf,.jpg,.jpeg,.png"
+                  />
+                  <small className="text-muted d-block mt-1">
+                    Supported: PDF, JPG, PNG (Max: 10 MB)
+                  </small>
+                </>
+              )}
+              
+              {/* Show new file name if selected */}
+              {invoiceFile && (
+                <div className="mt-2 p-2 border rounded" style={{background: '#e7f3ff'}}>
+                  <i className="bi bi-file-earmark-arrow-up text-primary me-2"></i>
+                  <strong>New file selected:</strong> {invoiceFile.name}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -353,11 +561,11 @@ function AssetEdit() {
           <div className="row g-3">
             <div className="col-md-4">
               <label className="form-label">Old User</label>
-              <input type="text" name="old_user" className="form-control" value={form.old_user || ''} onChange={handleChange} />
+              <input type="text" name="old_user" className="form-control" value={form.old_user || ''} onChange={handleChange} autoComplete="off" />
             </div>
             <div className="col-md-4">
               <label className="form-label">Old Device</label>
-              <input type="text" name="old_device" className="form-control" value={form.old_device || ''} onChange={handleChange} />
+              <input type="text" name="old_device" className="form-control" value={form.old_device || ''} onChange={handleChange} autoComplete="off" />
             </div>
             <div className="col-md-4">
               <label className="form-label">Date</label>

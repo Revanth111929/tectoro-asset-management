@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { assetAPI } from '../services/api';
 import AssetOperations from '../components/AssetOperations';
+import { canPerform } from '../utils/permissions';
 
 function AssetView() {
   const { id }   = useParams();
@@ -12,6 +13,7 @@ function AssetView() {
   const [asset,   setAsset]   = useState(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
+  const [invoiceError, setInvoiceError] = useState('');
 
   useEffect(() => {
     loadAsset();
@@ -28,6 +30,39 @@ function AssetView() {
   const handleOperationComplete = (result) => {
     // Reload asset data after operation
     loadAsset();
+  };
+
+  const handleViewInvoice = async () => {
+    try {
+      setInvoiceError('');
+      const filename = asset.invoice_attachment.split('/').pop();
+      const response = await assetAPI.viewInvoiceFile(filename);
+      const blob = new Blob([response.data], { type: response.headers['content-type'] });
+      const blobUrl = window.URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 30000);
+    } catch (err) {
+      setInvoiceError('Failed to view invoice: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleDownloadInvoice = async () => {
+    try {
+      setInvoiceError('');
+      const filename = asset.invoice_attachment.split('/').pop();
+      const response = await assetAPI.downloadInvoiceFile(filename);
+      const blob = new Blob([response.data], { type: response.headers['content-type'] });
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      setInvoiceError('Failed to download invoice: ' + (err.response?.data?.error || err.message));
+    }
   };
 
   if (loading) return (
@@ -71,10 +106,14 @@ function AssetView() {
           </div>
         </div>
         <div className="d-flex gap-2">
-          <AssetOperations asset={asset} onOperationComplete={handleOperationComplete} />
-          <Link to={`/assets/edit/${asset.id}`} state={{ returnTo: viewUrl }} className="btn btn-primary">
-            <i className="bi bi-pencil me-2"></i>Edit
-          </Link>
+          {canPerform('edit') && (
+            <>
+              <AssetOperations asset={asset} onOperationComplete={handleOperationComplete} />
+              <Link to={`/assets/edit/${asset.id}`} state={{ returnTo: viewUrl }} className="btn btn-primary">
+                <i className="bi bi-pencil me-2"></i>Edit
+              </Link>
+            </>
+          )}
         </div>
       </div>
 
@@ -114,6 +153,12 @@ function AssetView() {
         <h6 className="fw-bold mb-3 text-primary">
           <i className="bi bi-receipt me-2"></i>Invoice & Warranty
         </h6>
+        {invoiceError && (
+          <div className="alert alert-danger alert-sm mb-3">
+            <i className="bi bi-exclamation-triangle-fill me-2"></i>
+            {invoiceError}
+          </div>
+        )}
         <div className="row">
           <Row label="Invoice Number" value={asset.invoice_number} mono />
           <Row label="Invoice Date"   value={asset.invoice_date} />
@@ -124,6 +169,31 @@ function AssetView() {
               {warrantyStatus()}
             </div>
           </div>
+          {asset.invoice_attachment && (
+            <div className="col-12 mb-3">
+              <div className="text-muted small fw-600 mb-1">Invoice Attachment</div>
+              <div className="mt-2 p-2 border rounded d-flex align-items-center gap-2" style={{background: '#f8f9fa', display: 'inline-flex'}}>
+                <i className="bi bi-file-earmark-pdf text-danger"></i>
+                <span className="small">{asset.invoice_attachment.split('/').pop()}</span>
+                <button 
+                  type="button"
+                  className="btn btn-sm btn-outline-primary"
+                  onClick={handleViewInvoice}
+                  title="View invoice"
+                >
+                  <i className="bi bi-eye"></i> View
+                </button>
+                <button 
+                  type="button"
+                  className="btn btn-sm btn-outline-success"
+                  onClick={handleDownloadInvoice}
+                  title="Download invoice"
+                >
+                  <i className="bi bi-download"></i> Download
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

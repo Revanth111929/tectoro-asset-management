@@ -793,14 +793,32 @@ class OperationsService:
                         "EMPLOYEE_INACTIVE"
                     )
                 
+                # Validate employee has all required information for assignment
+                missing_fields = []
+                if not employee.emp_id or not str(employee.emp_id).strip():
+                    missing_fields.append('Employee ID')
+                if not employee.employee_name or not str(employee.employee_name).strip():
+                    missing_fields.append('Employee Name')
+                if not employee.email or not str(employee.email).strip():
+                    missing_fields.append('Employee Email')
+                if not employee.mobile_number or not str(employee.mobile_number).strip():
+                    missing_fields.append('Mobile Number')
+                
+                if missing_fields:
+                    raise OperationError(
+                        f"Cannot return asset to employee {employee.emp_id}. Missing required information: {', '.join(missing_fields)}. "
+                        f"Please update employee record or choose 'return_to_inventory'.",
+                        "INCOMPLETE_EMPLOYEE_INFO"
+                    )
+                
                 asset.status = 'Assigned'
-                asset.emp_id = repair.previous_emp_id
-                asset.employee_name = repair.previous_employee_name
+                asset.emp_id = employee.emp_id
+                asset.employee_name = employee.employee_name
                 asset.employee_email = employee.email
                 asset.mobile_number = employee.mobile_number
                 asset.date = date.today()
                 
-                new_status_desc = f"Assigned to {repair.previous_employee_name}"
+                new_status_desc = f"Assigned to {employee.employee_name}"
                 
             elif completion_action == 'return_to_inventory':
                 # Make Available

@@ -6,7 +6,6 @@ import { useTheme } from '../context/ThemeContext';
 import { canPerform, getUserInfo } from '../utils/permissions';
 import { resolveActiveMenu, ASSET_DETAIL_ROUTE } from '../utils/sidebarActiveResolver';
 import { assetAPI } from '../services/api';
-import GlobalSearch from './GlobalSearch';
 
 function Layout({ children }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -250,7 +249,6 @@ function Layout({ children }) {
                 <SectionHeader label="Settings" section="settings" />
                 <div className="nav-children" style={{ maxHeight: (collapsed || openSections.settings) ? '250px' : '0', opacity: (collapsed || openSections.settings) ? 1 : 0 }}>
                   <NavItem to="/employees"     icon="people"        label="Employees" exact />
-                  <NavItem to="/onboarding"    icon="person-plus"   label="Onboarding" exact />
                   <NavItem to="/settings"      icon="gear"          label="User Management" exact />
                   <NavItem to="/email-config"  icon="envelope-gear" label="Email Config" />
                 </div>
@@ -284,7 +282,6 @@ function Layout({ children }) {
         <div className="layout-main">
           <div className="layout-topbar">
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
-              <GlobalSearch />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div className="dropdown">

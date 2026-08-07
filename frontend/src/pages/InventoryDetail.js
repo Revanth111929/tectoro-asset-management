@@ -2,16 +2,16 @@
 // Future-proof: Currently uses asset_id, ready for inventory master table migration
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { assetAPI, invoiceAPI } from '../services/api';
+import { assetAPI } from '../services/api';
 
 function InventoryDetail() {
   const { inventoryId } = useParams(); // Future-proof: currently detail/:inventoryId, will migrate to /:inventoryId
   const navigate = useNavigate();
   const [asset, setAsset] = useState(null);
-  const [invoice, setInvoice] = useState(null);
   const [historySummary, setHistorySummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [invoiceError, setInvoiceError] = useState('');
 
   useEffect(() => {
     // Currently: inventoryId maps to asset.id
@@ -23,14 +23,6 @@ function InventoryDetail() {
         // Fetch asset details
         const assetRes = await assetAPI.getById(inventoryId);
         setAsset(assetRes.data);
-        
-        // Fetch invoice if exists
-        try {
-          const invoiceRes = await invoiceAPI.getInfo(inventoryId);
-          setInvoice(invoiceRes.data.attachment);
-        } catch (err) {
-          // No invoice - that's okay
-        }
         
         // Fetch lifecycle summary
         try {
@@ -198,6 +190,39 @@ function InventoryDetail() {
 
   const warranty = calculateWarranty();
 
+  const handleViewInvoice = async () => {
+    try {
+      setInvoiceError('');
+      const filename = asset.invoice_attachment.split('/').pop();
+      const response = await assetAPI.viewInvoiceFile(filename);
+      const blob = new Blob([response.data], { type: response.headers['content-type'] });
+      const blobUrl = window.URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 30000);
+    } catch (err) {
+      setInvoiceError('Failed to view invoice: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleDownloadInvoice = async () => {
+    try {
+      setInvoiceError('');
+      const filename = asset.invoice_attachment.split('/').pop();
+      const response = await assetAPI.downloadInvoiceFile(filename);
+      const blob = new Blob([response.data], { type: response.headers['content-type'] });
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      setInvoiceError('Failed to download invoice: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
   const Row = ({ label, value, colClass = 'col-md-4' }) => (
     <div className={`${colClass} mb-3`}>
       <div className="text-muted small fw-600 mb-1">{label}</div>
@@ -286,7 +311,7 @@ function InventoryDetail() {
             <div className="text-success" style={{ fontSize: '1.5rem' }}>
               <i className="bi bi-file-earmark-check"></i>
             </div>
-            <div className="fw-bold fs-5">{invoice ? 'Yes' : 'No'}</div>
+            <div className="fw-bold fs-5">{asset.invoice_attachment ? 'Yes' : 'No'}</div>
             <div className="text-muted small">Invoice</div>
           </div>
         </div>
@@ -360,44 +385,33 @@ function InventoryDetail() {
           </Section>
 
           {/* Invoice Attachment */}
-          {invoice && (
+          {asset.invoice_attachment && (
             <Section title="Invoice Attachment" icon="paperclip">
+              {invoiceError && (
+                <div className="alert alert-danger alert-sm mb-3">
+                  <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                  {invoiceError}
+                </div>
+              )}
               <div className="d-flex align-items-center justify-content-between p-3 rounded" style={{ background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.2)' }}>
                 <div className="d-flex align-items-center gap-3">
                   <div className="d-flex align-items-center justify-content-center" style={{ width: 48, height: 48, background: 'rgba(99,102,241,0.1)', borderRadius: 8 }}>
                     <i className="bi bi-file-earmark-pdf text-primary" style={{ fontSize: 24 }}></i>
                   </div>
                   <div>
-                    <div className="fw-600">{invoice.original_filename}</div>
-                    <div className="text-muted small">
-                      {(invoice.file_size / 1024 / 1024).toFixed(2)} MB
-                      {invoice.upload_date && ` • Uploaded ${new Date(invoice.upload_date).toLocaleDateString()}`}
-                    </div>
+                    <div className="fw-600">{asset.invoice_attachment.split('/').pop()}</div>
+                    <div className="text-muted small">Invoice Attachment</div>
                   </div>
                 </div>
                 <div className="d-flex gap-2">
-                  <a 
-                    href={invoiceAPI.view(inventoryId)} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
+                  <button 
+                    onClick={handleViewInvoice}
                     className="btn btn-sm btn-outline-primary"
                   >
                     <i className="bi bi-eye me-1"></i>View
-                  </a>
+                  </button>
                   <button 
-                    onClick={async () => {
-                      try {
-                        const res = await invoiceAPI.download(inventoryId);
-                        const url = window.URL.createObjectURL(res.data);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = invoice.original_filename;
-                        a.click();
-                        window.URL.revokeObjectURL(url);
-                      } catch (err) {
-                        alert('Failed to download invoice');
-                      }
-                    }}
+                    onClick={handleDownloadInvoice}
                     className="btn btn-sm btn-success"
                   >
                     <i className="bi bi-download me-1"></i>Download

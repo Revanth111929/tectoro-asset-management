@@ -54,7 +54,7 @@ class Asset(db.Model):
     # 5. Asset NAME
     asset_name           = db.Column(db.String(150), nullable=False, index=True)
 
-    # 6. CATEGORY  (Laptop / Desktop / Monitor / etc.)
+    # 6. CATEGORY  (Laptop / CPU / Monitor / etc.)
     category             = db.Column(db.String(100), index=True)
 
     # 7. SERIAL NUMBER  – unique hardware identifier
@@ -80,6 +80,9 @@ class Asset(db.Model):
 
     # 14. INVOICE DATE
     invoice_date         = db.Column(db.Date)
+    
+    # 14b. INVOICE ATTACHMENT - file path to uploaded invoice
+    invoice_attachment   = db.Column(db.String(255))  # Stores relative file path
 
     # 15. WARRANTY DATE  – expiry date for warranty alerts
     warranty_date        = db.Column(db.Date)
@@ -122,7 +125,7 @@ class Asset(db.Model):
     processor            = db.Column(db.String(150))  # CPU details
     storage_type         = db.Column(db.String(50))   # SSD/HDD/Hybrid/NVMe
     storage_capacity     = db.Column(db.String(50))   # 512GB, 1TB, etc.
-    graphics_card        = db.Column(db.String(150))  # GPU for desktops
+    graphics_card        = db.Column(db.String(150))  # GPU for CPUs/workstations
     os_version           = db.Column(db.String(50))   # OS version details
     screen_size          = db.Column(db.String(30))   # Monitor/Laptop screen size
     
@@ -209,6 +212,7 @@ class Asset(db.Model):
             'location':        self.location or '',
             'invoice_number':  self.invoice_number or '',
             'invoice_date':    self.invoice_date.isoformat() if self.invoice_date else '',
+            'invoice_attachment': self.invoice_attachment or '',  # Invoice file path
             'warranty_date':   self.warranty_date.isoformat() if self.warranty_date else '',
             'charger_serial':  self.charger_serial or '',
             'old_user':        self.old_user or '',
@@ -735,6 +739,10 @@ class Employee(db.Model):
     updated_at     = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def to_dict(self):
+        """
+        Serialize employee to dict - Single source of truth for status
+        Return exactly what's in database, no defaults, no overrides
+        """
         return {
             'id':            self.id,
             'emp_id':        self.emp_id,
@@ -743,13 +751,13 @@ class Employee(db.Model):
             'mobile_number': self.mobile_number or '',
             'department':    self.department or '',
             'designation':   self.designation or '',
-            'team':          self.team or '',  # Phase 1
-            'project':       self.project or '',  # Phase 1
-            'manager':       self.manager or '',  # Phase 1
-            'microsoft_license': self.microsoft_license or '',  # Phase 1
+            'team':          self.team or '',
+            'project':       self.project or '',
+            'manager':       self.manager or '',
+            'microsoft_license': self.microsoft_license or '',
             'location':      self.location or '',
             'is_active':     self.is_active,
-            'status':        self.status or 'Active',
+            'status':        self.status,  # Return exact database value - no default
             'exit_date':     self.exit_date.isoformat() if self.exit_date else None,
             'application_access': self.application_access or '',
             'onboarding_id': self.onboarding_id,

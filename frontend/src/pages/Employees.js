@@ -1,17 +1,19 @@
 // Employees.js - Employee Master Management - Phase 1
 // Loads from Employee table while maintaining backward compatibility
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { employeeAPI, assetAPI } from '../services/api';
 import EmployeeExitModal from '../components/EmployeeExitModal';
 
 function Employees() {
   const navigate = useNavigate();
+  const location = useLocation();
   const fileInputRef = useRef(null);
   
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('Active'); // Default to Active only
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [showExitModal, setShowExitModal] = useState(false);
   
@@ -20,20 +22,23 @@ function Employees() {
   const [importResult, setImportResult] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
 
+  // FIX: Re-fetch data whenever we navigate to this page
+  // This ensures status changes are immediately visible after update
   useEffect(() => {
     loadEmployees();
-  }, []);
+  }, [location.key]); // Re-run when navigation occurs
 
   const loadEmployees = async () => {
     try {
       setLoading(true);
-      // Phase 1: Try to load from Employee Master first
+      
+      // Always fetch fresh data from Employee table
       const empRes = await employeeAPI.search('');
       
       if (empRes.data && empRes.data.length > 0) {
-        // Phase 1: We have employee master data
+        // Map employee data - preserve status exactly as returned from API
         const employeesList = empRes.data.map(emp => ({
-          ...emp,
+          ...emp,  // Spread all fields including status
           asset_count: 0,  // Will be enriched from assets
           assets: []
         }));
@@ -58,7 +63,7 @@ function Employees() {
         
         setEmployees(employeesList);
       } else {
-        // Backward compatibility: Extract from assets
+        // Backward compatibility: Extract from assets (status will default at model level)
         const res = await assetAPI.getAll({});
         const assetsData = res.data.assets || res.data || [];
         
@@ -73,7 +78,7 @@ function Employees() {
                 mobile_number: asset.mobile_number || '',
                 department: '',
                 designation: '',
-                status: 'Active',
+                status: 'Active',  // Only as fallback for asset-derived employees
                 asset_count: 0,
                 assets: []
               };
@@ -165,12 +170,18 @@ function Employees() {
     loadEmployees();
   };
 
-  const filteredEmployees = employees.filter(emp =>
-    emp.employee_name.toLowerCase().includes(search.toLowerCase()) ||
-    emp.emp_id.toLowerCase().includes(search.toLowerCase()) ||
-    (emp.email && emp.email.toLowerCase().includes(search.toLowerCase())) ||
-    (emp.department && emp.department.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filteredEmployees = employees.filter(emp => {
+    // Text search filter
+    const matchesSearch = emp.employee_name.toLowerCase().includes(search.toLowerCase()) ||
+      emp.emp_id.toLowerCase().includes(search.toLowerCase()) ||
+      (emp.email && emp.email.toLowerCase().includes(search.toLowerCase())) ||
+      (emp.department && emp.department.toLowerCase().includes(search.toLowerCase()));
+    
+    // Status filter
+    const matchesStatus = statusFilter === 'All' || emp.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <div>
@@ -220,7 +231,7 @@ function Employees() {
 
       {/* Search & Statistics */}
       <div className="row g-3 mb-3">
-        <div className="col-md-8">
+        <div className="col-md-6">
           <div className="table-card">
             <div className="input-group">
               <span className="input-group-text"><i className="bi bi-search"></i></span>
@@ -242,10 +253,24 @@ function Employees() {
             </div>
           </div>
         </div>
-        <div className="col-md-4">
+        <div className="col-md-3">
+          <div className="table-card">
+            <select 
+              className="form-select"
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+            >
+              <option value="All">All Status</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+              <option value="Exited">Exited</option>
+            </select>
+          </div>
+        </div>
+        <div className="col-md-3">
           <div className="table-card text-center">
-            <div className="text-muted small mb-1">Total Employees</div>
-            <div className="fw-bold fs-4">{employees.length}</div>
+            <div className="text-muted small mb-1">Showing</div>
+            <div className="fw-bold fs-4">{filteredEmployees.length} / {employees.length}</div>
           </div>
         </div>
       </div>

@@ -255,6 +255,7 @@ function Settings() {
                       value={form.username}
                       onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
                       placeholder="e.g. john.doe"
+                      autoComplete="off"
                       autoFocus />
                   </div>
                 </div>
@@ -267,7 +268,8 @@ function Settings() {
                     <input type="email" className="form-control"
                       value={form.email}
                       onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                      placeholder="e.g. john@tectoro.com" />
+                      placeholder="e.g. john@tectoro.com"
+                      autoComplete="off" />
                   </div>
                 </div>
 

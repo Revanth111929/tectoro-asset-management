@@ -12,7 +12,8 @@ function EmployeeAutocomplete({
   disabled = false,
   placeholder = "Search employee by ID, name, email...",
   error = null,
-  showDetails = true  // Show email/mobile in dropdown
+  showDetails = true,  // Show email/mobile in dropdown
+  activeOnly = false   // BUG FIX: Filter to only Active employees (for asset assignment)
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [suggestions, setSuggestions] = useState([]);
@@ -55,19 +56,49 @@ function EmployeeAutocomplete({
 
     try {
       setLoading(true);
-      const response = await employeeAPI.search(term);
+      // BUG FIX: Pass active_only parameter when filtering for asset assignment
+      const params = { q: term };
+      if (activeOnly) {
+        params.active_only = 'true';
+      }
+      
+      // STEP 2: Log the params being sent
+      console.log('[EmployeeAutocomplete] Search params:', params);
+      console.log('[EmployeeAutocomplete] activeOnly prop:', activeOnly);
+      console.log('[EmployeeAutocomplete] API call: GET /api/employees with params:', JSON.stringify(params));
+      
+      const response = await employeeAPI.search(params);
       const employees = response.data || [];
+
+      // STEP 6: Log the response received
+      console.log('[EmployeeAutocomplete] API response received:', employees.length, 'employees');
+      console.log('[EmployeeAutocomplete] First 3 employees:', employees.slice(0, 3).map(e => ({
+        emp_id: e.emp_id,
+        name: e.employee_name,
+        status: e.status
+      })));
+      
+      // Check for non-Active employees in response
+      const nonActive = employees.filter(e => e.status !== 'Active');
+      if (nonActive.length > 0 && activeOnly) {
+        console.warn('[EmployeeAutocomplete] WARNING: activeOnly=true but response contains non-Active employees!');
+        console.warn('[EmployeeAutocomplete] Non-Active employees:', nonActive.map(e => ({
+          emp_id: e.emp_id,
+          name: e.employee_name,
+          status: e.status
+        })));
+      }
 
       if (employees.length === 0) {
         setNotFound(true);
         setSuggestions([]);
       } else {
         setNotFound(false);
-        setSuggestions(employees.filter(emp => emp.status === 'Active' && emp.is_active !== false));
+        setSuggestions(employees);
       }
       setShowDropdown(true);
     } catch (err) {
-      console.error('Employee search failed:', err);
+      console.error('[EmployeeAutocomplete] Employee search failed:', err);
       setSuggestions([]);
       setNotFound(true);
     } finally {
@@ -180,6 +211,9 @@ function EmployeeAutocomplete({
                 {emp.status === 'Inactive' && (
                   <span className="badge bg-warning ms-2">Inactive</span>
                 )}
+                {emp.status === 'Exited' && (
+                  <span className="badge bg-secondary ms-2">Exited</span>
+                )}
               </div>
               {showDetails && (
                 <div className="employee-details">
@@ -207,21 +241,15 @@ function EmployeeAutocomplete({
         <div className="selected-employee-info">
           <div className="row g-2 mt-1">
             {value.designation && (
-              <div className="col-md-4">
+              <div className="col-md-6">
                 <small className="text-muted">Designation:</small>
                 <div className="fw-500">{value.designation}</div>
               </div>
             )}
             {value.department && (
-              <div className="col-md-4">
+              <div className="col-md-6">
                 <small className="text-muted">Department:</small>
                 <div className="fw-500">{value.department}</div>
-              </div>
-            )}
-            {value.email && (
-              <div className="col-md-4">
-                <small className="text-muted">Email:</small>
-                <div className="fw-500 small">{value.email}</div>
               </div>
             )}
           </div>

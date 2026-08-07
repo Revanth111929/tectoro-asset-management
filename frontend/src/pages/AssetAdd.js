@@ -199,6 +199,7 @@ function NewDeviceForm({ navigate }) {
   const [saving,   setSaving]   = useState(false);
   const [errors,   setErrors]   = useState({});
   const [apiError, setApiError] = useState('');
+  const [invoiceFile, setInvoiceFile] = useState(null);
 
   const validate = () => {
     const errs = {};
@@ -256,7 +257,7 @@ function NewDeviceForm({ navigate }) {
         employee_name: '', 
         mobile_number: '', 
         employee_email: '' 
-      });
+      }, invoiceFile);
       navigate('/assets', { state: { success: 'New device added to inventory!' } });
     } catch (err) {
       // Phase 3: Enhanced error handling
@@ -313,6 +314,8 @@ function NewDeviceForm({ navigate }) {
         onSubmit={handleSubmit}
         saving={saving}
         onCancel={() => navigate('/assets')}
+        invoiceFile={invoiceFile}
+        setInvoiceFile={setInvoiceFile}
       />
     </>
   );
@@ -498,7 +501,8 @@ function ExistingDeviceForm({ navigate }) {
     setForm(f => ({ ...f, emp_id: val }));
     if (val.length < 2) { setEmpSuggestions([]); return; }
     try {
-      const res = await employeeAPI.search(val);
+      // BUG FIX: Only show Active employees for asset assignment
+      const res = await employeeAPI.search({ q: val, active_only: 'true' });
       setEmpSuggestions(res.data || []);
     } catch {}
   };
@@ -514,7 +518,8 @@ function ExistingDeviceForm({ navigate }) {
     }
     try {
       console.log('Calling API with query:', val);
-      const res = await employeeAPI.search(val);
+      // BUG FIX: Only show Active employees for asset assignment
+      const res = await employeeAPI.search({ q: val, active_only: 'true' });
       console.log('Employee search results:', res.data);
       setEmployeeSearchResults(res.data || []);
     } catch (err) {
@@ -644,20 +649,36 @@ function ExistingDeviceForm({ navigate }) {
     setSaving(true); setApiError('');
     
     try {
-      // Save or update employee record permanently
+      // Save or update employee record permanently with Active status
       if (form.emp_id && form.employee_name) {
-        await employeeAPI.createOrUpdate({
+        console.log('[ExistingDevice] Creating/updating employee:', form.emp_id);
+        const empResponse = await employeeAPI.createOrUpdate({
           emp_id:        form.emp_id,
           employee_name: form.employee_name,
-          email:         form.employee_email,
-          mobile_number: form.mobile_number,
-          location:      form.location,
+          email:         form.employee_email || '',
+          mobile_number: form.mobile_number || '',
+          location:      form.location || '',
+          status:        'Active',      // Ensure employee is Active
+          is_active:     true,          // Ensure employee is active
         });
+        
+        console.log('[ExistingDevice] Employee response:', empResponse.data);
+        
+        // Verify employee was created/updated successfully
+        if (!empResponse.data || !empResponse.data.success) {
+          throw new Error('Failed to create/update employee in Employee Master');
+        }
       }
 
       // Update the existing asset
-      const assetData = { ...form };
-      await assetAPI.update(loadedAssetId, assetData);
+      console.log('[ExistingDevice] Updating asset:', loadedAssetId);
+      const assetData = {
+        ...form,
+        status: 'Assigned'  // CRITICAL: Must set status to 'Assigned' when assigning employee
+      };
+      console.log('[ExistingDevice] Payload:', assetData);
+      const assetResponse = await assetAPI.update(loadedAssetId, assetData);
+      console.log('[ExistingDevice] Asset updated:', assetResponse.data);
 
       // Send acknowledgment email if requested
       if (sendAck && loadedAssetId && form.employee_email) {
@@ -669,9 +690,11 @@ function ExistingDeviceForm({ navigate }) {
       }
 
       navigate('/assets', { state: { success: sendAck
-        ? 'Asset updated and acknowledgment email sent!'
-        : 'Asset updated successfully!' }});
+        ? 'Asset assigned and acknowledgment email sent!'
+        : 'Asset assigned successfully!' }});
     } catch (err) {
+      console.error('[ExistingDevice] Assignment error:', err);
+      
       // Phase 3: Enhanced error handling
       const errorData = err.response?.data;
       if (errorData) {
@@ -686,8 +709,10 @@ function ExistingDeviceForm({ navigate }) {
             const lowerError = error.toLowerCase();
             if (lowerError.includes('serial number')) {
               fieldErrors.serial_number = error;
-            } else if (lowerError.includes('employee')) {
-              fieldErrors.emp_id = error;
+            } else if (lowerError.includes('employee') && lowerError.includes('not found')) {
+              fieldErrors.emp_id = 'Employee not found in Employee Master. Please try again or contact support.';
+            } else if (lowerError.includes('not active')) {
+              fieldErrors.emp_id = 'Employee is not active. Please select an active employee.';
             } else if (lowerError.includes('available') || lowerError.includes('assigned')) {
               fieldErrors.asset_search = error;
             }
@@ -704,7 +729,7 @@ function ExistingDeviceForm({ navigate }) {
           });
         }
       } else {
-        setApiError('Failed to update asset');
+        setApiError(err.message || 'Failed to update asset');
       }
     } finally { setSaving(false); }
   };

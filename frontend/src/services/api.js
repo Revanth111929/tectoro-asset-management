@@ -110,6 +110,7 @@ export const authAPI = {
 export const dashboardAPI = {
   getStats: () => api.get('/dashboard/stats'),
   getActivity: () => api.get('/dashboard/activity'),
+  getLifecycleStats: () => api.get('/dashboard/lifecycle-stats'),
 };
 
 // ── ASSETS ────────────────────────────────────────────────────────────────────
@@ -122,12 +123,44 @@ export const assetAPI = {
     console.log('[assetAPI] getById called for ID:', id);
     return api.get(`/assets/${id}`);
   },
-  create: (data) => {
-    console.log('[assetAPI] create called with data:', data);
+  create: (data, file = null) => {
+    console.log('[assetAPI] create called with data:', data, 'file:', file?.name);
+    if (file) {
+      // Use multipart/form-data for file upload
+      const formData = new FormData();
+      // Append all data fields
+      Object.keys(data).forEach(key => {
+        if (data[key] !== null && data[key] !== undefined && data[key] !== '') {
+          formData.append(key, data[key]);
+        }
+      });
+      // Append the file
+      formData.append('invoice_attachment', file);
+      return api.post('/assets', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+    }
     return api.post('/assets', data);
   },
-  update: (id, data) => {
-    console.log('[assetAPI] update called for ID:', id, 'with data:', data);
+  update: (id, data, file = null) => {
+    console.log('[assetAPI] update called for ID:', id, 'with data:', data, 'file:', file?.name);
+    if (file || data.remove_invoice_attachment) {
+      // Use multipart/form-data for file upload or removal
+      const formData = new FormData();
+      // Append all data fields
+      Object.keys(data).forEach(key => {
+        if (data[key] !== null && data[key] !== undefined && data[key] !== '') {
+          formData.append(key, data[key]);
+        }
+      });
+      // Append the file if provided
+      if (file) {
+        formData.append('invoice_attachment', file);
+      }
+      return api.put(`/assets/${id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+    }
     return api.put(`/assets/${id}`, data);
   },
   delete: (id) => {
@@ -154,6 +187,11 @@ export const assetAPI = {
   getStatusInfo: () => {
     console.log('[assetAPI] getStatusInfo called');
     return api.get('/assets/status-info');
+  },
+  // Serial number validation
+  validateSerial: (serialNumber) => {
+    console.log('[assetAPI] validateSerial called for:', serialNumber);
+    return api.post('/assets/validate/serial-number', { serial_number: serialNumber });
   },
   // Phase 4.1: Operations Engine
   getAvailableOperations: (assetId) => {
@@ -194,6 +232,29 @@ export const assetAPI = {
     console.log('[assetAPI] getAssetRepairs called for asset:', assetId);
     return api.get(`/assets/${assetId}/repairs`);
   },
+  
+  // Invoice file operations with authentication
+  downloadInvoiceFile: async (filename) => {
+    console.log('[assetAPI] downloadInvoiceFile called for:', filename);
+    const response = await api.get(`/assets/invoice/${filename}`, {
+      responseType: 'blob',
+      params: { download: 'true' }
+    });
+    return response;
+  },
+  
+  viewInvoiceFile: async (filename) => {
+    console.log('[assetAPI] viewInvoiceFile called for:', filename);
+    const response = await api.get(`/assets/invoice/${filename}`, {
+      responseType: 'blob'
+    });
+    return response;
+  },
+  
+  getInvoiceInfo: (assetId) => {
+    console.log('[assetAPI] getInvoiceInfo called for asset:', assetId);
+    return api.get(`/assets/${assetId}/invoice`);
+  },
 };
 
 // ── REPORTS ───────────────────────────────────────────────────────────────────
@@ -218,7 +279,13 @@ export const emailConfigAPI = {
 
 // ── EMPLOYEES ─────────────────────────────────────────────────────────────────
 export const employeeAPI = {
-  search: (q) => api.get('/employees', { params: { q } }),
+  search: (paramsOrQuery) => {
+    // Support both old string format and new params object
+    const params = typeof paramsOrQuery === 'string' 
+      ? { q: paramsOrQuery } 
+      : paramsOrQuery;
+    return api.get('/employees', { params });
+  },
   getById: (emp_id) => api.get(`/employees/${emp_id}`),
   createOrUpdate: (data) => api.post('/employees', data),
   // Phase 1: New methods
@@ -248,17 +315,6 @@ export const employeeAPI = {
 export const adminProfileAPI = {
   get: () => api.get('/admin-profile'),
   save: (data) => api.post('/admin-profile', data),
-};
-
-// ── ONBOARDING ────────────────────────────────────────────────────────────────
-export const onboardingAPI = {
-  getAll: (params) => api.get('/onboarding', { params }),
-  getById: (id) => api.get(`/onboarding/${id}`),
-  create: (data) => api.post('/onboarding', data),
-  update: (id, data) => api.put(`/onboarding/${id}`, data),
-  delete: (id) => api.delete(`/onboarding/${id}`),
-  convertToEmployee: (id, data) => api.post(`/onboarding/${id}/convert`, data),
-  getAvailableAssets: (params) => api.get('/onboarding/available-assets', { params }),
 };
 
 // ── USERS (Admin Management) ──────────────────────────────────────────────────
@@ -300,13 +356,6 @@ export const invoiceAPI = {
     // Returns the file URL for inline viewing
     return `${API_BASE_URL}/assets/${assetId}/invoice/view`;
   },
-};
-
-// ── GLOBAL SEARCH ─────────────────────────────────────────────────────────────
-export const searchAPI = {
-  global: (query, type = 'all', limit = 10) => api.get('/search/global', {
-    params: { q: query, type, limit }
-  }),
 };
 
 export default api;

@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import { dashboardAPI } from '../services/api';
+import { formatDateTime } from '../utils/dateUtils';
 import { canPerform } from '../utils/permissions';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
@@ -25,13 +26,13 @@ function Dashboard() {
     Promise.all([
       dashboardAPI.getStats(), 
       dashboardAPI.getActivity(),
-      fetch('/api/dashboard/lifecycle-stats').then(r => r.json()).catch(() => ({ stats: {} }))
+      dashboardAPI.getLifecycleStats()
     ])
       .then(([statsRes, actRes, lifecycleRes]) => {
         setStats(statsRes.data);
         setActivity(actRes.data.logs || []);
         // Extract stats from nested response
-        setLifecycleStats(lifecycleRes?.stats || lifecycleRes || {});
+        setLifecycleStats(lifecycleRes?.data?.stats || lifecycleRes?.stats || {});
       })
       .catch(() => setError('Failed to load dashboard data'))
       .finally(() => setLoading(false));
@@ -100,6 +101,14 @@ function Dashboard() {
       }
     },
     cutout: '70%',
+    onClick: (event, elements) => {
+      if (elements.length > 0) {
+        const index = elements[0].index;
+        const statusMap = ['Available', 'Assigned', 'Maintenance', 'Retired'];
+        const status = statusMap[index];
+        navigate(`/assets?status=${status}`);
+      }
+    },
   };
 
   const catChart = {
@@ -177,13 +186,31 @@ function Dashboard() {
               </div>
               <div className="row g-3">
                 {[
-                  { label: 'Active Temp Assignments', value: lifecycleStats.active_temp_assignments || 0, icon: 'bi-arrow-repeat', desc: 'Loaner devices in use' },
-                  { label: 'Under Repair', value: lifecycleStats.assets_under_repair || 0, icon: 'bi-wrench', desc: 'Assets being repaired' },
-                  { label: 'Replaced This Month', value: lifecycleStats.assets_replaced_this_month || 0, icon: 'bi-arrow-left-right', desc: 'Asset upgrades/swaps' },
-                  { label: 'Total Lifecycle Events', value: lifecycleStats.total_lifecycle_events || 0, icon: 'bi-clock-history', desc: 'All tracked changes' },
+                  { label: 'Active Temp Assignments', value: lifecycleStats.active_temp_assignments || 0, icon: 'bi-arrow-repeat', desc: 'Loaner devices in use', link: '/temporary-assignments' },
+                  { label: 'Under Repair', value: lifecycleStats.assets_under_repair || 0, icon: 'bi-wrench', desc: 'Assets being repaired', link: '/assets?status=Under Repair' },
+                  { label: 'Replaced This Month', value: lifecycleStats.assets_replaced_this_month || 0, icon: 'bi-arrow-left-right', desc: 'Asset upgrades/swaps', link: '/asset-replacements' },
+                  { label: 'Total Lifecycle Events', value: lifecycleStats.total_lifecycle_events || 0, icon: 'bi-clock-history', desc: 'All tracked changes', link: '/activity-history' },
                 ].map((stat, idx) => (
                   <div className="col-6 col-md-3" key={idx}>
-                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '12px', padding: '16px', backdropFilter: 'blur(10px)' }}>
+                    <div 
+                      onClick={() => navigate(stat.link)}
+                      style={{ 
+                        background: 'rgba(255,255,255,0.15)', 
+                        borderRadius: '12px', 
+                        padding: '16px', 
+                        backdropFilter: 'blur(10px)',
+                        cursor: 'pointer',
+                        transition: 'transform 0.2s, background 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-4px)';
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.25)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
+                      }}
+                    >
                       <div className="d-flex align-items-center mb-2">
                         <div style={{ width: '40px', height: '40px', background: 'rgba(255,255,255,0.25)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', marginRight: '12px' }}>
                           <i className={`bi ${stat.icon}`}></i>
@@ -206,7 +233,7 @@ function Dashboard() {
         <div className="col-md-5">
           <div className="table-card h-100">
             <h6 className="fw-bold mb-3">Laptop Status Distribution</h6>
-            <div style={{ maxWidth: 280, margin: '0 auto', position: 'relative' }}>
+            <div style={{ maxWidth: 280, margin: '0 auto', position: 'relative', cursor: 'pointer' }}>
               <Doughnut data={statusChart} options={chartOptions} />
               <div style={{
                 position: 'absolute',
@@ -229,13 +256,22 @@ function Dashboard() {
         <div className="col-md-7">
           <div className="table-card h-100">
             <h6 className="fw-bold mb-3">Assigned Assets by Category</h6>
-            <Bar
-              data={catChart}
-              options={{
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
-              }}
-            />
+            <div style={{ cursor: 'pointer' }}>
+              <Bar
+                data={catChart}
+                options={{
+                  plugins: { legend: { display: false } },
+                  scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+                  onClick: (event, elements) => {
+                    if (elements.length > 0) {
+                      const index = elements[0].index;
+                      const categoryName = stats.categories[index].name;
+                      navigate(`/inventory/${categoryName.toLowerCase()}`);
+                    }
+                  },
+                }}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -275,7 +311,7 @@ function Dashboard() {
                   <td>{log.module}</td>
                   <td className="text-truncate" style={{ maxWidth: 280 }}>{log.description}</td>
                   <td className="text-muted small">
-                    {new Date(log.timestamp).toLocaleString()}
+                    {formatDateTime(log.timestamp)}
                   </td>
                 </tr>
               ))}

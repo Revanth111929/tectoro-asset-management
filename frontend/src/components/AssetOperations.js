@@ -516,6 +516,7 @@ const AssetOperations = ({ asset, onOperationComplete }) => {
                         value={transferReason}
                         onChange={(e) => setTransferReason(e.target.value)}
                         placeholder="e.g., Replacement device, Role change, etc."
+                        autoComplete="off"
                         required
                       />
                     </div>
@@ -587,11 +588,11 @@ const AssetOperations = ({ asset, onOperationComplete }) => {
                     <div className="row">
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Vendor</label>
-                        <input type="text" className="form-control" value={repairVendor} onChange={(e) => setRepairVendor(e.target.value)} placeholder="Service center name" />
+                        <input type="text" className="form-control" value={repairVendor} onChange={(e) => setRepairVendor(e.target.value)} placeholder="Service center name" autoComplete="off" />
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Engineer</label>
-                        <input type="text" className="form-control" value={repairEngineer} onChange={(e) => setRepairEngineer(e.target.value)} placeholder="Technician name" />
+                        <input type="text" className="form-control" value={repairEngineer} onChange={(e) => setRepairEngineer(e.target.value)} placeholder="Technician name" autoComplete="off" />
                       </div>
                     </div>
                     

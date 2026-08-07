@@ -162,6 +162,7 @@ function EmployeeAdd() {
                   placeholder="e.g., EMP001"
                   required
                   disabled={isEditMode}
+                  autoComplete="off"
                 />
                 <small className="text-muted">Unique identifier (cannot be changed)</small>
               </div>
@@ -178,6 +179,7 @@ function EmployeeAdd() {
                   onChange={handleChange}
                   placeholder="e.g., John Doe"
                   required
+                  autoComplete="off"
                 />
               </div>
 
@@ -212,6 +214,7 @@ function EmployeeAdd() {
                   value={formData.designation}
                   onChange={handleChange}
                   placeholder="e.g., Software Engineer"
+                  autoComplete="off"
                 />
               </div>
 
@@ -224,6 +227,7 @@ function EmployeeAdd() {
                   value={formData.department}
                   onChange={handleChange}
                   placeholder="e.g., IT"
+                  autoComplete="off"
                 />
               </div>
 
@@ -236,6 +240,7 @@ function EmployeeAdd() {
                   value={formData.team}
                   onChange={handleChange}
                   placeholder="e.g., Backend Team"
+                  autoComplete="off"
                 />
               </div>
 
@@ -248,6 +253,7 @@ function EmployeeAdd() {
                   value={formData.project}
                   onChange={handleChange}
                   placeholder="e.g., Project Alpha"
+                  autoComplete="off"
                 />
               </div>
 
@@ -260,6 +266,7 @@ function EmployeeAdd() {
                   value={formData.manager}
                   onChange={handleChange}
                   placeholder="e.g., Manager Name"
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -280,6 +287,7 @@ function EmployeeAdd() {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="e.g., john.doe@company.com"
+                  autoComplete="off"
                 />
               </div>
 
@@ -292,6 +300,7 @@ function EmployeeAdd() {
                   value={formData.mobile_number}
                   onChange={handleChange}
                   placeholder="e.g., +1234567890"
+                  autoComplete="off"
                 />
               </div>
 
@@ -304,6 +313,7 @@ function EmployeeAdd() {
                   value={formData.location}
                   onChange={handleChange}
                   placeholder="e.g., Office - Floor 1"
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -324,6 +334,7 @@ function EmployeeAdd() {
                   value={formData.microsoft_license}
                   onChange={handleChange}
                   placeholder="e.g., E3, E5"
+                  autoComplete="off"
                 />
                 <small className="text-muted">Microsoft Office 365 license type</small>
               </div>

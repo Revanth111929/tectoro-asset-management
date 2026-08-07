@@ -116,6 +116,7 @@ function CorporateSimAdd() {
                       onChange={handleChange}
                       placeholder="e.g., 8991012345678901234"
                       maxLength="20"
+                      autoComplete="off"
                     />
                     <div className="form-text">19-20 digit SIM card identification number</div>
                     {errors.iccid && <div className="invalid-feedback">{errors.iccid}</div>}
@@ -130,6 +131,7 @@ function CorporateSimAdd() {
                       onChange={handleChange}
                       placeholder="e.g., 9876543210"
                       maxLength="10"
+                      autoComplete="off"
                     />
                     <div className="form-text">10 digit mobile number (optional)</div>
                     {errors.mobile_number && <div className="invalid-feedback">{errors.mobile_number}</div>}
@@ -209,6 +211,7 @@ function CorporateSimAdd() {
                       value={form.corporate_account}
                       onChange={handleChange}
                       placeholder="e.g., CORP-ACC-001"
+                      autoComplete="off"
                     />
                   </div>
                   <div className="col-md-6 mb-3">
@@ -220,6 +223,7 @@ function CorporateSimAdd() {
                       value={form.account_manager}
                       onChange={handleChange}
                       placeholder="e.g., Ravi Kumar"
+                      autoComplete="off"
                     />
                   </div>
                 </div>
@@ -240,6 +244,7 @@ function CorporateSimAdd() {
                       value={form.vendor}
                       onChange={handleChange}
                       placeholder="e.g., Airtel Corporate Solutions"
+                      autoComplete="off"
                     />
                   </div>
                   <div className="col-md-4 mb-3">
@@ -281,6 +286,7 @@ function CorporateSimAdd() {
                       onChange={handleChange}
                       placeholder="8 digits (optional)"
                       maxLength="8"
+                      autoComplete="off"
                     />
                     <div className="form-text">8 digit PIN Unlock Key (keep secure)</div>
                     {errors.puk_code && <div className="invalid-feedback">{errors.puk_code}</div>}

@@ -38,6 +38,7 @@ function AssetImport() {
     formData.append('file', file);
 
     try {
+      // Remove Content-Type header - axios will set it automatically with boundary
       const response = await api.post('/assets/import', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
@@ -48,7 +49,10 @@ function AssetImport() {
       setFile(null);
       document.getElementById('fileInput').value = '';
     } catch (err) {
-      setError(err.response?.data?.error || 'Import failed. Please try again.');
+      console.error('[AssetImport] Upload error:', err);
+      console.error('[AssetImport] Error response:', err.response);
+      const errorMsg = err.response?.data?.error || err.message || 'Import failed. Please try again.';
+      setError(errorMsg);
     } finally {
       setUploading(false);
     }

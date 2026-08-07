@@ -167,7 +167,6 @@ function EmployeeAutocompleteDemo() {
                 onChange={(e) => setFormData(f => ({ ...f, category: e.target.value }))}
               >
                 <option value="Laptop">Laptop</option>
-                <option value="Desktop">Desktop</option>
                 <option value="Monitor">Monitor</option>
                 <option value="Phone">Phone</option>
                 <option value="Printer">Printer</option>

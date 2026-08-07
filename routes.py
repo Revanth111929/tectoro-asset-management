@@ -12,6 +12,7 @@ from models import db, User, Asset, ActivityLog
 from services.audit_service import AuditService, LifecycleService
 from email_service import send_acknowledgment_email
 from werkzeug.utils import secure_filename
+from utils.inventory_validator import InventoryValidator
 # ── RBAC helpers ──────────────────────────────────────────────────────────────
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from utils.limiter import limiter
@@ -334,10 +335,11 @@ def api_dashboard_stats():
         Asset.warranty_date >= today
     ).count()
 
-    # Category breakdown (only assigned assets)
+    # Category breakdown (only assigned assets, exclude Desktop)
     cat_data = db.session.query(Asset.category, func.count(Asset.id))\
         .filter(Asset.status == 'Assigned')\
         .filter(Asset.category != None)\
+        .filter(Asset.category != 'Desktop')\
         .group_by(Asset.category).all()
 
     # Laptop status breakdown
@@ -353,7 +355,7 @@ def api_dashboard_stats():
         'availableAssets': available,
         'maintenanceAssets': maintenance,
         'expiringWarranties': expiring,
-        'categories': [{'name': c[0], 'count': c[1]} for c in cat_data],
+        'categories': [{'name': c[0], 'count': c[1]} for c in cat_data if c[0] != 'Desktop'],
         'laptopStats': {
             'total': laptop_total,
             'available': laptop_available,
@@ -471,6 +473,14 @@ def api_update_asset(asset_id):
         
         if not data:
             return jsonify({'error': 'No data provided'}), 400
+        
+        # BUG-022 FIX: Validate business rules BEFORE updating
+        validation_result = InventoryValidator.validate_asset_update(asset_id, data)
+        if not validation_result['valid']:
+            return jsonify({
+                'error': 'Validation failed',
+                'errors': validation_result['errors']
+            }), 400
         
         # Track changes for audit
         changed_fields = {}
@@ -1425,49 +1435,27 @@ def test_email_config():
 
 @api_bp.route('/employees', methods=['GET'])
 def get_employees():
-    # NOTE: employees are not created via a separate onboarding flow in
-    # this deployment - the Employee table is empty. Every real employee
-    # record lives only in Asset.emp_id / employee_name / employee_email /
-    # mobile_number / location, exactly as the main Employees.js page
-    # already derives its list. This query mirrors that, server-side,
-    # so autocomplete search actually finds real data instead of querying
-    # an empty table. Root cause fix only - no frontend/component changes.
+    """
+    BUG-026 FIX: Query Employee table directly to get accurate status
+    Previously queried Asset table and hardcoded status='Active',
+    preventing status changes from propagating to autocomplete.
+    """
+    from models import Employee
+    
     q = request.args.get('q', '').strip()
 
-    asset_query = Asset.query.filter(Asset.emp_id != None, Asset.emp_id != '')
+    # Query Employee table directly
+    employee_query = Employee.query
     if q:
-        asset_query = asset_query.filter(
-            or_(Asset.emp_id.ilike(f'%{q}%'),
-                Asset.employee_name.ilike(f'%{q}%'),
-                Asset.employee_email.ilike(f'%{q}%'))
+        employee_query = employee_query.filter(
+            or_(Employee.emp_id.ilike(f'%{q}%'),
+                Employee.employee_name.ilike(f'%{q}%'),
+                Employee.email.ilike(f'%{q}%'))
         )
-    rows = asset_query.order_by(Asset.employee_name).all()
-
-    seen = set()
-    results = []
-    for a in rows:
-        if a.emp_id in seen:
-            continue
-        seen.add(a.emp_id)
-        results.append({
-            'id': None,
-            'emp_id': a.emp_id,
-            'employee_name': a.employee_name or '',
-            'email': a.employee_email or '',
-            'mobile_number': a.mobile_number or '',
-            'department': '',
-            'designation': '',
-            'location': a.location or '',
-            'is_active': True,
-            'status': 'Active',
-            'exit_date': None,
-            'application_access': '',
-            'onboarding_id': None,
-        })
-        if len(results) >= 20:
-            break
-
-    return jsonify(results)
+    
+    employees = employee_query.order_by(Employee.employee_name).limit(20).all()
+    
+    return jsonify([emp.to_dict() for emp in employees])
 
 @api_bp.route('/employees/<string:emp_id>', methods=['GET'])
 def get_employee(emp_id):
@@ -1476,6 +1464,64 @@ def get_employee(emp_id):
     if not emp:
         return jsonify({'found': False})
     return jsonify({'found': True, 'employee': emp.to_dict()})
+
+@api_bp.route('/employees/<string:emp_id>', methods=['PUT'])
+@require_not_viewer
+def update_employee(emp_id):
+    """
+    Update existing employee - Single source of truth for status updates
+    Status must be updated in Employee.status field ONLY
+    """
+    from models import Employee
+    
+    emp = Employee.query.filter_by(emp_id=emp_id).first()
+    if not emp:
+        return jsonify({'error': 'Employee not found'}), 404
+    
+    data = request.get_json() or {}
+    
+    # Update ALL fields including status - no defaults, no overrides
+    if 'employee_name' in data:
+        emp.employee_name = data['employee_name']
+    if 'email' in data:
+        emp.email = data['email']
+    if 'mobile_number' in data:
+        emp.mobile_number = data['mobile_number']
+    if 'department' in data:
+        emp.department = data['department']
+    if 'designation' in data:
+        emp.designation = data['designation']
+    if 'team' in data:
+        emp.team = data['team']
+    if 'project' in data:
+        emp.project = data['project']
+    if 'manager' in data:
+        emp.manager = data['manager']
+    if 'microsoft_license' in data:
+        emp.microsoft_license = data['microsoft_license']
+    if 'location' in data:
+        emp.location = data['location']
+    
+    # STATUS UPDATE - Single source of truth
+    # Accept exactly what frontend sends, no defaults
+    if 'status' in data:
+        emp.status = data['status']
+    
+    if 'is_active' in data:
+        emp.is_active = data['is_active']
+    if 'exit_date' in data:
+        emp.exit_date = data['exit_date']
+    if 'application_access' in data:
+        emp.application_access = data['application_access']
+    
+    emp.updated_at = datetime.utcnow()
+    
+    try:
+        db.session.commit()
+        return jsonify({'success': True, 'employee': emp.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 @api_bp.route('/employees', methods=['POST'])
 @require_not_viewer
@@ -1487,11 +1533,22 @@ def create_or_update_employee():
 
     emp = Employee.query.filter_by(emp_id=data['emp_id']).first()
     if emp:
+        # BUG-026 FIX: Update ALL fields including status to ensure propagation
         emp.employee_name = data.get('employee_name', emp.employee_name)
         emp.email         = data.get('email', emp.email)
         emp.mobile_number = data.get('mobile_number', emp.mobile_number)
         emp.department    = data.get('department', emp.department)
+        emp.designation   = data.get('designation', emp.designation)
+        emp.team          = data.get('team', emp.team)
+        emp.project       = data.get('project', emp.project)
+        emp.manager       = data.get('manager', emp.manager)
+        emp.microsoft_license = data.get('microsoft_license', emp.microsoft_license)
         emp.location      = data.get('location', emp.location)
+        emp.status        = data.get('status', emp.status)  # BUG-026: Added status update
+        emp.is_active     = data.get('is_active', emp.is_active)
+        if 'exit_date' in data:
+            emp.exit_date = data.get('exit_date')
+        emp.updated_at    = datetime.utcnow()
     else:
         emp = Employee(
             emp_id        = data['emp_id'],
@@ -1499,7 +1556,14 @@ def create_or_update_employee():
             email         = data.get('email', ''),
             mobile_number = data.get('mobile_number', ''),
             department    = data.get('department', ''),
+            designation   = data.get('designation', ''),
+            team          = data.get('team', ''),
+            project       = data.get('project', ''),
+            manager       = data.get('manager', ''),
+            microsoft_license = data.get('microsoft_license', ''),
             location      = data.get('location', ''),
+            status        = data.get('status', 'Active'),  # BUG-026: Added status field
+            is_active     = data.get('is_active', True),
         )
         db.session.add(emp)
     db.session.commit()

@@ -10,7 +10,7 @@ export const CATEGORY_FIELDS = {
   'Laptop': {
     basic: ['brand_name', 'model_name', 'serial_number', 'location'],
     specifications: ['processor', 'ram', 'storage_type', 'storage_capacity', 'os', 'os_version', 'screen_size'],
-    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'warranty_start_date', 'warranty_end_date'],
+    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'invoice_number', 'invoice_date', 'invoice_attachment', 'warranty_start_date', 'warranty_end_date'],
     assignment: [],
     other: ['charger_serial', 'old_user', 'old_device', 'date', 'remarks', 'comments']
   },
@@ -18,7 +18,7 @@ export const CATEGORY_FIELDS = {
   'CPU': {
     basic: ['brand_name', 'model_name', 'serial_number', 'location'],
     specifications: ['processor', 'ram', 'storage_type', 'storage_capacity', 'graphics_card', 'os', 'os_version'],
-    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'warranty_start_date', 'warranty_end_date'],
+    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'invoice_number', 'invoice_date', 'invoice_attachment', 'warranty_start_date', 'warranty_end_date'],
     assignment: [],
     other: ['old_user', 'old_device', 'date', 'remarks', 'comments']
   },
@@ -26,7 +26,7 @@ export const CATEGORY_FIELDS = {
   'Phone': {
     basic: ['brand_name', 'model_name', 'serial_number', 'location'],
     specifications: ['imei_1', 'imei_2', 'ram', 'storage_capacity', 'os', 'os_version', 'mobile_number'],
-    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'warranty_start_date', 'warranty_end_date'],
+    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'invoice_number', 'invoice_date', 'invoice_attachment', 'warranty_start_date', 'warranty_end_date'],
     assignment: [],
     other: ['old_user', 'old_device', 'date', 'remarks', 'comments']
   },
@@ -34,7 +34,7 @@ export const CATEGORY_FIELDS = {
   'Printer': {
     basic: ['brand_name', 'model_name', 'serial_number', 'location'],
     specifications: ['printer_type', 'color_or_mono', 'network_enabled'],
-    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'warranty_start_date', 'warranty_end_date'],
+    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'invoice_number', 'invoice_date', 'invoice_attachment', 'warranty_start_date', 'warranty_end_date'],
     assignment: [],
     other: ['old_user', 'old_device', 'date', 'remarks', 'comments']
   },
@@ -42,7 +42,7 @@ export const CATEGORY_FIELDS = {
   'Monitor': {
     basic: ['brand_name', 'model_name', 'serial_number', 'location'],
     specifications: ['screen_size', 'resolution', 'refresh_rate'],
-    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'warranty_start_date', 'warranty_end_date'],
+    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'invoice_number', 'invoice_date', 'invoice_attachment', 'warranty_start_date', 'warranty_end_date'],
     assignment: [],
     other: ['old_user', 'old_device', 'date', 'remarks', 'comments']
   },
@@ -50,7 +50,7 @@ export const CATEGORY_FIELDS = {
   'Server': {
     basic: ['brand_name', 'model_name', 'serial_number', 'location'],
     specifications: ['processor', 'cpu_count', 'ram', 'storage_capacity', 'raid_config', 'os', 'os_version', 'ip_address', 'rack_location'],
-    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'warranty_start_date', 'warranty_end_date'],
+    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'invoice_number', 'invoice_date', 'invoice_attachment', 'warranty_start_date', 'warranty_end_date'],
     assignment: [],
     other: ['old_user', 'old_device', 'date', 'remarks', 'comments']
   },
@@ -58,7 +58,7 @@ export const CATEGORY_FIELDS = {
   'Hard Disk': {
     basic: ['brand_name', 'model_name', 'serial_number', 'location'],
     specifications: ['storage_capacity', 'storage_type', 'interface_type'],
-    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'warranty_start_date', 'warranty_end_date'],
+    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'invoice_number', 'invoice_date', 'invoice_attachment', 'warranty_start_date', 'warranty_end_date'],
     assignment: [],
     other: ['old_user', 'old_device', 'date', 'remarks', 'comments']
   },
@@ -66,7 +66,7 @@ export const CATEGORY_FIELDS = {
   'UPS': {
     basic: ['brand_name', 'model_name', 'serial_number', 'location'],
     specifications: ['capacity_va', 'battery_type', 'backup_time'],
-    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'warranty_start_date', 'warranty_end_date'],
+    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'invoice_number', 'invoice_date', 'invoice_attachment', 'warranty_start_date', 'warranty_end_date'],
     assignment: [],
     other: ['old_user', 'old_device', 'date', 'remarks', 'comments']
   },
@@ -74,7 +74,7 @@ export const CATEGORY_FIELDS = {
   'Mouse': {
     basic: ['brand_name', 'model_name', 'serial_number', 'location'],
     specifications: ['connection_type'],
-    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'warranty_start_date', 'warranty_end_date'],
+    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'invoice_number', 'invoice_date', 'invoice_attachment', 'warranty_start_date', 'warranty_end_date'],
     assignment: [],
     other: ['old_user', 'old_device', 'date', 'remarks', 'comments']
   },
@@ -82,7 +82,7 @@ export const CATEGORY_FIELDS = {
   'Headphones': {
     basic: ['brand_name', 'model_name', 'serial_number', 'location'],
     specifications: ['connection_type', 'noise_cancellation'],
-    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'warranty_start_date', 'warranty_end_date'],
+    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'invoice_number', 'invoice_date', 'invoice_attachment', 'warranty_start_date', 'warranty_end_date'],
     assignment: [],
     other: ['old_user', 'old_device', 'date', 'remarks', 'comments']
   },
@@ -90,7 +90,7 @@ export const CATEGORY_FIELDS = {
   'Laptop Bag': {
     basic: ['brand_name', 'model_name', 'location'],
     specifications: ['size_compatibility', 'color'],
-    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'warranty_period'],
+    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'invoice_number', 'invoice_date', 'invoice_attachment', 'warranty_period'],
     assignment: [],
     other: ['old_user', 'old_device', 'date', 'remarks', 'comments']
   },
@@ -98,7 +98,7 @@ export const CATEGORY_FIELDS = {
   'Other': {
     basic: ['asset_name', 'brand_name', 'model_name', 'serial_number', 'location'],
     specifications: ['custom_description'],
-    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'warranty_start_date', 'warranty_end_date'],
+    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'invoice_number', 'invoice_date', 'invoice_attachment', 'warranty_start_date', 'warranty_end_date'],
     assignment: [],
     other: ['old_user', 'old_device', 'date', 'remarks', 'comments']
   }
@@ -168,6 +168,9 @@ export const FIELD_METADATA = {
   purchase_vendor: { label: 'Purchase Vendor', type: 'text', placeholder: 'e.g. Amazon, Dell Direct, Local Vendor' },
   purchase_price: { label: 'Purchase Price (₹)', type: 'number', placeholder: '0.00', step: '0.01' },
   purchase_date: { label: 'Purchase Date', type: 'date' },
+  invoice_number: { label: 'Invoice Number', type: 'text', placeholder: 'e.g. INV-2024-001' },
+  invoice_date: { label: 'Invoice Date', type: 'date' },
+  invoice_attachment: { label: 'Invoice Attachment', type: 'file', accept: '.pdf,.jpg,.jpeg,.png', maxSize: 10485760 }, // 10MB
   warranty_start_date: { label: 'Warranty Start Date', type: 'date' },
   warranty_end_date: { label: 'Warranty End Date', type: 'date' },
   

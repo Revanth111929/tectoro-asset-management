@@ -326,7 +326,8 @@ def create_temporary_assignment():
         temp_asset.status = 'Temporary Assignment'
         temp_asset.emp_id = data['employee_id']
         temp_asset.employee_name = data['employee_name']
-        temp_asset.employee_email = data.get('employee_email')
+        temp_asset.employee_email = data.get('employee_email', '')
+        temp_asset.mobile_number = data.get('mobile_number', '')
         
         db.session.add(assignment)
         db.session.commit()
@@ -465,12 +466,44 @@ def complete_temporary_assignment(assignment_id):
         if data.get('remarks'):
             assignment.remarks = (assignment.remarks or '') + '\n' + data['remarks']
         
-        # Update asset statuses
+        # Get complete employee information to restore asset
+        from models import Employee
+        employee = Employee.query.filter_by(emp_id=assignment.employee_id).first()
+        if not employee:
+            return jsonify({
+                'success': False,
+                'error': f'Employee {assignment.employee_id} not found. Cannot complete temporary assignment.'
+            }), 400
+        
+        # Validate employee has all required information
+        missing_fields = []
+        if not employee.emp_id or not str(employee.emp_id).strip():
+            missing_fields.append('Employee ID')
+        if not employee.employee_name or not str(employee.employee_name).strip():
+            missing_fields.append('Employee Name')
+        if not employee.email or not str(employee.email).strip():
+            missing_fields.append('Employee Email')
+        if not employee.mobile_number or not str(employee.mobile_number).strip():
+            missing_fields.append('Mobile Number')
+        
+        if missing_fields:
+            return jsonify({
+                'success': False,
+                'error': f'Cannot restore asset to employee {employee.emp_id}. Missing required information: {", ".join(missing_fields)}. Please update employee record first.'
+            }), 400
+        
+        # Update asset statuses - restore complete employee information
         original_asset.status = 'Assigned'
+        original_asset.emp_id = employee.emp_id
+        original_asset.employee_name = employee.employee_name
+        original_asset.employee_email = employee.email
+        original_asset.mobile_number = employee.mobile_number
+        
         temp_asset.status = 'Available'
         temp_asset.emp_id = None
         temp_asset.employee_name = None
         temp_asset.employee_email = None
+        temp_asset.mobile_number = None
         
         db.session.commit()
         
@@ -636,12 +669,39 @@ def create_asset_replacement():
         old_asset.emp_id = None
         old_asset.employee_name = None
         old_asset.employee_email = None
+        old_asset.mobile_number = None
         
-        # Update new asset
+        # Update new asset - get complete employee information
+        from models import Employee
+        employee = Employee.query.filter_by(emp_id=data['employee_id']).first()
+        if not employee:
+            return jsonify({
+                'success': False,
+                'error': f'Employee {data["employee_id"]} not found. Cannot assign new asset.'
+            }), 400
+        
+        # Validate employee has all required information
+        missing_fields = []
+        if not employee.emp_id or not str(employee.emp_id).strip():
+            missing_fields.append('Employee ID')
+        if not employee.employee_name or not str(employee.employee_name).strip():
+            missing_fields.append('Employee Name')
+        if not employee.email or not str(employee.email).strip():
+            missing_fields.append('Employee Email')
+        if not employee.mobile_number or not str(employee.mobile_number).strip():
+            missing_fields.append('Mobile Number')
+        
+        if missing_fields:
+            return jsonify({
+                'success': False,
+                'error': f'Cannot assign new asset to employee {employee.emp_id}. Missing required information: {", ".join(missing_fields)}. Please update employee record first.'
+            }), 400
+        
         new_asset.status = 'Assigned'
-        new_asset.emp_id = data['employee_id']
-        new_asset.employee_name = data['employee_name']
-        new_asset.employee_email = data.get('employee_email')
+        new_asset.emp_id = employee.emp_id
+        new_asset.employee_name = employee.employee_name
+        new_asset.employee_email = employee.email
+        new_asset.mobile_number = employee.mobile_number
         
         db.session.add(replacement)
         db.session.commit()

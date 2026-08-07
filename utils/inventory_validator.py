@@ -300,7 +300,7 @@ class InventoryValidator:
             same_category_list = ', '.join([f"{a['asset_name']} ({a['serial_number']})" for a in details['same_category_assets']])
             
             # Determine suggested action based on category
-            single_device_categories = ['Laptop', 'Desktop', 'Phone']  # Usually one per employee
+            single_device_categories = ['Laptop', 'Phone']  # Usually one per employee
             multiple_allowed_categories = ['Monitor', 'Keyboard', 'Mouse', 'Headset']  # Can have multiple
             
             if new_asset.category in single_device_categories:
@@ -456,7 +456,13 @@ class InventoryValidator:
     @staticmethod
     def validate_new_asset(data: Dict) -> Dict:
         """
-        Validate new asset creation
+        Validate new asset creation with STRICT status and employee consistency rules
+        
+        BUSINESS RULES (ENFORCED):
+        1. If emp_id OR employee_name exists → status MUST be 'Assigned'
+        2. If status = 'Available' → emp_id, employee_name, employee_email, mobile_number MUST be empty
+        3. If status = 'Assigned' → emp_id AND employee_name MUST exist
+        4. These rules are MANDATORY and cannot be bypassed
         
         Args:
             data: Dictionary with asset data
@@ -471,11 +477,11 @@ class InventoryValidator:
         }
         
         # 1. Validate required fields
-        if not data.get('asset_name') or not data.get('asset_name').strip():
+        if not data.get('asset_name') or not str(data.get('asset_name')).strip():
             result['valid'] = False
             result['errors'].append("Asset Name is required")
         
-        if not data.get('serial_number') or not data.get('serial_number').strip():
+        if not data.get('serial_number') or not str(data.get('serial_number')).strip():
             result['valid'] = False
             result['errors'].append("Serial Number is required")
         
@@ -488,20 +494,86 @@ class InventoryValidator:
             result['valid'] = False
             result['errors'].append(error)
         
-        # 3. Validate employee if being assigned
-        emp_id = data.get('emp_id', '').strip()
+        # 3. Get employee and status fields
+        emp_id = str(data.get('emp_id', '')).strip() if data.get('emp_id') else None
+        emp_name = str(data.get('employee_name', '')).strip() if data.get('employee_name') else None
+        emp_email = str(data.get('employee_email', '')).strip() if data.get('employee_email') else None
+        mobile = str(data.get('mobile_number', '')).strip() if data.get('mobile_number') else None
+        status = data.get('status', 'Available')
+        
+        # Normalize empty strings to None
+        emp_id = emp_id if emp_id else None
+        emp_name = emp_name if emp_name else None
+        emp_email = emp_email if emp_email else None
+        mobile = mobile if mobile else None
+        
+        # 4. Validate employee exists if provided
         if emp_id:
             is_valid, error, employee = InventoryValidator.validate_employee_exists(emp_id)
             if not is_valid:
                 result['valid'] = False
                 result['errors'].append(error)
         
-        # 4. Validate category
+        # ==================================================================================
+        # CRITICAL BUSINESS RULES - STRICT ENFORCEMENT
+        # ==================================================================================
+        
+        # RULE 1: If ANY employee field exists, status MUST be 'Assigned'
+        has_employee = emp_id or emp_name or emp_email or mobile
+        
+        if has_employee and status != 'Assigned':
+            result['valid'] = False
+            employee_fields = []
+            if emp_id: employee_fields.append(f"Employee ID: {emp_id}")
+            if emp_name: employee_fields.append(f"Employee Name: {emp_name}")
+            if emp_email: employee_fields.append(f"Email: {emp_email}")
+            if mobile: employee_fields.append(f"Mobile: {mobile}")
+            
+            result['errors'].append(
+                f"Invalid status: Asset has employee information ({', '.join(employee_fields)}) "
+                f"but status is '{status}'. Status must be 'Assigned' when an employee is assigned to the asset."
+            )
+        
+        # RULE 2: If status = 'Available', ALL employee fields MUST be empty
+        if status == 'Available' and has_employee:
+            result['valid'] = False
+            assigned_fields = []
+            if emp_id: assigned_fields.append("Employee ID")
+            if emp_name: assigned_fields.append("Employee Name")
+            if emp_email: assigned_fields.append("Email")
+            if mobile: assigned_fields.append("Mobile")
+            
+            result['errors'].append(
+                f"Invalid combination: Status is 'Available' but asset has employee information "
+                f"({', '.join(assigned_fields)}). Available assets cannot be assigned to anyone. "
+                f"Please remove all employee information or change status to 'Assigned'."
+            )
+        
+        # RULE 3: If status = 'Assigned', ALL employee fields MUST exist
+        if status == 'Assigned':
+            missing_fields = []
+            if not emp_id: missing_fields.append("Employee ID")
+            if not emp_name: missing_fields.append("Employee Name")
+            if not emp_email: missing_fields.append("Employee Email")
+            if not mobile: missing_fields.append("Mobile Number")
+            
+            if missing_fields:
+                result['valid'] = False
+                result['errors'].append(
+                    f"Invalid assignment: Status is 'Assigned' but missing required fields: {', '.join(missing_fields)}. "
+                    f"Assigned assets must have Employee ID, Employee Name, Employee Email, and Mobile Number."
+                )
+        
+        # ==================================================================================
+        # END CRITICAL BUSINESS RULES
+        # ==================================================================================
+        
+        # 5. Validate category
         if data.get('category'):
             valid_categories = [
-                'Laptop', 'Desktop', 'Phone', 'Monitor', 'Printer', 
+                'Laptop', 'CPU', 'Phone', 'Monitor', 'Printer', 
                 'Keyboard', 'Mouse', 'Headset', 'Dock', 'Server', 
-                'Accessories', 'Hard Disk', 'UPS', 'Laptop Bag', 'SIM Card'
+                'Accessories', 'Hard Disk', 'UPS', 'Laptop Bag', 'SIM Card', 'Headphones'
             ]
             if data['category'] not in valid_categories:
                 result['warnings'].append(f"Category '{data['category']}' is not in standard list")
@@ -511,7 +583,13 @@ class InventoryValidator:
     @staticmethod
     def validate_asset_update(asset_id: int, data: Dict) -> Dict:
         """
-        Validate asset update
+        Validate asset update with STRICT status and employee consistency rules
+        
+        BUSINESS RULES (ENFORCED):
+        1. If emp_id OR employee_name exists → status MUST be 'Assigned'
+        2. If status = 'Available' → emp_id, employee_name, employee_email, mobile_number MUST be empty
+        3. If status = 'Assigned' → emp_id AND employee_name MUST exist
+        4. These rules are MANDATORY and cannot be bypassed
         
         Args:
             asset_id: The asset ID being updated
@@ -542,23 +620,110 @@ class InventoryValidator:
                     result['valid'] = False
                     result['errors'].append(error)
         
-        # 3. Validate employee if changing assignment
-        if 'emp_id' in data:
-            emp_id = data['emp_id'].strip()
-            if emp_id and emp_id != asset.emp_id:
-                is_valid, error, employee = InventoryValidator.validate_employee_exists(emp_id)
-                if not is_valid:
-                    result['valid'] = False
-                    result['errors'].append(error)
+        # 3. Validate employee exists if provided
+        emp_id = data.get('emp_id', asset.emp_id) if 'emp_id' in data else asset.emp_id
+        if emp_id and emp_id.strip():
+            is_valid, error, employee = InventoryValidator.validate_employee_exists(emp_id.strip())
+            if not is_valid:
+                result['valid'] = False
+                result['errors'].append(error)
         
-        # 4. Validate status transitions
+        # 4. Get final state (after update would be applied)
+        final_emp_id = data.get('emp_id', asset.emp_id) if 'emp_id' in data else asset.emp_id
+        final_emp_name = data.get('employee_name', asset.employee_name) if 'employee_name' in data else asset.employee_name
+        final_emp_email = data.get('employee_email', asset.employee_email) if 'employee_email' in data else asset.employee_email
+        final_mobile = data.get('mobile_number', asset.mobile_number) if 'mobile_number' in data else asset.mobile_number
+        final_status = data.get('status', asset.status) if 'status' in data else asset.status
+        
+        # Normalize empty strings to None
+        final_emp_id = final_emp_id.strip() if final_emp_id and str(final_emp_id).strip() else None
+        final_emp_name = final_emp_name.strip() if final_emp_name and str(final_emp_name).strip() else None
+        final_emp_email = final_emp_email.strip() if final_emp_email and str(final_emp_email).strip() else None
+        final_mobile = final_mobile.strip() if final_mobile and str(final_mobile).strip() else None
+        
+        # ==================================================================================
+        # CRITICAL BUSINESS RULES - STRICT ENFORCEMENT
+        # ==================================================================================
+        
+        # RULE 1: If ANY employee field exists, status MUST be 'Assigned'
+        has_employee = final_emp_id or final_emp_name or final_emp_email or final_mobile
+        
+        if has_employee and final_status != 'Assigned':
+            result['valid'] = False
+            employee_fields = []
+            if final_emp_id: employee_fields.append(f"Employee ID: {final_emp_id}")
+            if final_emp_name: employee_fields.append(f"Employee Name: {final_emp_name}")
+            if final_emp_email: employee_fields.append(f"Email: {final_emp_email}")
+            if final_mobile: employee_fields.append(f"Mobile: {final_mobile}")
+            
+            result['errors'].append(
+                f"Invalid status: Asset has employee information ({', '.join(employee_fields)}) "
+                f"but status is '{final_status}'. Status must be 'Assigned' when an employee is assigned to the asset."
+            )
+        
+        # RULE 2: If status = 'Available', ALL employee fields MUST be empty
+        if final_status == 'Available' and has_employee:
+            result['valid'] = False
+            assigned_fields = []
+            if final_emp_id: assigned_fields.append("Employee ID")
+            if final_emp_name: assigned_fields.append("Employee Name")
+            if final_emp_email: assigned_fields.append("Email")
+            if final_mobile: assigned_fields.append("Mobile")
+            
+            result['errors'].append(
+                f"Invalid combination: Status is 'Available' but asset has employee information "
+                f"({', '.join(assigned_fields)}). Available assets cannot be assigned to anyone. "
+                f"Please remove all employee information or change status to 'Assigned'."
+            )
+        
+        # RULE 3: If status = 'Assigned', ALL employee fields MUST exist
+        if final_status == 'Assigned':
+            missing_fields = []
+            if not final_emp_id: missing_fields.append("Employee ID")
+            if not final_emp_name: missing_fields.append("Employee Name")
+            if not final_emp_email: missing_fields.append("Employee Email")
+            if not final_mobile: missing_fields.append("Mobile Number")
+            
+            if missing_fields:
+                result['valid'] = False
+                result['errors'].append(
+                    f"Invalid assignment: Status is 'Assigned' but missing required fields: {', '.join(missing_fields)}. "
+                    f"Assigned assets must have Employee ID, Employee Name, Employee Email, and Mobile Number."
+                )
+        
+        # RULE 4: Cannot remove employee while status='Assigned'
+        currently_has_emp = asset.emp_id or asset.employee_name
+        removing_employee = (
+            ('emp_id' in data and not final_emp_id) or 
+            ('employee_name' in data and not final_emp_name)
+        )
+        
+        if currently_has_emp and removing_employee and asset.status == 'Assigned' and final_status == 'Assigned':
+            result['valid'] = False
+            result['errors'].append(
+                "Cannot remove employee information while status is 'Assigned'. "
+                "Please change status to 'Available' first, then remove employee information."
+            )
+        
+        # ==================================================================================
+        # END CRITICAL BUSINESS RULES
+        # ==================================================================================
+        
+        # 5. Validate status transitions (informational warnings)
         if 'status' in data:
             new_status = data['status']
             old_status = asset.status
             
-            # Don't allow certain status transitions
+            # Warn about certain status transitions
             if old_status == 'Retired' and new_status != 'Retired':
                 result['warnings'].append("Changing status of retired asset - verify this is intentional")
+            
+            if old_status == 'Available' and new_status == 'Assigned' and not has_employee:
+                result['valid'] = False
+                result['errors'].append(
+                    "Cannot change status from 'Available' to 'Assigned' without providing employee information. "
+                    "Please add Employee ID and Employee Name."
+                )
         
         return result
     

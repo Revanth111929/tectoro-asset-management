@@ -24,9 +24,6 @@ import Employees from './pages/Employees';
 import EmployeeAdd from './pages/EmployeeAdd'; // Phase 1
 import EmployeeAutocompleteDemo from './pages/EmployeeAutocompleteDemo'; // Phase 2 Demo
 import EmployeeAssetHistory from './pages/EmployeeAssetHistory';
-import OnboardingList from './pages/OnboardingList';
-import OnboardingAdd from './pages/OnboardingAdd';
-import OnboardingView from './pages/OnboardingView';
 import CorporateSimList from './pages/CorporateSimList';
 import CorporateSimAdd from './pages/CorporateSimAdd';
 import CorporateSimView from './pages/CorporateSimView';
@@ -151,10 +148,6 @@ function App() {
           <Route path="/employees/edit/:empId" element={<AdminOnly><EmployeeAdd /></AdminOnly>} />
           <Route path="/employees/autocomplete-demo" element={<AdminOnly><EmployeeAutocompleteDemo /></AdminOnly>} />
           <Route path="/employees/:employeeId/asset-history" element={<AdminOnly><EmployeeAssetHistory /></AdminOnly>} />
-          <Route path="/onboarding"          element={<AdminOnly><OnboardingList /></AdminOnly>} />
-          <Route path="/onboarding/add"      element={<AdminOnly><OnboardingAdd /></AdminOnly>} />
-          <Route path="/onboarding/edit/:id" element={<AdminOnly><OnboardingAdd /></AdminOnly>} />
-          <Route path="/onboarding/view/:id" element={<AdminOnly><OnboardingView /></AdminOnly>} />
           <Route path="/corporate-sims"          element={<Protected><CorporateSimList /></Protected>} />
           <Route path="/corporate-sims/add"      element={<NonViewerOnly><CorporateSimAdd /></NonViewerOnly>} />
           <Route path="/corporate-sims/view/:id" element={<Protected><CorporateSimView /></Protected>} />

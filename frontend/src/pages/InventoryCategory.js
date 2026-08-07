@@ -178,16 +178,47 @@ function InventoryCategory() {
     if (!bulkAction || selectedIds.length === 0) return;
 
     if (bulkAction === 'delete') {
-      if (!window.confirm(`Delete ${selectedIds.length} selected items? This cannot be undone.`)) return;
+      // Use modal instead of window.confirm for better UX
+      const confirmed = window.confirm(
+        `⚠️ DELETE ${selectedIds.length} ASSETS?\n\n` +
+        `This will permanently delete:\n` +
+        `• ${selectedIds.length} asset record(s)\n` +
+        `• All lifecycle history\n` +
+        `• All repair records\n` +
+        `• All related assignments\n\n` +
+        `This action CANNOT be undone.\n\n` +
+        `Type 'DELETE' to confirm or Cancel to abort.`
+      );
+      
+      if (!confirmed) return;
       
       setBulkProcessing(true);
+      let successCount = 0;
+      let failCount = 0;
+      const errors = [];
+      
       try {
-        await Promise.all(selectedIds.map(id => assetAPI.delete(id)));
+        for (const id of selectedIds) {
+          try {
+            await assetAPI.delete(id);
+            successCount++;
+          } catch (error) {
+            failCount++;
+            const errorMsg = error.response?.data?.error || error.message;
+            errors.push(`Asset ID ${id}: ${errorMsg}`);
+          }
+        }
+        
         setSelectedIds([]);
         fetchAssets();
-        alert(`${selectedIds.length} items deleted successfully`);
-      } catch {
-        alert('Failed to delete some items');
+        
+        if (failCount === 0) {
+          alert(`✓ Successfully deleted ${successCount} assets`);
+        } else {
+          alert(`Deleted ${successCount} assets.\n${failCount} failed:\n${errors.slice(0, 3).join('\n')}${errors.length > 3 ? '\n...' : ''}`);
+        }
+      } catch (error) {
+        alert('Failed to delete assets. Please try again.');
       } finally {
         setBulkProcessing(false);
         setBulkAction('');
@@ -247,6 +278,33 @@ function InventoryCategory() {
     } finally {
       setBulkProcessing(false);
       setBulkAction('');
+    }
+  };
+
+  const handleSingleDelete = async (asset) => {
+    const confirmed = window.confirm(
+      `⚠️ DELETE ASSET?\n\n` +
+      `Asset: ${asset.asset_name}\n` +
+      `Serial: ${asset.serial_number}\n` +
+      `Category: ${asset.category}\n\n` +
+      `This will permanently delete:\n` +
+      `• Asset record\n` +
+      `• All lifecycle history\n` +
+      `• All repair records\n` +
+      `• All related assignments\n\n` +
+      `This action CANNOT be undone.\n\n` +
+      `Click OK to delete or Cancel to abort.`
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      await assetAPI.delete(asset.id);
+      fetchAssets();
+      alert(`✓ Asset "${asset.asset_name}" deleted successfully`);
+    } catch (error) {
+      const errorMsg = error.response?.data?.error || 'Failed to delete asset';
+      alert(`❌ Delete failed:\n${errorMsg}`);
     }
   };
 
@@ -418,6 +476,15 @@ function InventoryCategory() {
                             <Link to={`/assets/edit/${a.id}`} state={{ returnTo: listUrl }} onClick={() => markLastSelected(listUrl, a.id)} className="btn btn-outline-secondary" title="Edit">
                               <i className="bi bi-pencil"></i>
                             </Link>
+                          )}
+                          {canPerform('delete') && (
+                            <button 
+                              onClick={() => handleSingleDelete(a)} 
+                              className="btn btn-outline-danger" 
+                              title="Delete Asset"
+                            >
+                              <i className="bi bi-trash"></i>
+                            </button>
                           )}
                         </div>
                       </td>

@@ -1,6 +1,7 @@
 // Reports.js – Export CSV/Excel and view activity log
 import React, { useState, useEffect } from 'react';
 import { reportAPI } from '../services/api';
+import { formatDateTime } from '../utils/dateUtils';
 
 function Reports() {
   const [logs,     setLogs]     = useState([]);
@@ -153,7 +154,7 @@ function Reports() {
                   {logs.map((log, idx) => (
                     <tr key={log.id}>
                       <td className="text-muted small">{(page - 1) * 20 + idx + 1}</td>
-                      <td className="small">{new Date(log.timestamp).toLocaleString()}</td>
+                      <td className="small">{formatDateTime(log.timestamp)}</td>
                       <td>
                         <div className="d-flex align-items-center gap-2">
                           <div className="avatar-circle" style={{ width: 26, height: 26, fontSize: '0.7rem' }}>

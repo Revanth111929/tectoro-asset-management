@@ -53,7 +53,6 @@ const ROUTE_PATTERNS = [
   { test: /^\/activity-history/, resolve: () => ({ section: 'reports', key: '/activity-history' }) },
 
   { test: /^\/employees/, resolve: () => ({ section: 'settings', key: '/employees' }) },
-  { test: /^\/onboarding/, resolve: () => ({ section: 'settings', key: '/onboarding' }) },
   { test: /^\/settings/, resolve: () => ({ section: 'settings', key: '/settings' }) },
   { test: /^\/email-config/, resolve: () => ({ section: 'settings', key: '/email-config' }) },
 ];
