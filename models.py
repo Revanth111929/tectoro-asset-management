@@ -5,7 +5,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
-from datetime_utils import utc_iso
+from datetime_utils import utc_iso, to_ist_string
 import secrets, hashlib
 
 db = SQLAlchemy()
@@ -54,7 +54,7 @@ class Asset(db.Model):
     # 5. Asset NAME
     asset_name           = db.Column(db.String(150), nullable=False, index=True)
 
-    # 6. CATEGORY  (Laptop / CPU / Monitor / etc.)
+    # 6. CATEGORY  (Laptop / Desktop / Monitor / etc.)
     category             = db.Column(db.String(100), index=True)
 
     # 7. SERIAL NUMBER  – unique hardware identifier
@@ -186,6 +186,11 @@ class Asset(db.Model):
     ack_expires_at       = db.Column(db.DateTime, nullable=True)
     ack_received_at      = db.Column(db.DateTime, nullable=True)
 
+    # Soft delete fields
+    is_deleted           = db.Column(db.Boolean, default=False, index=True)
+    deleted_at           = db.Column(db.DateTime, nullable=True)
+    deleted_by           = db.Column(db.String(150), nullable=True)
+
     status               = db.Column(db.String(30), default='Available', index=True)  # Available / Assigned / Maintenance / Retired
     created_at           = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at           = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -220,8 +225,8 @@ class Asset(db.Model):
             'old_device':      self.old_device or '',
             'comments':        self.comments or '',
             'status':          self.status or 'Available',
-            'created_at':      utc_iso(self.created_at),
-            'updated_at':      utc_iso(self.updated_at),
+            'created_at':      to_ist_string(self.created_at),
+            'updated_at':      to_ist_string(self.updated_at),
             'purchase_price':  self.purchase_price or 0,
             'quantity':        self.quantity or 1,
             'configuration':   self.configuration or '',
@@ -236,9 +241,9 @@ class Asset(db.Model):
             'mobile_number_sim': self.mobile_number_sim or '',
             'testing_status':  self.testing_status or '',
             'ack_status':      self.ack_status or 'Not Sent',
-            'ack_sent_at':     utc_iso(self.ack_sent_at),
-            'ack_received_at': utc_iso(self.ack_received_at),
-            'ack_expires_at':  utc_iso(self.ack_expires_at),
+            'ack_sent_at':     to_ist_string(self.ack_sent_at),
+            'ack_received_at': to_ist_string(self.ack_received_at),
+            'ack_expires_at':  to_ist_string(self.ack_expires_at),
             # New dynamic fields
             'brand_name':      self.brand_name or '',
             'processor':       self.processor or '',
@@ -273,6 +278,9 @@ class Asset(db.Model):
             'assigned_employee': self.assigned_employee or '',
             'custom_description': self.custom_description or '',
             'remarks':         self.remarks or '',
+            'is_deleted':      self.is_deleted or False,
+            'deleted_at':      to_ist_string(self.deleted_at),
+            'deleted_by':      self.deleted_by or '',
         }
 
 
@@ -319,7 +327,7 @@ class AuditLog(db.Model):
     def to_dict(self):
         return {
             'id':            self.id,
-            'timestamp':     utc_iso(self.timestamp),
+            'timestamp':     to_ist_string(self.timestamp),
             'action_type':   self.action_type,
             'module':        self.module,
             'asset_id':      self.asset_id,
@@ -362,7 +370,7 @@ class ActivityLog(db.Model):
             'action':      self.action,
             'module':      self.module,
             'description': self.description,
-            'timestamp':   utc_iso(self.timestamp),
+            'timestamp':   to_ist_string(self.timestamp),
         }
 
     def __repr__(self):
@@ -406,7 +414,7 @@ class AssetLifecycle(db.Model):
             'id':               self.id,
             'asset_id':         self.asset_id,
             'event_type':       self.event_type,
-            'event_date':       utc_iso(self.event_date),
+            'event_date':       to_ist_string(self.event_date),
             'from_employee_id': self.from_employee_id or '',
             'from_employee':    self.from_employee or '',
             'to_employee_id':   self.to_employee_id or '',
@@ -486,8 +494,8 @@ class TemporaryAssignment(db.Model):
             'created_by':            self.created_by or '',
             'completed_by':          self.completed_by or '',
             'remarks':               self.remarks or '',
-            'created_at':            utc_iso(self.created_at),
-            'updated_at':            utc_iso(self.updated_at),
+            'created_at':            to_ist_string(self.created_at),
+            'updated_at':            to_ist_string(self.updated_at),
         }
 
     def __repr__(self):
@@ -546,11 +554,87 @@ class AssetReplacement(db.Model):
             'old_asset_condition': self.old_asset_condition or '',
             'performed_by':        self.performed_by or '',
             'remarks':             self.remarks or '',
-            'created_at':          utc_iso(self.created_at),
+            'created_at':          to_ist_string(self.created_at),
         }
 
     def __repr__(self):
         return f'<AssetReplacement {self.employee_name} - Old: {self.old_asset_id} New: {self.new_asset_id}>'
+
+
+# ─────────────────────────────────────────────
+# ASSET TRANSFER TABLE – ownership transfer tracking
+# ─────────────────────────────────────────────
+class AssetTransfer(db.Model):
+    __tablename__ = 'asset_transfers'
+
+    id                    = db.Column(db.Integer, primary_key=True)
+    
+    # Asset being transferred
+    asset_id              = db.Column(db.Integer, db.ForeignKey('assets.id'), nullable=False, index=True)
+    asset_name            = db.Column(db.String(200))
+    asset_serial          = db.Column(db.String(100))
+    category              = db.Column(db.String(100))
+    
+    # Previous owner (from)
+    from_employee_id      = db.Column(db.String(50), index=True)
+    from_employee_name    = db.Column(db.String(150))
+    from_employee_email   = db.Column(db.String(150))
+    from_employee_mobile  = db.Column(db.String(30))
+    from_department       = db.Column(db.String(100))
+    from_designation      = db.Column(db.String(100))
+    
+    # New owner (to)
+    to_employee_id        = db.Column(db.String(50), nullable=False, index=True)
+    to_employee_name      = db.Column(db.String(150), nullable=False)
+    to_employee_email     = db.Column(db.String(150))
+    to_employee_mobile    = db.Column(db.String(30))
+    to_department         = db.Column(db.String(100))
+    to_designation        = db.Column(db.String(100))
+    
+    # Transfer details
+    transfer_date         = db.Column(db.Date, nullable=False, index=True)
+    transfer_reason       = db.Column(db.String(100), nullable=False)  # Department Change, Employee Transfer, etc.
+    remarks               = db.Column(db.Text)
+    
+    # Audit fields
+    performed_by          = db.Column(db.String(100), nullable=False)
+    performed_by_role     = db.Column(db.String(50))
+    ip_address            = db.Column(db.String(50))
+    created_at            = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    asset = db.relationship('Asset', backref='transfer_history', foreign_keys=[asset_id])
+
+    def to_dict(self):
+        return {
+            'id':                   self.id,
+            'asset_id':             self.asset_id,
+            'asset_name':           self.asset_name or '',
+            'asset_serial':         self.asset_serial or '',
+            'category':             self.category or '',
+            'from_employee_id':     self.from_employee_id or '',
+            'from_employee_name':   self.from_employee_name or '',
+            'from_employee_email':  self.from_employee_email or '',
+            'from_employee_mobile': self.from_employee_mobile or '',
+            'from_department':      self.from_department or '',
+            'from_designation':     self.from_designation or '',
+            'to_employee_id':       self.to_employee_id,
+            'to_employee_name':     self.to_employee_name,
+            'to_employee_email':    self.to_employee_email or '',
+            'to_employee_mobile':   self.to_employee_mobile or '',
+            'to_department':        self.to_department or '',
+            'to_designation':       self.to_designation or '',
+            'transfer_date':        self.transfer_date.isoformat() if self.transfer_date else '',
+            'transfer_reason':      self.transfer_reason,
+            'remarks':              self.remarks or '',
+            'performed_by':         self.performed_by,
+            'performed_by_role':    self.performed_by_role or '',
+            'ip_address':           self.ip_address or '',
+            'created_at':           to_ist_string(self.created_at),
+        }
+
+    def __repr__(self):
+        return f'<AssetTransfer Asset {self.asset_id} from {self.from_employee_name} to {self.to_employee_name}>'
 
 
 # ─────────────────────────────────────────────
@@ -610,11 +694,11 @@ class EmployeeExit(db.Model):
             'clearance_status':       self.clearance_status,
             'processed_by':           self.processed_by or '',
             'completed_by':           self.completed_by or '',
-            'completed_at':           utc_iso(self.completed_at),
+            'completed_at':           to_ist_string(self.completed_at),
             'remarks':                self.remarks or '',
             'exit_report_path':       self.exit_report_path or '',
-            'created_at':             utc_iso(self.created_at),
-            'updated_at':             utc_iso(self.updated_at),
+            'created_at':             to_ist_string(self.created_at),
+            'updated_at':             to_ist_string(self.updated_at),
             'asset_collections':      [ac.to_dict() for ac in self.asset_collections] if self.asset_collections else [],
         }
 
@@ -667,7 +751,7 @@ class ExitAssetCollection(db.Model):
             'estimated_cost':      self.estimated_cost or 0,
             'collected_by':        self.collected_by or '',
             'remarks':             self.remarks or '',
-            'created_at':          utc_iso(self.created_at),
+            'created_at':          to_ist_string(self.created_at),
         }
 
     def __repr__(self):
@@ -705,8 +789,8 @@ class EmailConfig(db.Model):
             'smtp_username': self.smtp_username,
             'use_tls':       self.use_tls,
             'is_active':     self.is_active,
-            'updated_at':    utc_iso(self.updated_at),
-            'last_tested_at':   utc_iso(self.last_tested_at),
+            'updated_at':    to_ist_string(self.updated_at),
+            'last_tested_at':   to_ist_string(self.last_tested_at),
             'last_test_status': self.last_test_status or '',
         }
         return d
@@ -761,8 +845,8 @@ class Employee(db.Model):
             'exit_date':     self.exit_date.isoformat() if self.exit_date else None,
             'application_access': self.application_access or '',
             'onboarding_id': self.onboarding_id,
-            'created_at':    utc_iso(self.created_at),
-            'updated_at':    utc_iso(self.updated_at),
+            'created_at':    to_ist_string(self.created_at),
+            'updated_at':    to_ist_string(self.updated_at),
         }
 
 
@@ -788,7 +872,7 @@ class AdminProfile(db.Model):
             'phone':       self.phone or '',
             'department':  self.department or '',
             'designation': self.designation or '',
-            'updated_at':  utc_iso(self.updated_at),
+            'updated_at':  to_ist_string(self.updated_at),
         }
 # ─────────────────────────────────────────────────────────────────────────────
 # ONBOARDING MODELS — append this block to models.py
@@ -844,9 +928,9 @@ class Onboarding(db.Model):
             'application_access': self.application_access.split(',') if self.application_access else [],
             'status':             self.status or 'Pending',
             'converted_emp_id':   self.converted_emp_id or '',
-            'converted_at':       utc_iso(self.converted_at),
-            'created_at':         utc_iso(self.created_at),
-            'updated_at':         utc_iso(self.updated_at),
+            'converted_at':       to_ist_string(self.converted_at),
+            'created_at':         to_ist_string(self.created_at),
+            'updated_at':         to_ist_string(self.updated_at),
         }
         if include_assets:
             data['assets_assigned'] = [a.to_dict() for a in self.asset_assignments]
@@ -883,7 +967,7 @@ class OnboardingAssetAssignment(db.Model):
             'asset_name':     self.asset_name or '',
             'asset_serial':   self.asset_serial or '',
             'asset_category': self.asset_category or '',
-            'assigned_at':    utc_iso(self.assigned_at),
+            'assigned_at':    to_ist_string(self.assigned_at),
         }
 
     def __repr__(self):
@@ -978,8 +1062,8 @@ class CorporateSIM(db.Model):
             'remarks':                 self.remarks or '',
             'created_by':              self.created_by or '',
             'updated_by':              self.updated_by or '',
-            'created_at':              utc_iso(self.created_at),
-            'updated_at':              utc_iso(self.updated_at),
+            'created_at':              to_ist_string(self.created_at),
+            'updated_at':              to_ist_string(self.updated_at),
         }
 
     def __repr__(self):
@@ -1052,8 +1136,8 @@ class Inventory(db.Model):
             'remarks': self.remarks or '',
             'created_by': self.created_by or '',
             'updated_by': self.updated_by or '',
-            'created_at': utc_iso(self.created_at),
-            'updated_at': utc_iso(self.updated_at),
+            'created_at': to_ist_string(self.created_at),
+            'updated_at': to_ist_string(self.updated_at),
         }
 
 
@@ -1127,9 +1211,9 @@ class AssetRepair(db.Model):
             'previous_emp_id':         self.previous_emp_id or '',
             'previous_employee_name':  self.previous_employee_name or '',
             'completion_action':       self.completion_action or '',
-            'created_at':              utc_iso(self.created_at),
-            'updated_at':              utc_iso(self.updated_at),
-            'completed_at':            utc_iso(self.completed_at),
+            'created_at':              to_ist_string(self.created_at),
+            'updated_at':              to_ist_string(self.updated_at),
+            'completed_at':            to_ist_string(self.completed_at),
             'parts':                   [p.to_dict() for p in self.parts] if self.parts else [],
         }
 
@@ -1167,8 +1251,104 @@ class RepairPart(db.Model):
             'replacement_date': self.replacement_date.isoformat() if self.replacement_date else '',
             'warranty':        self.warranty or '',
             'remarks':         self.remarks or '',
-            'created_at':      utc_iso(self.created_at),
+            'created_at':      to_ist_string(self.created_at),
         }
 
     def __repr__(self):
         return f'<RepairPart {self.part_name} for Repair {self.repair_id}>'
+
+
+# ─────────────────────────────────────────────
+# ASSET PART REPLACEMENT TABLE
+# For tracking component-level replacements (Battery, RAM, SSD, etc.)
+# ─────────────────────────────────────────────
+class AssetPartReplacement(db.Model):
+    __tablename__ = 'asset_part_replacements'
+
+    id                      = db.Column(db.Integer, primary_key=True)
+    asset_id                = db.Column(db.Integer, db.ForeignKey('assets.id', ondelete='CASCADE'), nullable=False, index=True)
+    
+    # Component Information
+    component_name          = db.Column(db.String(100), nullable=False, index=True)  # Battery, Charger, RAM, SSD, etc.
+    custom_component_name   = db.Column(db.String(200))  # For custom/other components
+    replacement_reason      = db.Column(db.String(100), nullable=False)  # Faulty, Broken, Dead, Upgrade, etc.
+    custom_reason           = db.Column(db.String(200))  # For custom/other reasons
+    replacement_date        = db.Column(db.Date, nullable=False, index=True)
+    
+    # Part Source Information
+    part_source             = db.Column(db.String(100))  # New/Purchased, Existing Spare, From Available Spare Asset, Other
+    source_asset_id         = db.Column(db.Integer, db.ForeignKey('assets.id', ondelete='SET NULL'), nullable=True, index=True)
+    source_asset_serial     = db.Column(db.String(100))  # Cached for reporting
+    source_asset_name       = db.Column(db.String(200))  # Cached for reporting
+    source_asset_model      = db.Column(db.String(150))  # Cached for reporting
+    
+    # Old Part Details
+    old_part_serial         = db.Column(db.String(100))
+    old_part_number         = db.Column(db.String(100))
+    old_manufacturer        = db.Column(db.String(150))
+    old_condition           = db.Column(db.String(100))  # Working, Faulty, Dead, etc.
+    old_part_remarks        = db.Column(db.Text)
+    
+    # New Part Details
+    new_part_serial         = db.Column(db.String(100), index=True)
+    new_part_number         = db.Column(db.String(100))
+    new_manufacturer        = db.Column(db.String(150))
+    vendor                  = db.Column(db.String(200))
+    invoice_number          = db.Column(db.String(100))
+    replacement_cost        = db.Column(db.Float, default=0.0)
+    warranty_expiry         = db.Column(db.Date)
+    installed_by            = db.Column(db.String(150))
+    
+    # Additional Information
+    remarks                 = db.Column(db.Text)
+    
+    # Audit Fields
+    performed_by            = db.Column(db.String(100), nullable=False)
+    performed_by_role       = db.Column(db.String(50))
+    ip_address              = db.Column(db.String(50))
+    
+    # Timestamps
+    created_at              = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    updated_at              = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    asset = db.relationship('Asset', backref='part_replacements', foreign_keys=[asset_id])
+    source_asset = db.relationship('Asset', foreign_keys=[source_asset_id])
+
+    def to_dict(self):
+        return {
+            'id':                  self.id,
+            'asset_id':            self.asset_id,
+            'component_name':      self.component_name,
+            'custom_component_name': self.custom_component_name or '',
+            'replacement_reason':  self.replacement_reason,
+            'custom_reason':       self.custom_reason or '',
+            'replacement_date':    self.replacement_date.isoformat() if self.replacement_date else '',
+            'part_source':         self.part_source or '',
+            'source_asset_id':     self.source_asset_id,
+            'source_asset_serial': self.source_asset_serial or '',
+            'source_asset_name':   self.source_asset_name or '',
+            'source_asset_model':  self.source_asset_model or '',
+            'old_part_serial':     self.old_part_serial or '',
+            'old_part_number':     self.old_part_number or '',
+            'old_manufacturer':    self.old_manufacturer or '',
+            'old_condition':       self.old_condition or '',
+            'old_part_remarks':    self.old_part_remarks or '',
+            'new_part_serial':     self.new_part_serial or '',
+            'new_part_number':     self.new_part_number or '',
+            'new_manufacturer':    self.new_manufacturer or '',
+            'vendor':              self.vendor or '',
+            'invoice_number':      self.invoice_number or '',
+            'replacement_cost':    self.replacement_cost or 0.0,
+            'warranty_expiry':     self.warranty_expiry.isoformat() if self.warranty_expiry else '',
+            'installed_by':        self.installed_by or '',
+            'remarks':             self.remarks or '',
+            'performed_by':        self.performed_by,
+            'performed_by_role':   self.performed_by_role or '',
+            'ip_address':          self.ip_address or '',
+            'created_at':          to_ist_string(self.created_at),
+            'updated_at':          to_ist_string(self.updated_at),
+        }
+
+    def __repr__(self):
+        return f'<AssetPartReplacement {self.component_name} for Asset {self.asset_id}>'

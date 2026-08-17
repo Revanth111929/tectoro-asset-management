@@ -65,7 +65,7 @@
 .employee-name {
   font-weight: 600;
   font-size: 14px;
-  color: #1f2937;
+  color: #151515;
 }
 
 .employee-details {
@@ -125,4 +125,39 @@
     flex-direction: column;
     gap: 4px;
   }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   DARK MODE OVERRIDES
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+[data-theme="dark"] .employee-autocomplete-header {
+  background: #1a1a1a;
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  color: #a1a1a1;
+}
+
+[data-theme="dark"] .employee-autocomplete-item {
+  background: transparent;
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+  color: #e0e0e0;
+}
+
+[data-theme="dark"] .employee-autocomplete-item:hover {
+  background-color: #1c1c1c;
+}
+
+[data-theme="dark"] .employee-autocomplete-item strong {
+  color: #F5F5F5;
+}
+
+[data-theme="dark"] .employee-autocomplete-item small {
+  color: #a1a1a1;
+}
+
+[data-theme="dark"] .selected-employee-info {
+  background: rgba(20, 184, 166, 0.15);
+  border-color: rgba(20, 184, 166, 0.3);
+  color: #5eead4;
 }

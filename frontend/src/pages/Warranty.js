@@ -1,6 +1,8 @@
 // Warranty.js – Warranty tracking page with expiry alerts
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { NavButton } from '../components/NavButton';
+import BackButton from '../components/BackButton';
+import { useLocation } from 'react-router-dom';
 import { assetAPI } from '../services/api';
 
 function Warranty() {
@@ -44,7 +46,10 @@ function Warranty() {
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
-          <h2 className="fw-bold mb-1">Warranty Tracking</h2>
+          <div className="d-flex align-items-center gap-2 mb-1">
+            <BackButton />
+            <h2 className="fw-bold mb-0">Warranty Tracking</h2>
+          </div>
           <p className="text-muted mb-0">Assets with warranty expiring soon</p>
         </div>
         <div className="d-flex align-items-center gap-2">
@@ -132,9 +137,9 @@ function Warranty() {
                         }`}>{a.status}</span>
                       </td>
                       <td>
-                        <Link to={`/assets/view/${a.id}`} className="btn btn-sm btn-outline-primary">
+                        <NavButton to={`/assets/view/${a.id}`} className="btn btn-sm btn-outline-primary">
                           <i className="bi bi-eye"></i>
-                        </Link>
+                        </NavButton>
                       </td>
                     </tr>
                   );

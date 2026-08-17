@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './LoginPage.css';
 import tectoroLoginLogo from '../assets/tectoro-login-logo.png';
+import loginBackground from '../assets/login-bg.png';
+import { useTheme } from '../context/ThemeContext';
 
 function LoginPage({ setAuth }) {
   const [username, setUsername] = useState('');
@@ -11,6 +13,16 @@ function LoginPage({ setAuth }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { theme } = useTheme();
+  
+  // Background overlay based on theme
+  const overlayColor = theme === 'dark' 
+    ? 'rgba(10, 18, 28, 0.12)' 
+    : 'rgba(255, 255, 255, 0.06)';
+  
+  const backgroundStyle = {
+    backgroundImage: `linear-gradient(${overlayColor}, ${overlayColor}), url(${loginBackground})`
+  };
 
   // Redirect to dashboard if already logged in
   useEffect(() => {
@@ -72,128 +84,120 @@ try {
   };
 
   return (
-    <div className="login-page">
-      {/* Left Panel - Login Form */}
-      <div className="login-panel">
-        <div className="login-logo">
-          <div className="logo-icon">
+    <div className="login-page" style={backgroundStyle}>
+      {/* Left Side - Branding */}
+      <div className="login-branding">
+        <div className="brand-header">
+          <div className="brand-logo">
             <img 
               src={tectoroLoginLogo} 
               alt="Tectoro Logo" 
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              className="brand-logo-img"
               onError={(e) => {
                 console.error('Login logo failed to load');
                 e.target.style.display = 'none';
               }}
             />
+            <div className="brand-text">
+              <div className="brand-name">Tectoro</div>
+              <div className="brand-tagline">ASSET MANAGEMENT</div>
+            </div>
           </div>
-          <span>Tectoro</span>
         </div>
 
-        <h2 className="login-title">Welcome back</h2>
-        <p className="login-sub">Sign in to your account to continue</p>
-
-        {error && (
-          <div className="alert alert-danger py-2 mb-3">
-            <i className="bi bi-exclamation-circle me-2"></i>{error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          <div className="mb-3">
-            <label className="form-label">Username</label>
-            <div className="input-group">
-              <span className="input-group-text">
-                <i className="bi bi-person"></i>
-              </span>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Enter username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                autoFocus
-              />
-            </div>
-          </div>
-
-          <div className="mb-3">
-            <label className="form-label">Password</label>
-            <div className="input-group">
-              <span className="input-group-text">
-                <i className="bi bi-lock"></i>
-              </span>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                className="form-control"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-              <button
-                type="button"
-                className="btn btn-outline-secondary"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                <i className={`bi bi-eye${showPassword ? '-slash' : ''}`}></i>
-              </button>
-            </div>
-          </div>
-
-          <div className="d-flex justify-content-between align-items-center mb-3">
-            <div className="form-check">
-              <input className="form-check-input" type="checkbox" id="remember" />
-              <label className="form-check-label text-muted small" htmlFor="remember">
-                Remember me
-              </label>
-            </div>
-          </div>
-
-          <button type="submit" className="btn-login" disabled={loading}>
-            {loading ? (
-              <>
-                <span className="spinner-border spinner-border-sm me-2"></span>
-                Logging in...
-              </>
-            ) : (
-              <>
-                <i className="bi bi-box-arrow-in-right me-2"></i>LOGIN
-              </>
-            )}
-          </button>
-        </form>
-
-        <div className="dots">
-          <div className="dot active"></div>
-          <div className="dot"></div>
-          <div className="dot"></div>
+        <div className="brand-hero">
+          <h1 className="hero-title">
+            Smart Assets,<br />
+            <span className="hero-accent">Stronger</span> Business
+          </h1>
+          <p className="hero-subtitle">Track. Manage. Optimize.</p>
         </div>
       </div>
 
-      {/* Right Panel - Hero */}
-      <div className="hero-panel">
-        <div className="blob blob-1"></div>
-        <div className="blob blob-2"></div>
-        <div className="blob blob-3"></div>
+      {/* Right Side - Login Panel */}
+      <div className="login-panel-container">
+        <div className="login-panel">
+          <div className="panel-header">
+            <h2>Login</h2>
+            <p>Welcome back! Please sign in to continue</p>
+          </div>
 
-        <div className="float-card c1">
-          <i className="bi bi-laptop"></i> 10 Assets Tracked
-        </div>
-        <div className="float-card c2">
-          <i className="bi bi-people"></i> 5 Employees
-        </div>
-        <div className="float-card c3">
-          <i className="bi bi-graph-up-arrow"></i> Reports Ready
-        </div>
-        <div className="float-card c4">
-          <i className="bi bi-shield-check"></i> Secure &amp; Fast
-        </div>
+          {error && (
+            <div className="login-error">
+              <i className="bi bi-exclamation-circle"></i>
+              <span>{error}</span>
+            </div>
+          )}
 
-        <div className="hero-text">
-          <h1>Welcome.</h1>
-          <p>Your complete asset management solution. Track everything, lose nothing.</p>
+          <form onSubmit={handleSubmit} className="login-form">
+            {/* USERNAME INPUT - Proper structure with separate icon area */}
+            <div className="login-field">
+              <label htmlFor="username">Username</label>
+              <div className="input-wrapper">
+                <div className="input-icon">
+                  <i className="bi bi-person"></i>
+                </div>
+                <input
+                  id="username"
+                  name="username"
+                  type="text"
+                  placeholder="Enter your username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="username"
+                  required
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            {/* PASSWORD INPUT - Proper structure with separate icon and toggle areas */}
+            <div className="login-field">
+              <label htmlFor="password">Password</label>
+              <div className="input-wrapper password-wrapper">
+                <div className="input-icon">
+                  <i className="bi bi-lock"></i>
+                </div>
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  tabIndex="-1"
+                >
+                  <i className={`bi bi-eye${showPassword ? '-slash' : ''}`}></i>
+                </button>
+              </div>
+            </div>
+
+            <div className="form-footer">
+              <label className="checkbox-label">
+                <input type="checkbox" id="remember" />
+                <span>Remember me</span>
+              </label>
+            </div>
+
+            <button type="submit" className="btn-login" disabled={loading}>
+              {loading ? (
+                <>
+                  <span className="spinner"></span>
+                  <span>Logging in...</span>
+                </>
+              ) : (
+                'Login'
+              )}
+            </button>
+          </form>
         </div>
       </div>
     </div>

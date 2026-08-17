@@ -1,6 +1,7 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AssetHistoryTimeline from '../components/AssetHistoryTimeline';
+import BackButton from '../components/BackButton';
 
 function AssetTimeline() {
   const { assetId } = useParams();

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api, { employeeAPI } from '../services/api';
-import { Link } from 'react-router-dom';
 import AssetDetailsCard from '../components/AssetDetailsCard';
+import BackButton from '../components/BackButton';
 import './TemporaryAssignments.css';
 
 function TemporaryAssignments() {
@@ -291,7 +291,7 @@ function TemporaryAssignments() {
     <div className="temporary-assignments">
       <div className="page-header">
         <div>
-          <h1><i className="bi bi-arrow-repeat"></i> Temporary Asset Assignments</h1>
+          <div className="d-flex align-items-center gap-2 mb-2"><BackButton /><h1 className="mb-0"><i className="bi bi-arrow-repeat"></i> Temporary Asset Assignments</h1></div>
           <p className="text-muted">Manage loaner devices during repairs and maintenance</p>
         </div>
         <button onClick={openNewAssignmentModal} className="btn btn-primary">

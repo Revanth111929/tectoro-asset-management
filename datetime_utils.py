@@ -61,3 +61,34 @@ def utc_iso(dt):
     calendar-only Date fields (warranty_date, invoice_date, etc.), which
     have no time-of-day component and should not carry a timezone marker."""
     return (dt.isoformat() + 'Z') if dt else ''
+
+
+def to_ist_string(dt):
+    """
+    Convert a naive UTC datetime to IST timezone and return as ISO string.
+    
+    This function is used for displaying timestamps to users in the frontend.
+    All timestamps displayed in the UI should use IST (Asia/Kolkata, UTC+05:30).
+    
+    Args:
+        dt: naive UTC datetime object (as stored in database)
+        
+    Returns:
+        ISO format string in IST timezone, or empty string if dt is None
+        
+    Example:
+        Input:  datetime(2026, 8, 7, 14, 6, 28)  # UTC
+        Output: '2026-08-07T19:36:28+05:30'      # IST
+    """
+    if not dt:
+        return ''
+    
+    # Assume naive datetime is UTC (as per our database convention)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    
+    # Convert to IST
+    ist_dt = dt.astimezone(IST)
+    
+    # Return ISO format string with timezone
+    return ist_dt.isoformat()

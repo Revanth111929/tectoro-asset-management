@@ -4,6 +4,7 @@ import './AssetHistoryTimeline.css';
 
 function AssetHistoryTimeline({ assetId, onClose }) {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [history, setHistory] = useState([]);
   const [asset, setAsset] = useState(null);
   const [stats, setStats] = useState({});
@@ -17,18 +18,26 @@ function AssetHistoryTimeline({ assetId, onClose }) {
 
   const fetchHistory = async () => {
     setLoading(true);
+    setError(null);
     try {
       const response = await axios.get(`/api/assets/${assetId}/history`);
-      setAsset(response.data.asset);
-      setHistory(response.data.history);
+      setAsset(response.data.asset || null);
+      setHistory(response.data.history || response.data.events || []);
       setStats({
-        total: response.data.total_events,
-        lifecycle: response.data.lifecycle_events_count,
-        audits: response.data.audit_logs_count,
-        temp_assignments: response.data.temp_assignments_count,
+        total: response.data.total_events || 0,
+        lifecycle: response.data.lifecycle_events_count || 0,
+        audits: response.data.audit_logs_count || 0,
+        temp_assignments: response.data.temp_assignments_count || 0,
       });
     } catch (error) {
       console.error('Error fetching asset history:', error);
+      if (error.response?.status === 404) {
+        setError('Asset not found');
+      } else if (error.response?.status >= 500) {
+        setError('Server error. Please try again later.');
+      } else {
+        setError('Unable to load asset history. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -180,17 +189,21 @@ function AssetHistoryTimeline({ assetId, onClose }) {
     if (event.type === 'temp_assignment') {
       const details = [];
       
-      details.push(`👤 ${event.employee_name}`);
+      if (event.employee_name) {
+        details.push(`👤 ${event.employee_name}`);
+      }
       
-      if (event.sub_type === 'original') {
+      if (event.sub_type === 'original' && event.temp_asset_name) {
         details.push(`Loaner: ${event.temp_asset_name}`);
-      } else {
+      } else if (event.original_asset_name) {
         details.push(`Replacing: ${event.original_asset_name}`);
       }
       
-      details.push(`💬 ${event.reason}`);
+      if (event.reason) {
+        details.push(`💬 ${event.reason}`);
+      }
       
-      if (event.status === 'Active') {
+      if (event.status === 'Active' && event.expected_return) {
         details.push(`⏰ Expected: ${formatDate(event.expected_return)}`);
       } else if (event.actual_return) {
         details.push(`✅ Returned: ${formatDate(event.actual_return)}`);
@@ -203,15 +216,22 @@ function AssetHistoryTimeline({ assetId, onClose }) {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    if (!dateString) return '—';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '—';
+      return date.toLocaleDateString('en-IN', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Kolkata'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return '—';
+    }
   };
 
   const getFilteredHistory = () => {
@@ -255,6 +275,55 @@ function AssetHistoryTimeline({ assetId, onClose }) {
           <div className="spinner-border text-primary" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
+          <p className="text-muted mt-3">Loading asset timeline...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="asset-history-timeline">
+        <div className="history-header">
+          <h3>Asset History</h3>
+          {onClose && (
+            <button onClick={onClose} className="btn-close-history">
+              <i className="bi bi-x-lg"></i>
+            </button>
+          )}
+        </div>
+        <div className="text-center py-5">
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
+          <h4 className="text-danger mb-3">{error}</h4>
+          <button onClick={fetchHistory} className="btn btn-primary">
+            <i className="bi bi-arrow-clockwise me-2"></i>
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!asset) {
+    return (
+      <div className="asset-history-timeline">
+        <div className="history-header">
+          <h3>Asset History</h3>
+          {onClose && (
+            <button onClick={onClose} className="btn-close-history">
+              <i className="bi bi-x-lg"></i>
+            </button>
+          )}
+        </div>
+        <div className="text-center py-5">
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📦</div>
+          <h4 className="text-muted mb-3">Asset not found</h4>
+          {onClose && (
+            <button onClick={onClose} className="btn btn-secondary">
+              <i className="bi bi-arrow-left me-2"></i>
+              Go Back
+            </button>
+          )}
         </div>
       </div>
     );
@@ -271,10 +340,10 @@ function AssetHistoryTimeline({ assetId, onClose }) {
           </h3>
           {asset && (
             <div className="asset-info">
-              <span className="asset-name">{asset.asset_name}</span>
-              <span className="asset-serial">SN: {asset.serial_number}</span>
+              <span className="asset-name">{asset.asset_name || 'Unknown Asset'}</span>
+              <span className="asset-serial">SN: {asset.serial_number || '—'}</span>
               <span className={`badge bg-${asset.status === 'Assigned' ? 'success' : asset.status === 'Available' ? 'primary' : 'warning'}`}>
-                {asset.status}
+                {asset.status || 'Unknown'}
               </span>
             </div>
           )}

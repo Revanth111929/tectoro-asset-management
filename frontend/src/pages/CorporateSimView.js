@@ -1,6 +1,8 @@
 // CorporateSimView.js – View Corporate SIM details
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
+import { NavButton } from '../components/NavButton';
+import BackButton from '../components/BackButton';
 import { corporateSimAPI } from '../services/api';
 import { canPerform } from '../utils/permissions';
 
@@ -70,9 +72,9 @@ function CorporateSimView() {
               </div>
             </div>
             {canPerform('edit') && (
-              <Link to={`/corporate-sims/edit/${sim.id}`} className="btn btn-primary">
+              <NavButton to={`/corporate-sims/edit/${sim.id}`} className="btn btn-primary">
                 <i className="bi bi-pencil me-2"></i>Edit SIM
-              </Link>
+              </NavButton>
             )}
           </div>
 

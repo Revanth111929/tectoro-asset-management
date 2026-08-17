@@ -2,9 +2,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useUrlFilters } from '../hooks/useUrlFilters';
 import { useScrollRestoration, markLastSelected } from '../hooks/useScrollRestoration';
-import { Link, useParams } from 'react-router-dom';
+import { NavButton } from '../components/NavButton';
+import BackButton from '../components/BackButton';
+import { useParams } from 'react-router-dom';
 import { assetAPI } from '../services/api';
 import { canPerform } from '../utils/permissions';
+import api from '../services/api';
 
 const CATEGORY_CONFIG = {
   laptop: {
@@ -14,10 +17,10 @@ const CATEGORY_CONFIG = {
     columns: ['emp_id', 'employee_name', 'brand_name', 'model_name', 'serial_number', 'processor', 'ram', 'os', 'status'],
     labels: ['EMP ID', 'Employee', 'Brand', 'Model', 'Serial Number', 'Processor', 'RAM', 'OS', 'Status']
   },
-  cpu: {
-    title: 'CPU Inventory',
-    icon: 'bi-cpu',
-    category: 'CPU',
+  desktop: {
+    title: 'Desktop Inventory',
+    icon: 'bi-pc-display',
+    category: 'Desktop',
     columns: ['emp_id', 'employee_name', 'brand_name', 'model_name', 'serial_number', 'processor', 'ram', 'graphics_card', 'status'],
     labels: ['EMP ID', 'Employee', 'Brand', 'Model', 'Serial Number', 'Processor', 'RAM', 'Graphics Card', 'Status']
   },
@@ -122,6 +125,7 @@ function InventoryCategory() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState('Available');
 
+
   const fetchAssets = useCallback(() => {
     if (!config) return; // Don't fetch if config is invalid
     
@@ -180,14 +184,13 @@ function InventoryCategory() {
     if (bulkAction === 'delete') {
       // Use modal instead of window.confirm for better UX
       const confirmed = window.confirm(
-        `⚠️ DELETE ${selectedIds.length} ASSETS?\n\n` +
-        `This will permanently delete:\n` +
-        `• ${selectedIds.length} asset record(s)\n` +
-        `• All lifecycle history\n` +
-        `• All repair records\n` +
-        `• All related assignments\n\n` +
-        `This action CANNOT be undone.\n\n` +
-        `Type 'DELETE' to confirm or Cancel to abort.`
+        `Move ${selectedIds.length} asset(s) to Deleted Assets?\n\n` +
+        `These assets will be:\n` +
+        `• Moved to Deleted Assets\n` +
+        `• Hidden from normal inventory\n` +
+        `• Fully restorable later\n\n` +
+        `Asset data, history, and assignments will be preserved.\n\n` +
+        `Continue?`
       );
       
       if (!confirmed) return;
@@ -283,17 +286,16 @@ function InventoryCategory() {
 
   const handleSingleDelete = async (asset) => {
     const confirmed = window.confirm(
-      `⚠️ DELETE ASSET?\n\n` +
+      `Move Asset to Deleted Assets?\n\n` +
       `Asset: ${asset.asset_name}\n` +
       `Serial: ${asset.serial_number}\n` +
       `Category: ${asset.category}\n\n` +
-      `This will permanently delete:\n` +
-      `• Asset record\n` +
-      `• All lifecycle history\n` +
-      `• All repair records\n` +
-      `• All related assignments\n\n` +
-      `This action CANNOT be undone.\n\n` +
-      `Click OK to delete or Cancel to abort.`
+      `This asset will be:\n` +
+      `• Moved to Deleted Assets\n` +
+      `• Hidden from inventory\n` +
+      `• Fully restorable later\n\n` +
+      `Asset data and history will be preserved.\n\n` +
+      `Continue?`
     );
     
     if (!confirmed) return;
@@ -301,7 +303,7 @@ function InventoryCategory() {
     try {
       await assetAPI.delete(asset.id);
       fetchAssets();
-      alert(`✓ Asset "${asset.asset_name}" deleted successfully`);
+      alert(`✓ Asset "${asset.asset_name}" moved to Deleted Assets`);
     } catch (error) {
       const errorMsg = error.response?.data?.error || 'Failed to delete asset';
       alert(`❌ Delete failed:\n${errorMsg}`);
@@ -337,9 +339,9 @@ function InventoryCategory() {
           <p className="text-muted mb-0">{total} items in inventory</p>
         </div>
         {canPerform('create') && (
-          <Link to="/assets/add" className="btn btn-primary">
+          <NavButton to="/assets/add" className="btn btn-primary">
             <i className="bi bi-plus-circle me-2"></i>Add New
-          </Link>
+          </NavButton>
         )}
       </div>
 
@@ -465,22 +467,40 @@ function InventoryCategory() {
                         <td key={cidx}>{getValue(a, col)}</td>
                       ))}
                       <td>
-                        <div className="btn-group btn-group-sm">
-                          <Link to={`/inventory/detail/${a.id}`} state={{ returnTo: listUrl }} onClick={() => markLastSelected(listUrl, a.id)} className="btn btn-outline-primary" title="Inventory Details">
+                        <div className="action-group">
+                          <NavButton 
+                            to={`/inventory/detail/${a.id}`} 
+                            state={{ returnTo: listUrl }} 
+                            onClick={() => markLastSelected(listUrl, a.id)} 
+                            className="action-btn action-view" 
+                            title="Inventory Details"
+                          >
                             <i className="bi bi-box-seam"></i>
-                          </Link>
-                          <Link to={`/assets/view/${a.id}`} state={{ returnTo: listUrl }} onClick={() => markLastSelected(listUrl, a.id)} className="btn btn-outline-secondary" title="View">
+                          </NavButton>
+                          <NavButton 
+                            to={`/assets/view/${a.id}`} 
+                            state={{ returnTo: listUrl }} 
+                            onClick={() => markLastSelected(listUrl, a.id)} 
+                            className="action-btn action-view" 
+                            title="View Asset"
+                          >
                             <i className="bi bi-eye"></i>
-                          </Link>
+                          </NavButton>
                           {canPerform('edit') && (
-                            <Link to={`/assets/edit/${a.id}`} state={{ returnTo: listUrl }} onClick={() => markLastSelected(listUrl, a.id)} className="btn btn-outline-secondary" title="Edit">
+                            <NavButton 
+                              to={`/assets/edit/${a.id}`} 
+                              state={{ returnTo: listUrl }} 
+                              onClick={() => markLastSelected(listUrl, a.id)} 
+                              className="action-btn action-edit" 
+                              title="Edit Asset"
+                            >
                               <i className="bi bi-pencil"></i>
-                            </Link>
+                            </NavButton>
                           )}
                           {canPerform('delete') && (
                             <button 
                               onClick={() => handleSingleDelete(a)} 
-                              className="btn btn-outline-danger" 
+                              className="action-btn action-delete" 
                               title="Delete Asset"
                             >
                               <i className="bi bi-trash"></i>
@@ -582,6 +602,7 @@ function InventoryCategory() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

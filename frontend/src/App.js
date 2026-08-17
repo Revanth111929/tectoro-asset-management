@@ -11,6 +11,7 @@ import AssetEdit    from './pages/AssetEdit';
 import AssetView    from './pages/AssetView';
 import AssetImport  from './pages/AssetImport';
 import AssetTimeline from './pages/AssetTimeline';
+import DeletedAssets from './pages/DeletedAssets';
 import InventoryCategory from './pages/InventoryCategory';
 import InventoryDetail from './pages/InventoryDetail';
 import InventoryLifecycle from './pages/InventoryLifecycle';
@@ -20,6 +21,9 @@ import Settings   from './pages/Settings';
 import ActivityHistory from './pages/ActivityHistory';
 import TemporaryAssignments from './pages/TemporaryAssignments';
 import AssetReplacements from './pages/AssetReplacements';
+import AssetTransfer from './pages/AssetTransfer';
+import PartReplacement from './pages/PartReplacement';
+import PartReplacementHistory from './pages/PartReplacementHistory';
 import Employees from './pages/Employees';
 import EmployeeAdd from './pages/EmployeeAdd'; // Phase 1
 import EmployeeAutocompleteDemo from './pages/EmployeeAutocompleteDemo'; // Phase 2 Demo
@@ -131,6 +135,8 @@ function App() {
           <Route path="/dashboard"       element={<Protected><Dashboard /></Protected>} />
           <Route path="/assets"          element={<Protected><AssetList /></Protected>} />
           <Route path="/assets/add"      element={<NonViewerOnly><AssetAdd /></NonViewerOnly>} />
+          <Route path="/assets/deleted"  element={<AdminOnly><DeletedAssets /></AdminOnly>} />
+          <Route path="/assets/transfer" element={<NonViewerOnly><AssetTransfer /></NonViewerOnly>} />
           <Route path="/assets/import"   element={<AdminOnly><AssetImport /></AdminOnly>} />
           <Route path="/assets/edit/:id" element={<NonViewerOnly><AssetEdit /></NonViewerOnly>} />
           <Route path="/assets/view/:id" element={<Protected><AssetView /></Protected>} />
@@ -143,6 +149,8 @@ function App() {
           <Route path="/activity-history" element={<Protected><ActivityHistory /></Protected>} />
           <Route path="/temporary-assignments" element={<NonViewerOnly><TemporaryAssignments /></NonViewerOnly>} />
           <Route path="/asset-replacements" element={<NonViewerOnly><AssetReplacements /></NonViewerOnly>} />
+          <Route path="/part-replacements" element={<NonViewerOnly><PartReplacementHistory /></NonViewerOnly>} />
+          <Route path="/part-replacements/add" element={<NonViewerOnly><PartReplacement /></NonViewerOnly>} />
           <Route path="/employees" element={<AdminOnly><Employees /></AdminOnly>} />
           <Route path="/employees/add" element={<AdminOnly><EmployeeAdd /></AdminOnly>} />
           <Route path="/employees/edit/:empId" element={<AdminOnly><EmployeeAdd /></AdminOnly>} />

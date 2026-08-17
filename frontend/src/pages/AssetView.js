@@ -1,8 +1,9 @@
 // AssetView.js – Full detail view of a single asset (all 20 columns)
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { NavButton } from '../components/NavButton';
+import BackButton from '../components/BackButton';
 import { assetAPI } from '../services/api';
-import AssetOperations from '../components/AssetOperations';
 import { canPerform } from '../utils/permissions';
 
 function AssetView() {
@@ -25,11 +26,6 @@ function AssetView() {
       .then(res => setAsset(res.data))
       .catch(() => setError('Asset not found'))
       .finally(() => setLoading(false));
-  };
-
-  const handleOperationComplete = (result) => {
-    // Reload asset data after operation
-    loadAsset();
   };
 
   const handleViewInvoice = async () => {
@@ -99,7 +95,10 @@ function AssetView() {
       {/* Header */}
       <div className="d-flex justify-content-between align-items-start mb-4">
         <div>
-          <h2 className="fw-bold mb-1">{asset.asset_name}</h2>
+          <div className="d-flex align-items-center gap-2 mb-2">
+            <BackButton fallbackRoute="/assets" />
+            <h2 className="fw-bold mb-0">{asset.asset_name}</h2>
+          </div>
           <div className="d-flex align-items-center gap-2">
             <code className="text-muted">{asset.serial_number}</code>
             <span className={`badge bg-${statusColor[asset.status] || 'secondary'}`}>{asset.status}</span>
@@ -107,12 +106,9 @@ function AssetView() {
         </div>
         <div className="d-flex gap-2">
           {canPerform('edit') && (
-            <>
-              <AssetOperations asset={asset} onOperationComplete={handleOperationComplete} />
-              <Link to={`/assets/edit/${asset.id}`} state={{ returnTo: viewUrl }} className="btn btn-primary">
-                <i className="bi bi-pencil me-2"></i>Edit
-              </Link>
-            </>
+            <NavButton to={`/assets/edit/${asset.id}`} state={{ returnTo: viewUrl }} className="btn btn-primary">
+              <i className="bi bi-pencil me-2"></i>Edit
+            </NavButton>
           )}
         </div>
       </div>

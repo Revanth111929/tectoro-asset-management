@@ -1,7 +1,7 @@
 // CorporateSimList.js – Corporate SIM inventory list with search, filter, assign
 import { canPerform } from '../utils/permissions';
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { NavButton } from '../components/NavButton';
 import { corporateSimAPI, employeeAPI } from '../services/api';
 
 const CARRIERS = ['Airtel', 'Jio', 'Vi (Vodafone Idea)', 'BSNL', 'Other'];
@@ -161,9 +161,9 @@ function CorporateSimList() {
           <p className="text-muted mb-0">Manage corporate SIM inventory and assignments</p>
         </div>
         {canPerform('create') && (
-          <Link to="/corporate-sims/add" className="btn btn-primary">
+          <NavButton to="/corporate-sims/add" className="btn btn-primary">
             <i className="bi bi-plus-circle me-2"></i>Add New SIM
-          </Link>
+          </NavButton>
         )}
       </div>
 
@@ -272,31 +272,31 @@ function CorporateSimList() {
                           )}
                         </td>
                         <td>
-                          <div className="btn-group btn-group-sm" role="group">
-                            <Link to={`/corporate-sims/view/${sim.id}`} className="btn btn-outline-primary" title="View">
+                          <div className="action-group">
+                            <NavButton to={`/corporate-sims/view/${sim.id}`} className="action-btn action-view" title="View SIM">
                               <i className="bi bi-eye"></i>
-                            </Link>
+                            </NavButton>
                             {canPerform('edit') && (
-                              <Link to={`/corporate-sims/edit/${sim.id}`} className="btn btn-outline-secondary" title="Edit">
+                              <NavButton to={`/corporate-sims/edit/${sim.id}`} className="action-btn action-edit" title="Edit SIM">
                                 <i className="bi bi-pencil"></i>
-                              </Link>
+                              </NavButton>
                             )}
                             {canPerform('edit') && sim.status !== 'Assigned' && (
-                              <button className="btn btn-outline-success" onClick={() => openAssignModal(sim)} title="Assign">
+                              <button className="action-btn action-view" onClick={() => openAssignModal(sim)} title="Assign SIM" style={{ color: '#10b981' }}>
                                 <i className="bi bi-person-plus"></i>
                               </button>
                             )}
                             {canPerform('edit') && sim.status === 'Assigned' && (
-                              <button className="btn btn-outline-warning" onClick={() => openReturnModal(sim)} title="Return">
+                              <button className="action-btn action-history" onClick={() => openReturnModal(sim)} title="Return SIM" style={{ color: '#f59e0b' }}>
                                 <i className="bi bi-arrow-return-left"></i>
                               </button>
                             )}
                             {canPerform('delete') && (
                               <button
-                                className="btn btn-outline-danger"
+                                className="action-btn action-delete"
                                 onClick={() => handleDelete(sim.id)}
                                 disabled={deleting === sim.id || sim.status === 'Assigned'}
-                                title={sim.status === 'Assigned' ? 'Cannot delete assigned SIM' : 'Delete'}
+                                title={sim.status === 'Assigned' ? 'Cannot delete assigned SIM' : 'Delete SIM'}
                               >
                                 {deleting === sim.id ? <span className="spinner-border spinner-border-sm"></span> : <i className="bi bi-trash"></i>}
                               </button>

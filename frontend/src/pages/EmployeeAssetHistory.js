@@ -1,7 +1,9 @@
 // EmployeeAssetHistory.js - Complete Employee Asset History & Timeline (Read-Only)
 // Shows every device an employee has ever used from day one until today
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
+import { NavButton } from '../components/NavButton';
+import BackButton from '../components/BackButton';
 import { employeeAPI } from '../services/api';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -323,12 +325,7 @@ function EmployeeAssetHistory() {
       <div className="d-flex justify-content-between align-items-start mb-4">
         <div>
           <div className="d-flex align-items-center gap-2 mb-2">
-            <button 
-              onClick={() => navigate(-1)} 
-              className="btn btn-sm btn-outline-secondary"
-            >
-              <i className="bi bi-arrow-left"></i>
-            </button>
+            <BackButton fallbackRoute="/employees" />
             <h2 className="fw-bold mb-0">
               <i className="bi bi-clock-history me-2"></i>
               Employee Asset History
@@ -399,7 +396,7 @@ function EmployeeAssetHistory() {
           <div className="row g-3">
             {currentAssets.map(asset => (
               <div key={asset.id} className="col-md-4">
-                <Link 
+                <NavButton 
                   to={`/inventory/detail/${asset.id}`}
                   className="text-decoration-none"
                 >
@@ -421,7 +418,7 @@ function EmployeeAssetHistory() {
                       <div><strong>Assigned:</strong> {formatDate(asset.date)}</div>
                     </div>
                   </div>
-                </Link>
+                </NavButton>
               </div>
             ))}
           </div>
@@ -570,9 +567,9 @@ function EmployeeAssetHistory() {
                     <div className="detail-row">
                       <i className="bi bi-laptop text-primary me-2"></i>
                       <strong>Asset:</strong> 
-                      <Link to={`/inventory/detail/${event.asset_id}`} className="ms-2 text-decoration-none">
+                      <NavButton to={`/inventory/detail/${event.asset_id}`} className="ms-2 text-decoration-none">
                         {event.asset_name || '—'}
-                      </Link>
+                      </NavButton>
                     </div>
                     
                     {event.asset_serial && (

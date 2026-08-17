@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import BackButton from '../components/BackButton';
 import api from '../services/api';
 import './AssetReplacements.css';
 
@@ -201,10 +202,14 @@ function AssetReplacements() {
 
   return (
     <div className="asset-replacements">
-      <div className="page-header">
+      {/* Page Header - Compact */}
+      <div className="page-header d-flex justify-content-between align-items-start mb-4">
         <div>
-          <h1><i className="bi bi-arrow-left-right"></i> Asset Replacements</h1>
-          <p className="text-muted">Manage permanent asset upgrades and swaps</p>
+          <div className="d-flex align-items-center gap-2 mb-2">
+            <BackButton />
+            <h2 className="mb-0">Asset Replacements</h2>
+          </div>
+          <p className="mb-0">Manage permanent asset upgrades and swaps</p>
         </div>
         <button onClick={openNewReplacementModal} className="btn btn-primary">
           <i className="bi bi-plus-circle"></i> New Replacement
@@ -329,13 +334,15 @@ function AssetReplacements() {
                         {replacement.remarks || '-'}
                       </td>
                       <td>
-                        <button 
-                          onClick={() => handleDelete(replacement)}
-                          className="btn btn-sm btn-danger"
-                          title="Delete Replacement"
-                        >
-                          <i className="bi bi-trash"></i>
-                        </button>
+                        <div className="action-group">
+                          <button 
+                            onClick={() => handleDelete(replacement)}
+                            className="action-btn action-delete"
+                            title="Delete Replacement"
+                          >
+                            <i className="bi bi-trash"></i>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

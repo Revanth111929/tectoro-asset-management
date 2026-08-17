@@ -1,7 +1,9 @@
 // InventoryDetail.js - Comprehensive inventory record view (read-only)
 // Future-proof: Currently uses asset_id, ready for inventory master table migration
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
+import { NavButton } from '../components/NavButton';
+import BackButton from '../components/BackButton';
 import { assetAPI } from '../services/api';
 
 function InventoryDetail() {
@@ -27,103 +29,41 @@ function InventoryDetail() {
         // Fetch lifecycle summary
         try {
           const historyRes = await assetAPI.getHistory(inventoryId);
-          const events = historyRes.data.events || [];
+          const responseData = historyRes.data;
           
-          // Calculate comprehensive summary statistics
-          const assignments = events.filter(e => 
-            e.event_type === 'ASSIGNED' || e.event_type === 'REASSIGNED' || 
-            e.action_type === 'ASSET_ASSIGNED' || e.action_type === 'ASSET_REASSIGNED'
-          );
+          // Backend now returns unique_users and total_users directly
+          const summary = {
+            uniqueUsers: responseData.unique_users || [],
+            totalUsers: responseData.total_users || 0,
+            totalEvents: responseData.total_events || 0,
+            totalRepairs: 0,
+            totalReplacements: 0,
+          };
           
-          const repairs = events.filter(e => 
+          const events = responseData.events || [];
+          
+          // Calculate repairs and replacements from events
+          summary.totalRepairs = events.filter(e => 
             e.event_type === 'MAINTENANCE_STARTED' || 
             e.event_type === 'MAINTENANCE_COMPLETED' ||
             e.type === 'temp_assignment'
-          );
+          ).length;
           
-          const returns = events.filter(e => 
-            e.event_type === 'RETURNED' || e.action_type === 'ASSET_RETURNED'
-          );
-          
-          const replacements = events.filter(e => 
+          summary.totalReplacements = events.filter(e => 
             e.event_type === 'REPLACED' || e.action_type === 'ASSET_REPLACED'
-          );
+          ).length;
           
-          // Extract unique users who used this device
-          const usersMap = new Map();
-          
-          assignments.forEach((event, index) => {
-            const empId = event.to_employee_id || event.employee_id;
-            const empName = event.to_employee || event.employee_name;
-            
-            if (empId && empName) {
-              if (!usersMap.has(empId)) {
-                // Find the return event for this assignment
-                const assignmentDate = new Date(event.event_date || event.timestamp || event.date);
-                let returnDate = null;
-                let daysUsed = null;
-                let status = 'Current';
-                
-                // Look for next return event after this assignment
-                for (let i = index + 1; i < events.length; i++) {
-                  const nextEvent = events[i];
-                  if ((nextEvent.event_type === 'RETURNED' || nextEvent.action_type === 'ASSET_RETURNED') &&
-                      (nextEvent.from_employee_id === empId || nextEvent.employee_id === empId)) {
-                    returnDate = new Date(nextEvent.event_date || nextEvent.timestamp || nextEvent.date);
-                    daysUsed = Math.ceil((returnDate - assignmentDate) / (1000 * 60 * 60 * 24));
-                    status = 'Returned';
-                    break;
-                  }
-                }
-                
-                // If no return found and this is current employee, mark as Current
-                if (!returnDate && assetRes.data.emp_id === empId) {
-                  const today = new Date();
-                  daysUsed = Math.ceil((today - assignmentDate) / (1000 * 60 * 60 * 24));
-                  status = 'Current';
-                } else if (!returnDate) {
-                  status = 'Returned';
-                }
-                
-                usersMap.set(empId, {
-                  emp_id: empId,
-                  employee_name: empName,
-                  assigned_date: assignmentDate,
-                  returned_date: returnDate,
-                  days_used: daysUsed,
-                  status: status
-                });
-              }
-            }
-          });
-          
-          const uniqueUsers = Array.from(usersMap.values()).sort((a, b) => 
-            b.assigned_date - a.assigned_date
-          );
-          
-          const firstAssignment = assignments.length > 0 
-            ? assignments[assignments.length - 1] 
-            : null;
-          
-          const currentUser = assetRes.data.emp_id 
-            ? { emp_id: assetRes.data.emp_id, name: assetRes.data.employee_name }
-            : null;
-          
-          const lastActivity = events.length > 0 ? events[0] : null;
-          
-          setHistorySummary({
-            firstAssignment,
-            currentUser,
-            lastActivity,
-            totalAssignments: assignments.length,
-            totalRepairs: repairs.length,
-            totalReplacements: replacements.length,
-            totalReturns: returns.length,
-            uniqueUsers: uniqueUsers,
-            allEvents: events
-          });
+          setHistorySummary(summary);
         } catch (err) {
-          console.warn('Could not fetch history summary:', err);
+          console.error('Failed to load asset history:', err);
+          // Set default values if history fetch fails
+          setHistorySummary({
+            uniqueUsers: [],
+            totalUsers: 0,
+            totalEvents: 0,
+            totalRepairs: 0,
+            totalReplacements: 0,
+          });
         }
         
       } catch (err) {
@@ -258,12 +198,7 @@ function InventoryDetail() {
       <div className="d-flex justify-content-between align-items-start mb-4">
         <div>
           <div className="d-flex align-items-center gap-2 mb-2">
-            <button 
-              onClick={() => navigate(-1)} 
-              className="btn btn-sm btn-outline-secondary"
-            >
-              <i className="bi bi-arrow-left"></i>
-            </button>
+            <BackButton />
             <h2 className="fw-bold mb-0">Inventory Record</h2>
           </div>
           <div className="d-flex align-items-center gap-3">
@@ -450,38 +385,16 @@ function InventoryDetail() {
             </div>
           </Section>
 
-          {/* Users Who Used This Device */}
+          {/* Users Who Used This Device - Simplified */}
           {historySummary?.uniqueUsers && historySummary.uniqueUsers.length > 0 && (
             <Section title="Users Who Used This Device" icon="people">
-              <div className="table-responsive">
-                <table className="table table-hover">
-                  <thead>
-                    <tr>
-                      <th>Employee ID</th>
-                      <th>Employee Name</th>
-                      <th>Assigned Date</th>
-                      <th>Returned Date</th>
-                      <th>Days Used</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {historySummary.uniqueUsers.map((user, index) => (
-                      <tr key={index}>
-                        <td><code>{user.emp_id}</code></td>
-                        <td className="fw-600">{user.employee_name}</td>
-                        <td>{user.assigned_date ? new Date(user.assigned_date).toLocaleDateString() : '—'}</td>
-                        <td>{user.returned_date ? new Date(user.returned_date).toLocaleDateString() : '—'}</td>
-                        <td>{user.days_used ? `${user.days_used} days` : '—'}</td>
-                        <td>
-                          <span className={`badge bg-${user.status === 'Current' ? 'primary' : 'secondary'}`}>
-                            {user.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="alert alert-info">
+                <p className="mb-1"><strong>{historySummary.uniqueUsers.length}</strong> unique employee(s) have used this device:</p>
+                <div className="d-flex flex-wrap gap-2 mt-2">
+                  {historySummary.uniqueUsers.map((empId, index) => (
+                    <code key={index} className="bg-light p-2 rounded">{empId}</code>
+                  ))}
+                </div>
               </div>
             </Section>
           )}
@@ -519,13 +432,13 @@ function InventoryDetail() {
                     );
                   })}
                 </div>
-                <Link 
+                <NavButton 
                   to={`/inventory/lifecycle/${inventoryId}`}
                   className="btn btn-outline-primary btn-sm w-100 mt-3"
                 >
                   <i className="bi bi-clock-history me-2"></i>
                   View Complete Lifecycle Timeline
-                </Link>
+                </NavButton>
               </div>
             </Section>
           )}
@@ -606,13 +519,13 @@ function InventoryDetail() {
               <i className="bi bi-lightning me-2"></i>Quick Actions
             </h6>
             <div className="d-grid gap-2">
-              <Link 
+              <NavButton 
                 to={`/assets/view/${inventoryId}`}
                 className="btn btn-sm btn-outline-secondary"
               >
                 <i className="bi bi-eye me-2"></i>
                 View in Operations
-              </Link>
+              </NavButton>
             </div>
           </div>
         </div>

@@ -1,7 +1,9 @@
 // Employees.js - Employee Master Management - Phase 1
 // Loads from Employee table while maintaining backward compatibility
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { NavButton } from '../components/NavButton';
+import BackButton from '../components/BackButton';
 import { employeeAPI, assetAPI } from '../services/api';
 import EmployeeExitModal from '../components/EmployeeExitModal';
 
@@ -16,6 +18,12 @@ function Employees() {
   const [statusFilter, setStatusFilter] = useState('Active'); // Default to Active only
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [showExitModal, setShowExitModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  
+  // Bulk selection state
+  const [selectedEmployees, setSelectedEmployees] = useState(new Set());
   
   // Phase 1: Bulk import state
   const [importing, setImporting] = useState(false);
@@ -160,6 +168,47 @@ function Employees() {
     setShowExitModal(true);
   };
 
+  const handleDeleteEmployee = (employee) => {
+    setEmployeeToDelete(employee);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteEmployee = async () => {
+    if (!employeeToDelete) return;
+
+    try {
+      setDeleting(true);
+      await employeeAPI.delete(employeeToDelete.emp_id);
+      
+      alert(`✅ Employee ${employeeToDelete.employee_name} deleted successfully`);
+      setShowDeleteModal(false);
+      setEmployeeToDelete(null);
+      loadEmployees();
+    } catch (err) {
+      const errorData = err.response?.data;
+      
+      if (errorData?.active_assets && errorData.active_assets.length > 0) {
+        // Show detailed error with asset list
+        const assetList = errorData.active_assets.join('\n• ');
+        alert(
+          `❌ Cannot delete employee\n\n` +
+          `${employeeToDelete.employee_name} still has ${errorData.asset_count} active asset(s) assigned:\n\n` +
+          `• ${assetList}\n\n` +
+          `Please return or reassign these assets before deleting the employee.`
+        );
+      } else if (errorData?.error) {
+        alert(`❌ Failed to delete employee:\n\n${errorData.error}`);
+      } else {
+        alert(`❌ Failed to delete employee: ${err.message}`);
+      }
+      
+      setShowDeleteModal(false);
+      setEmployeeToDelete(null);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleExitSuccess = (summary) => {
     alert(`✅ Employee exit processed successfully!\n\n` +
       `Employee: ${summary.employee}\n` +
@@ -168,6 +217,164 @@ function Employees() {
       `Damaged: ${summary.damaged}`
     );
     loadEmployees();
+  };
+
+  // Bulk selection handlers
+  const toggleEmployee = (empId) => {
+    setSelectedEmployees(prev => {
+      const next = new Set(prev);
+      if (next.has(empId)) {
+        next.delete(empId);
+      } else {
+        next.add(empId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedEmployees.size === filteredEmployees.length && filteredEmployees.length > 0) {
+      setSelectedEmployees(new Set());
+    } else {
+      setSelectedEmployees(new Set(filteredEmployees.map(emp => emp.emp_id)));
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedEmployees(new Set());
+  };
+
+  // Bulk action handlers
+  const handleBulkDeactivate = async () => {
+    const selectedCount = selectedEmployees.size;
+    
+    if (!window.confirm(
+      `Deactivate ${selectedCount} selected employee(s)?\n\n` +
+      `Active employees will be changed to Inactive.`
+    )) {
+      return;
+    }
+
+    try {
+      const emp_ids = Array.from(selectedEmployees);
+      const response = await employeeAPI.bulkDeactivate(emp_ids);
+      
+      alert(
+        `✅ ${response.data.message}\n\n` +
+        `Updated: ${response.data.updated}\n` +
+        `Skipped: ${response.data.skipped}`
+      );
+      
+      clearSelection();
+      loadEmployees();
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Failed to deactivate employees';
+      alert(`❌ ${errorMsg}`);
+    }
+  };
+
+  const handleBulkActivate = async () => {
+    const selectedCount = selectedEmployees.size;
+    
+    if (!window.confirm(
+      `Activate ${selectedCount} selected employee(s)?\n\n` +
+      `Inactive/Exited employees will be changed to Active.`
+    )) {
+      return;
+    }
+
+    try {
+      const emp_ids = Array.from(selectedEmployees);
+      const response = await employeeAPI.bulkActivate(emp_ids);
+      
+      alert(
+        `✅ ${response.data.message}\n\n` +
+        `Updated: ${response.data.updated}\n` +
+        `Skipped: ${response.data.skipped}`
+      );
+      
+      clearSelection();
+      loadEmployees();
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Failed to activate employees';
+      alert(`❌ ${errorMsg}`);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const selectedCount = selectedEmployees.size;
+    const selectedEmps = employees.filter(emp => selectedEmployees.has(emp.emp_id));
+    
+    // Calculate eligibility
+    const eligible = selectedEmps.filter(emp => 
+      (emp.status === 'Inactive' || emp.status === 'Exited') && emp.asset_count === 0
+    );
+    
+    const blocked = selectedEmps.filter(emp => {
+      if (emp.status === 'Active') return true;
+      if (emp.asset_count > 0) return true;
+      return false;
+    });
+    
+    // Build confirmation message
+    let confirmMessage = '';
+    
+    if (eligible.length === 0) {
+      alert(
+        '❌ Cannot delete selected employees\n\n' +
+        'No eligible employees selected.\n\n' +
+        'Requirements:\n' +
+        '• Status must be Inactive or Exited\n' +
+        '• No assets assigned'
+      );
+      return;
+    }
+    
+    confirmMessage = `Delete ${eligible.length} eligible employee(s)?\n\n`;
+    
+    if (eligible.length > 0) {
+      confirmMessage += 'Eligible employees:\n';
+      eligible.forEach(emp => {
+        confirmMessage += `• ${emp.employee_name} (${emp.emp_id})\n`;
+      });
+    }
+    
+    if (blocked.length > 0) {
+      confirmMessage += '\nCannot delete:\n';
+      blocked.forEach(emp => {
+        const reason = emp.status === 'Active' 
+          ? 'Active employee' 
+          : `${emp.asset_count} asset(s) assigned`;
+        confirmMessage += `• ${emp.employee_name} — ${reason}\n`;
+      });
+    }
+
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      const emp_ids = Array.from(selectedEmployees);
+      const response = await employeeAPI.bulkDelete(emp_ids);
+      
+      let message = `✅ ${response.data.message}\n\n` +
+                   `Deleted: ${response.data.deleted}`;
+      
+      if (response.data.blocked > 0) {
+        message += `\nBlocked: ${response.data.blocked}\n\n`;
+        response.data.blocked_employees.forEach(emp => {
+          message += `• ${emp.name} — ${emp.reason}\n`;
+        });
+      }
+      
+      alert(message);
+      
+      clearSelection();
+      loadEmployees();
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Failed to delete employees';
+      alert(`❌ ${errorMsg}`);
+    }
   };
 
   const filteredEmployees = employees.filter(emp => {
@@ -188,9 +395,12 @@ function Employees() {
       {/* Header */}
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
-          <h2 className="fw-bold mb-1">
-            <i className="bi bi-people me-2"></i>Employee Master
-          </h2>
+          <div className="d-flex align-items-center gap-2 mb-1">
+            <BackButton />
+            <h2 className="fw-bold mb-0">
+              <i className="bi bi-people me-2"></i>Employee Master
+            </h2>
+          </div>
           <p className="text-muted mb-0">Manage employee records, bulk import, and process exits</p>
         </div>
         <div className="d-flex gap-2">
@@ -223,9 +433,9 @@ function Employees() {
               </>
             )}
           </button>
-          <Link to="/employees/add" className="btn btn-primary">
+          <NavButton to="/employees/add" className="btn btn-primary">
             <i className="bi bi-person-plus me-2"></i>Add Employee
-          </Link>
+          </NavButton>
         </div>
       </div>
 
@@ -275,6 +485,44 @@ function Employees() {
         </div>
       </div>
 
+      {/* Bulk Action Toolbar - Only show when employees are selected */}
+      {selectedEmployees.size > 0 && (
+        <div className="alert alert-info mb-3 d-flex justify-content-between align-items-center">
+          <div>
+            <strong>{selectedEmployees.size}</strong> employee(s) selected
+          </div>
+          <div className="d-flex gap-2">
+            <button 
+              className="btn btn-sm btn-warning"
+              onClick={handleBulkDeactivate}
+              title="Deactivate selected Active employees"
+            >
+              <i className="bi bi-dash-circle me-1"></i>Deactivate Selected
+            </button>
+            <button 
+              className="btn btn-sm btn-success"
+              onClick={handleBulkActivate}
+              title="Activate selected Inactive/Exited employees"
+            >
+              <i className="bi bi-check-circle me-1"></i>Activate Selected
+            </button>
+            <button 
+              className="btn btn-sm btn-danger"
+              onClick={handleBulkDelete}
+              title="Delete selected Inactive/Exited employees"
+            >
+              <i className="bi bi-trash me-1"></i>Delete Selected
+            </button>
+            <button 
+              className="btn btn-sm btn-secondary"
+              onClick={clearSelection}
+            >
+              <i className="bi bi-x-circle me-1"></i>Clear
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Employee List */}
       <div className="table-card">
         {loading ? (
@@ -287,6 +535,20 @@ function Employees() {
             <table className="table table-hover">
               <thead className="sticky-top bg-white">
                 <tr>
+                  <th style={{ width: '40px' }}>
+                    <input
+                      type="checkbox"
+                      className="form-check-input"
+                      checked={filteredEmployees.length > 0 && selectedEmployees.size === filteredEmployees.length}
+                      ref={input => {
+                        if (input) {
+                          input.indeterminate = selectedEmployees.size > 0 && selectedEmployees.size < filteredEmployees.length;
+                        }
+                      }}
+                      onChange={toggleSelectAll}
+                      title="Select all visible employees"
+                    />
+                  </th>
                   <th>EMP ID</th>
                   <th>Employee Name</th>
                   <th>Designation</th>
@@ -301,19 +563,27 @@ function Employees() {
               <tbody>
                 {filteredEmployees.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="text-center py-5 text-muted">
+                    <td colSpan="10" className="text-center py-5 text-muted">
                       <i className="bi bi-inbox fs-2 d-block mb-2"></i>
                       {search ? 'No employees match your search' : 'No employees found'}
                       <div className="mt-2">
-                        <Link to="/employees/add" className="btn btn-sm btn-primary">
+                        <NavButton to="/employees/add" className="btn btn-sm btn-primary">
                           <i className="bi bi-person-plus me-1"></i>Add First Employee
-                        </Link>
+                        </NavButton>
                       </div>
                     </td>
                   </tr>
                 ) : (
                   filteredEmployees.map(emp => (
                     <tr key={emp.emp_id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          checked={selectedEmployees.has(emp.emp_id)}
+                          onChange={() => toggleEmployee(emp.emp_id)}
+                        />
+                      </td>
                       <td><code className="small">{emp.emp_id}</code></td>
                       <td className="fw-600">{emp.employee_name}</td>
                       <td className="small">{emp.designation || '—'}</td>
@@ -337,33 +607,34 @@ function Employees() {
                         </span>
                       </td>
                       <td>
-                        <div className="btn-group btn-group-sm">
-                          <Link
+                        <div className="action-group">
+                          <NavButton
                             to={`/employees/edit/${emp.emp_id}`}
-                            className="btn btn-outline-primary"
+                            className="action-btn action-edit"
                             title="Edit Employee"
                           >
                             <i className="bi bi-pencil"></i>
-                          </Link>
-                          <Link
+                          </NavButton>
+                          <NavButton
                             to={`/employees/${emp.emp_id}/asset-history`}
-                            className="btn btn-outline-info"
+                            className="action-btn action-history"
                             title="View Asset History"
                           >
                             <i className="bi bi-clock-history"></i>
-                          </Link>
+                          </NavButton>
                           {emp.status === 'Active' && emp.is_active !== false && (
                             <>
                               <button
-                                className="btn btn-outline-warning"
+                                className="action-btn"
                                 onClick={() => handleDisableEmployee(emp)}
                                 title="Disable Employee"
+                                style={{ color: '#f59e0b' }}
                               >
                                 <i className="bi bi-slash-circle"></i>
                               </button>
                               {emp.asset_count > 0 && (
                                 <button
-                                  className="btn btn-outline-danger"
+                                  className="action-btn action-delete"
                                   onClick={() => handleExitEmployee(emp)}
                                   title="Process Employee Exit"
                                 >
@@ -371,6 +642,15 @@ function Employees() {
                                 </button>
                               )}
                             </>
+                          )}
+                          {(emp.status === 'Inactive' || emp.status === 'Exited') && (
+                            <button
+                              className="action-btn action-delete"
+                              onClick={() => handleDeleteEmployee(emp)}
+                              title="Delete Employee"
+                            >
+                              <i className="bi bi-trash"></i>
+                            </button>
                           )}
                         </div>
                       </td>
@@ -459,6 +739,86 @@ function Employees() {
           }}
           onSuccess={handleExitSuccess}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && employeeToDelete && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header border-0">
+                <h5 className="modal-title text-danger">
+                  <i className="bi bi-exclamation-triangle me-2"></i>
+                  Delete Employee?
+                </h5>
+                <button 
+                  className="btn-close" 
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setEmployeeToDelete(null);
+                  }}
+                  disabled={deleting}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <p className="mb-3">
+                  Are you sure you want to permanently delete this employee?
+                </p>
+                <div className="border rounded p-3 bg-light">
+                  <div className="row g-2">
+                    <div className="col-12">
+                      <strong>Employee:</strong> {employeeToDelete.employee_name}
+                    </div>
+                    <div className="col-12">
+                      <strong>EMP ID:</strong> <code>{employeeToDelete.emp_id}</code>
+                    </div>
+                    <div className="col-12">
+                      <strong>Status:</strong> <span className="badge bg-secondary">{employeeToDelete.status}</span>
+                    </div>
+                    {employeeToDelete.department && (
+                      <div className="col-12">
+                        <strong>Department:</strong> {employeeToDelete.department}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="alert alert-warning mt-3 mb-0">
+                  <i className="bi bi-info-circle me-2"></i>
+                  <strong>This action cannot be undone.</strong> Historical records will be preserved.
+                </div>
+              </div>
+              <div className="modal-footer border-0">
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setEmployeeToDelete(null);
+                  }}
+                  disabled={deleting}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="btn btn-danger"
+                  onClick={confirmDeleteEmployee}
+                  disabled={deleting}
+                >
+                  {deleting ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2"></span>
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-trash me-2"></i>
+                      Delete Employee
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

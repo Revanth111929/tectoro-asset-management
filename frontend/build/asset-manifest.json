@@ -1,23 +1,24 @@
 {
   "files": {
-    "main.css": "/static/css/main.d4f44de1.css",
-    "main.js": "/static/js/main.be772d32.js",
+    "main.css": "/static/css/main.db94da76.css",
+    "main.js": "/static/js/main.7b844aed.js",
     "static/js/239.34f2cad3.chunk.js": "/static/js/239.34f2cad3.chunk.js",
     "static/js/977.c1951ede.chunk.js": "/static/js/977.c1951ede.chunk.js",
     "static/js/455.b1beaf2e.chunk.js": "/static/js/455.b1beaf2e.chunk.js",
     "static/media/bootstrap-icons.woff?": "/static/media/bootstrap-icons.1295669cd4e305c97f2c.woff",
     "static/media/bootstrap-icons.woff2?": "/static/media/bootstrap-icons.92ea18a81d737146ff04.woff2",
-    "static/media/tectoro-icon-only.png": "/static/media/tectoro-icon-only.29253f2e57ef6301c8d5.png",
+    "static/media/login-bg.png": "/static/media/login-bg.e04ea9f707bffcbf1952.png",
     "static/media/tectoro-login-logo.png": "/static/media/tectoro-login-logo.cac63a34d48239d7957e.png",
     "index.html": "/index.html",
-    "main.d4f44de1.css.map": "/static/css/main.d4f44de1.css.map",
-    "main.be772d32.js.map": "/static/js/main.be772d32.js.map",
+    "static/media/tectoro-logo.svg": "/static/media/tectoro-logo.8cb855cd97c048642924f3a884954512.svg",
+    "main.db94da76.css.map": "/static/css/main.db94da76.css.map",
+    "main.7b844aed.js.map": "/static/js/main.7b844aed.js.map",
     "239.34f2cad3.chunk.js.map": "/static/js/239.34f2cad3.chunk.js.map",
     "977.c1951ede.chunk.js.map": "/static/js/977.c1951ede.chunk.js.map",
     "455.b1beaf2e.chunk.js.map": "/static/js/455.b1beaf2e.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.d4f44de1.css",
-    "static/js/main.be772d32.js"
+    "static/css/main.db94da76.css",
+    "static/js/main.7b844aed.js"
   ]
 }

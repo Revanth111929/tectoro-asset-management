@@ -1,7 +1,7 @@
 // AssetList.js – Full asset table with search, filter, delete, warranty highlights
 import { canPerform } from '../utils/permissions';
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { NavButton } from '../components/NavButton';
 import { assetAPI, ackAPI } from '../services/api';
 import { useUrlFilters } from '../hooks/useUrlFilters';
 import { useScrollRestoration, markLastSelected } from '../hooks/useScrollRestoration';
@@ -135,7 +135,7 @@ function AssetList() {
     if (bulkAction === 'delete') {
       console.log('[AssetList] Bulk delete requested for:', selectedIds);
       
-      if (!window.confirm(`Delete ${selectedIds.length} selected assets? This cannot be undone.`)) {
+      if (!window.confirm(`Move ${selectedIds.length} selected asset(s) to Deleted Assets?\n\nThese assets will be moved to Deleted Assets and can be restored later.`)) {
         console.log('[AssetList] Bulk delete cancelled by user');
         return;
       }
@@ -147,19 +147,30 @@ function AssetList() {
         console.log('[AssetList] Deleting assets:', selectedIds);
         const deletePromises = selectedIds.map(id => {
           console.log('[AssetList] Deleting asset ID:', id);
-          return assetAPI.delete(id);
+          return assetAPI.delete(id)
+            .then(response => ({ id, success: true, response }))
+            .catch(error => ({ id, success: false, error }));
         });
         
-        const results = await Promise.allSettled(deletePromises);
+        const results = await Promise.all(deletePromises);
         console.log('[AssetList] Bulk delete results:', results);
         
-        const successful = results.filter(r => r.status === 'fulfilled').length;
-        const failed = results.filter(r => r.status === 'rejected').length;
+        const successful = results.filter(r => r.success).length;
+        const failed = results.filter(r => !r.success);
         
-        if (failed === 0) {
+        if (failed.length === 0) {
           alert(`✓ Successfully deleted ${successful} assets`);
         } else {
-          alert(`⚠️ Deleted ${successful} assets. ${failed} failed. Check console for details.`);
+          // Build detailed error message
+          const failedDetails = failed.map(f => {
+            const asset = assets.find(a => a.id === f.id);
+            const assetName = asset ? asset.asset_name : `ID ${f.id}`;
+            const errorMsg = f.error?.response?.data?.error || f.error?.message || 'Unknown error';
+            return `• ${assetName}: ${errorMsg}`;
+          }).join('\n');
+          
+          alert(`⚠️ Deleted ${successful} assets successfully.\n\n${failed.length} assets could not be deleted:\n${failedDetails}\n\nCheck console for more details.`);
+          console.error('[AssetList] Failed deletions:', failed);
         }
         
         setSelectedIds([]);
@@ -256,16 +267,17 @@ function AssetList() {
   return (
     <div className="asset-list-compact">
       <div ref={toolbarRef}>
-      {/* Header */}
-      <div className="d-flex justify-content-between align-items-center mb-4 asset-compact-header">
+      {/* Page Header - Compact */}
+      <div className="page-header d-flex justify-content-between align-items-start mb-4">
         <div>
-          <h2 className="fw-bold mb-1">Asset Management</h2>
-          <p className="text-muted mb-0">{total} total records</p>
+          <h2>Asset Management</h2>
+          <p>{total} total records</p>
         </div>
         {canPerform('create') && (
-          <Link to="/assets/add" className="btn btn-primary">
-            <i className="bi bi-plus-circle me-2"></i>Add Asset
-          </Link>
+          <NavButton to="/assets/add" className="btn btn-primary">
+            <i className="bi bi-plus-circle"></i>
+            Add Asset
+          </NavButton>
         )}
       </div>
 
@@ -450,31 +462,34 @@ function AssetList() {
                       <td>{statusBadge(a.status)}</td>
                       <td><AckBadge asset={a} onSend={fetchAssets} /></td>
                       <td>
-                        <div className="btn-group btn-group-sm">
-                          <Link
+                        <div className="action-group">
+                          <NavButton
                             to={`/assets/view/${a.id}`}
                             state={{ returnTo: listUrl }}
                             onClick={() => markLastSelected(listUrl, a.id)}
-                            className="btn btn-outline-primary"
-                            title="View"
+                            className="action-btn action-view"
+                            title="View Asset"
                           >
                             <i className="bi bi-eye"></i>
-                          </Link>
-                          <Link to={`/assets/timeline/${a.id}`} className="btn btn-outline-info" title="View Timeline">
+                          </NavButton>
+                          <NavButton 
+                            to={`/assets/timeline/${a.id}`} 
+                            className="action-btn action-history" 
+                            title="View Timeline"
+                          >
                             <i className="bi bi-clock-history"></i>
-                          </Link>
+                          </NavButton>
                           {canPerform('edit') && (
-                            <Link
+                            <NavButton
                               to={`/assets/edit/${a.id}`}
                               state={{ returnTo: listUrl }}
                               onClick={() => markLastSelected(listUrl, a.id)}
-                              className="btn btn-outline-secondary"
-                              title="Edit"
+                              className="action-btn action-edit"
+                              title="Edit Asset"
                             >
                               <i className="bi bi-pencil"></i>
-                            </Link>
+                            </NavButton>
                           )}
-                          {/* Delete button removed - BUG-025: Delete only available in Inventory */}
                         </div>
                       </td>
                     </tr>

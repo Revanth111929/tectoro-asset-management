@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import BackButton from '../components/BackButton';
 import axios from 'axios';
 import './ActivityHistory.css';
 
@@ -83,7 +84,7 @@ function ActivityHistory() {
     <div className="activity-history">
       <div className="page-header">
         <div>
-          <h1><i className="bi bi-clock-history"></i> Activity History</h1>
+          <div className="d-flex align-items-center gap-2 mb-2"><BackButton /><h1 className="mb-0"><i className="bi bi-clock-history"></i> Activity History</h1></div>
           <p className="text-muted">Complete audit trail of all system activities</p>
         </div>
         <button onClick={exportToCSV} className="btn btn-primary">

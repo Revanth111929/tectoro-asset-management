@@ -1,6 +1,7 @@
 // EmployeeList.js - List all employees
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { NavButton } from '../components/NavButton';
+import './EmployeeList.css';
 
 function EmployeeList() {
   const [employees] = useState([
@@ -11,16 +12,71 @@ function EmployeeList() {
     { id: 5, empId: 'EMP005', name: 'Eva Martinez', email: 'eva@company.com', department: 'Engineering', position: 'DevOps Engineer' },
   ]);
 
+  const handleDownloadTemplate = () => {
+    // TODO: Implement download template functionality
+    console.log('Download Template');
+  };
+
+  const handleBulkImport = () => {
+    // TODO: Implement bulk import functionality
+    console.log('Bulk Import');
+  };
+
+  const handleDownloadCSV = () => {
+    // TODO: Implement CSV download functionality
+    console.log('Download CSV');
+  };
+
+  const handleDownloadExcel = () => {
+    // TODO: Implement Excel download functionality
+    console.log('Download Excel');
+  };
+
   return (
-    <div>
+    <div className="employee-list-page">
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
-          <h2 className="fw-bold mb-1">Employees</h2>
-          <p className="text-muted mb-0">Manage employee records and asset assignments</p>
+          <h2 className="fw-bold mb-1">Employee Master</h2>
+          <p className="text-muted mb-0">Manage employee records, bulk import, and process exits</p>
         </div>
-        <Link to="/employees/add" className="btn btn-primary">
-          <i className="bi bi-person-plus me-2"></i>Add Employee
-        </Link>
+        <div className="d-flex gap-2">
+          <button 
+            onClick={handleDownloadTemplate}
+            className="emp-action-btn"
+            title="Download Template"
+          >
+            <i className="bi bi-download"></i>
+            <span>Download Template</span>
+          </button>
+          <button 
+            onClick={handleBulkImport}
+            className="emp-action-btn"
+            title="Bulk Import"
+          >
+            <i className="bi bi-upload"></i>
+            <span>Bulk Import</span>
+          </button>
+          <button 
+            onClick={handleDownloadCSV}
+            className="emp-action-btn"
+            title="Download CSV"
+          >
+            <i className="bi bi-download"></i>
+            <span>Download CSV</span>
+          </button>
+          <button 
+            onClick={handleDownloadExcel}
+            className="emp-action-btn"
+            title="Download Excel"
+          >
+            <i className="bi bi-download"></i>
+            <span>Download Excel</span>
+          </button>
+          <NavButton to="/employees/add" className="emp-action-btn emp-action-btn-primary">
+            <i className="bi bi-person-plus"></i>
+            <span>Add Employee</span>
+          </NavButton>
+        </div>
       </div>
 
       <div className="table-card">
@@ -46,13 +102,13 @@ function EmployeeList() {
                   <td>{emp.position}</td>
                   <td>
                     <div className="btn-group btn-group-sm">
-                      <Link 
+                      <NavButton 
                         to={`/employees/${emp.empId}/asset-history`}
                         className="btn btn-outline-info"
                         title="View Asset History"
                       >
                         <i className="bi bi-clock-history"></i>
-                      </Link>
+                      </NavButton>
                       <button className="btn btn-outline-primary">
                         <i className="bi bi-box-arrow-up-right"></i> Assign
                       </button>

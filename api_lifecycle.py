@@ -664,8 +664,8 @@ def create_asset_replacement():
             remarks=data.get('remarks')
         )
         
-        # Update old asset
-        old_asset.status = 'Returned'
+        # Update old asset - make it available for future assignment
+        old_asset.status = 'Available'
         old_asset.emp_id = None
         old_asset.employee_name = None
         old_asset.employee_email = None
@@ -727,7 +727,7 @@ def create_asset_replacement():
             from_employee_id=data['employee_id'],
             from_employee=data['employee_name'],
             from_status='Assigned',
-            to_status='Returned',
+            to_status='Available',
             reason=f"Replaced by {new_asset.asset_name}",
             performed_by=user_info['username']
         )

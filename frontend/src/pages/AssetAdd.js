@@ -322,9 +322,928 @@ function NewDeviceForm({ navigate }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// EXISTING DEVICE TAB  (Asset lookup and update with employee fields)
+// EXISTING DEVICE TAB - NEW 5-STEP WORKFLOW
 // ═══════════════════════════════════════════════════════════════════════════════
 function ExistingDeviceForm({ navigate }) {
+  // Step navigation
+  const [currentStep, setCurrentStep] = useState(1);
+  
+  // Step 1: Employee selection
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  
+  // Step 2: Action selection (assign or replace)
+  const [deviceAction, setDeviceAction] = useState(''); // 'assign' or 'replace'
+  
+  // Step 3: Device selection
+  const [primaryDevice, setPrimaryDevice] = useState(null);
+  const [oldDevice, setOldDevice] = useState(null);
+  const [availableDevices, setAvailableDevices] = useState([]);
+  const [employeeDevices, setEmployeeDevices] = useState([]);
+  const [deviceSearchQuery, setDeviceSearchQuery] = useState('');
+  
+  // Step 4: Accessories selection
+  const [selectedAccessories, setSelectedAccessories] = useState([]);
+  const [availableAccessories, setAvailableAccessories] = useState({ mouse: [], headphones: [] });
+  const [mouseSearchQuery, setMouseSearchQuery] = useState('');
+  const [headphonesSearchQuery, setHeadphonesSearchQuery] = useState('');
+  
+  // Step 5: Review and submission
+  const [reason, setReason] = useState('');
+  const [remarks, setRemarks] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [apiError, setApiError] = useState('');
+  const [errors, setErrors] = useState({});
+  
+  // Load available devices (for assign) on mount
+  useEffect(() => {
+    const loadAvailableDevices = async () => {
+      try {
+        const res = await assetAPI.getAll({ status: 'Available' });
+        const assetList = res.data.assets || res.data || [];
+        // Exclude Mouse and Headphones from primary device selection
+        const devices = assetList.filter(asset => 
+          asset.category !== 'Mouse' && asset.category !== 'Headphones'
+        );
+        setAvailableDevices(devices);
+      } catch (err) {
+        console.error('Failed to load available devices:', err);
+      }
+    };
+    loadAvailableDevices();
+  }, []);
+  
+  // Load available accessories on mount
+  useEffect(() => {
+    const loadAccessories = async () => {
+      try {
+        const res = await assetAPI.getAll({ status: 'Available' });
+        const assetList = res.data.assets || res.data || [];
+        const mouse = assetList.filter(asset => asset.category === 'Mouse');
+        const headphones = assetList.filter(asset => asset.category === 'Headphones');
+        setAvailableAccessories({ mouse, headphones });
+      } catch (err) {
+        console.error('Failed to load accessories:', err);
+      }
+    };
+    loadAccessories();
+  }, []);
+  
+  // When employee is selected, load their current devices
+  const handleEmployeeSelect = async (employee) => {
+    setSelectedEmployee(employee);
+    setErrors({});
+    try {
+      const res = await employeeAPI.getAssets(employee.emp_id);
+      const assets = res.data.assets || [];
+      setEmployeeDevices(assets);
+    } catch (err) {
+      console.error('Failed to load employee devices:', err);
+      setEmployeeDevices([]);
+    }
+  };
+  
+  const handleEmployeeClear = () => {
+    setSelectedEmployee(null);
+    setEmployeeDevices([]);
+    setCurrentStep(1);
+  };
+  
+  const handleStepNext = () => {
+    // Validate current step
+    const errs = {};
+    
+    if (currentStep === 1) {
+      if (!selectedEmployee) {
+        errs.employee = 'Please select an employee';
+        setErrors(errs);
+        return;
+      }
+    }
+    
+    if (currentStep === 2) {
+      if (!deviceAction) {
+        errs.action = 'Please choose assign or replace';
+        setErrors(errs);
+        return;
+      }
+    }
+    
+    if (currentStep === 3) {
+      if (!primaryDevice) {
+        errs.device = 'Please select a device';
+        setErrors(errs);
+        return;
+      }
+      if (deviceAction === 'replace' && !oldDevice) {
+        errs.oldDevice = 'Please select the device to replace';
+        setErrors(errs);
+        return;
+      }
+    }
+    
+    setErrors({});
+    setCurrentStep(currentStep + 1);
+  };
+  
+  const handleStepBack = () => {
+    setErrors({});
+    setCurrentStep(currentStep - 1);
+  };
+  
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Final validation
+    if (!selectedEmployee || !primaryDevice || !deviceAction) {
+      setApiError('Missing required information. Please complete all steps.');
+      return;
+    }
+    
+    if (deviceAction === 'replace' && !oldDevice) {
+      setApiError('Please select the device to replace.');
+      return;
+    }
+    
+    setSaving(true);
+    setApiError('');
+    
+    try {
+      console.group('=== EXISTING DEVICE CONFIRM ASSIGNMENT ===');
+      console.log('Action:', deviceAction);
+      console.log('Employee:', selectedEmployee);
+      console.log('Old Device:', oldDevice);
+      console.log('New Device (Primary):', primaryDevice);
+      console.log('Accessories:', selectedAccessories);
+      console.log('Reason:', reason);
+      console.log('Remarks:', remarks);
+      console.groupEnd();
+      
+      if (deviceAction === 'assign') {
+        // Use the assign endpoint for ASSIGN DEVICE action
+        const payload = {
+          asset_id: primaryDevice.id || primaryDevice.asset_id,
+          emp_id: selectedEmployee.emp_id,
+          comments: remarks || reason || 'Device assignment'
+        };
+        
+        console.group('=== API REQUEST (ASSIGN) ===');
+        console.log('Endpoint: POST /api/operations/assign');
+        console.log('Payload:', JSON.stringify(payload, null, 2));
+        console.groupEnd();
+        
+        const response = await assetAPI.assignAsset(payload);
+        
+        console.group('=== API RESPONSE (ASSIGN) ===');
+        console.log('Status:', response.status);
+        console.log('Data:', response.data);
+        console.groupEnd();
+        
+      } else if (deviceAction === 'replace') {
+        // Use the replacement endpoint for REPLACE DEVICE action
+        const payload = {
+          employee_id: selectedEmployee.emp_id,
+          employee_name: selectedEmployee.employee_name,
+          employee_email: selectedEmployee.email || selectedEmployee.employee_email || '',
+          old_asset_id: oldDevice.id || oldDevice.asset_id,
+          new_asset_id: primaryDevice.id || primaryDevice.asset_id,
+          reason: reason || 'Device replacement',
+          replacement_date: new Date().toISOString().split('T')[0],
+          old_asset_condition: 'Good',
+          remarks: remarks || ''
+        };
+        
+        console.group('=== API REQUEST (REPLACE) ===');
+        console.log('Endpoint: POST /api/asset-replacements');
+        console.log('Payload:', JSON.stringify(payload, null, 2));
+        console.groupEnd();
+        
+        const response = await assetAPI.createAssetReplacement(payload);
+        
+        console.group('=== API RESPONSE (REPLACE) ===');
+        console.log('Status:', response.status);
+        console.log('Data:', response.data);
+        console.groupEnd();
+      }
+      
+      // Handle accessories if any (for both actions)
+      if (selectedAccessories.length > 0) {
+        console.log('Assigning accessories:', selectedAccessories.length);
+        for (const accessory of selectedAccessories) {
+          await assetAPI.assignAsset({
+            asset_id: accessory.id || accessory.asset_id,
+            emp_id: selectedEmployee.emp_id,
+            comments: 'Accessory assignment'
+          });
+        }
+      }
+      
+      navigate('/assets', { 
+        state: { 
+          success: deviceAction === 'replace' 
+            ? 'Device replaced successfully!' 
+            : 'Device assigned successfully!' 
+        } 
+      });
+    } catch (err) {
+      console.group('=== API ERROR ===');
+      console.error('Full error:', err);
+      console.error('Status:', err.response?.status);
+      console.error('Response:', err.response?.data);
+      console.error('Request URL:', err.config?.url);
+      console.error('Request method:', err.config?.method);
+      console.error('Request data:', err.config?.data);
+      console.groupEnd();
+      
+      const backendError = 
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        err?.response?.data?.details ||
+        err?.message ||
+        'Unknown error';
+      setApiError(`Error: ${backendError}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+  
+  // Filtered device lists for search
+  const filteredDevices = availableDevices.filter(device =>
+    device.asset_name?.toLowerCase().includes(deviceSearchQuery.toLowerCase()) ||
+    device.serial_number?.toLowerCase().includes(deviceSearchQuery.toLowerCase()) ||
+    device.model_name?.toLowerCase().includes(deviceSearchQuery.toLowerCase()) ||
+    device.category?.toLowerCase().includes(deviceSearchQuery.toLowerCase())
+  );
+  
+  const filteredMouse = availableAccessories.mouse.filter(mouse =>
+    mouse.asset_name?.toLowerCase().includes(mouseSearchQuery.toLowerCase()) ||
+    mouse.serial_number?.toLowerCase().includes(mouseSearchQuery.toLowerCase())
+  );
+  
+  const filteredHeadphones = availableAccessories.headphones.filter(hp =>
+    hp.asset_name?.toLowerCase().includes(headphonesSearchQuery.toLowerCase()) ||
+    hp.serial_number?.toLowerCase().includes(headphonesSearchQuery.toLowerCase())
+  );
+  
+  const toggleAccessory = (accessory) => {
+    const accessoryId = accessory.id || accessory.asset_id;
+    const isSelected = selectedAccessories.some(acc => (acc.id || acc.asset_id) === accessoryId);
+    
+    if (isSelected) {
+      setSelectedAccessories(selectedAccessories.filter(acc => (acc.id || acc.asset_id) !== accessoryId));
+    } else {
+      setSelectedAccessories([...selectedAccessories, accessory]);
+    }
+  };
+  
+  return (
+    <>
+      {apiError && (
+        <div className="alert alert-danger mb-3" role="alert">
+          <i className="bi bi-exclamation-triangle-fill me-2"></i>
+          <strong>Error:</strong> {apiError}
+        </div>
+      )}
+      
+      {/* Step Progress Indicator */}
+      <div className="mb-4">
+        <div className="d-flex justify-content-between align-items-center mb-2">
+          {[1, 2, 3, 4, 5].map(step => (
+            <div key={step} className="d-flex align-items-center" style={{ flex: 1 }}>
+              <div 
+                className={`rounded-circle d-flex align-items-center justify-content-center fw-bold ${
+                  step < currentStep ? 'bg-success text-white' :
+                  step === currentStep ? 'bg-primary text-white' : 'bg-light text-muted'
+                }`}
+                style={{ width: 36, height: 36 }}
+              >
+                {step < currentStep ? '✓' : step}
+              </div>
+              {step < 5 && (
+                <div 
+                  className={`flex-grow-1 mx-2 ${step < currentStep ? 'bg-success' : 'bg-light'}`}
+                  style={{ height: 2 }}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="d-flex justify-content-between small text-muted px-2">
+          <span style={{ width: '20%' }}>Employee</span>
+          <span style={{ width: '20%' }} className="text-center">Action</span>
+          <span style={{ width: '20%' }} className="text-center">Device</span>
+          <span style={{ width: '20%' }} className="text-center">Accessories</span>
+          <span style={{ width: '20%' }} className="text-end">Review</span>
+        </div>
+      </div>
+      
+      <form onSubmit={handleSubmit}>
+        {/* STEP 1: Employee Search */}
+        {currentStep === 1 && (
+          <div className="p-4 rounded" style={{ background:'rgba(37,99,235,0.06)', border:'1px solid rgba(37,99,235,0.2)' }}>
+            <h5 className="fw-bold mb-3" style={{ color:'#2563eb' }}>
+              <i className="bi bi-person-fill me-2"></i>Step 1: Select Employee
+            </h5>
+            
+            <div className="mb-3">
+              <label className="form-label fw-500">
+                Search Employee <span className="text-danger">*</span>
+              </label>
+              <EmployeeAutocomplete
+                value={selectedEmployee}
+                onChange={handleEmployeeSelect}
+                onClear={handleEmployeeClear}
+                required={true}
+                placeholder="Search by Employee ID, Name, Email, or Phone..."
+                error={errors.employee}
+                showDetails={true}
+              />
+              <small className="text-muted d-block mt-1">
+                <i className="bi bi-info-circle me-1"></i>
+                Employee information will be loaded from Employee Master
+              </small>
+            </div>
+            
+            {selectedEmployee && (
+              <div className="p-3 rounded bg-light">
+                <h6 className="fw-bold mb-2">Employee Details:</h6>
+                <div className="row g-2 small">
+                  <div className="col-md-6">
+                    <strong>Employee ID:</strong> {selectedEmployee.emp_id}
+                  </div>
+                  <div className="col-md-6">
+                    <strong>Name:</strong> {selectedEmployee.employee_name}
+                  </div>
+                  <div className="col-md-6">
+                    <strong>Email:</strong> {selectedEmployee.email || 'N/A'}
+                  </div>
+                  <div className="col-md-6">
+                    <strong>Mobile:</strong> {selectedEmployee.mobile_number || 'N/A'}
+                  </div>
+                  <div className="col-md-6">
+                    <strong>Department:</strong> {selectedEmployee.department || 'N/A'}
+                  </div>
+                  <div className="col-md-6">
+                    <strong>Designation:</strong> {selectedEmployee.designation || 'N/A'}
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="d-flex justify-content-end gap-2 mt-4">
+              <button 
+                type="button" 
+                className="btn btn-secondary"
+                onClick={() => navigate('/assets')}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary"
+                onClick={handleStepNext}
+                disabled={!selectedEmployee}
+              >
+                Next <i className="bi bi-arrow-right ms-1"></i>
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {/* STEP 2: Device Action (Assign or Replace) */}
+        {currentStep === 2 && (
+          <div className="p-4 rounded" style={{ background:'rgba(139,92,246,0.06)', border:'1px solid rgba(139,92,246,0.2)' }}>
+            <h5 className="fw-bold mb-3" style={{ color:'#8b5cf6' }}>
+              <i className="bi bi-gear-fill me-2"></i>Step 2: Choose Action
+            </h5>
+            
+            <div className="row g-3">
+              <div className="col-md-6">
+                <div 
+                  className={`p-4 rounded border ${deviceAction === 'assign' ? 'border-primary border-2 bg-primary bg-opacity-10' : 'border-secondary'} cursor-pointer`}
+                  style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+                  onClick={() => setDeviceAction('assign')}
+                >
+                  <div className="d-flex align-items-center mb-2">
+                    <i className="bi bi-plus-circle-fill fs-3 me-3 text-primary"></i>
+                    <h5 className="mb-0">Assign Device</h5>
+                  </div>
+                  <p className="text-muted mb-0">
+                    Assign a new device from available inventory to this employee
+                  </p>
+                </div>
+              </div>
+              
+              <div className="col-md-6">
+                <div 
+                  className={`p-4 rounded border ${deviceAction === 'replace' ? 'border-warning border-2 bg-warning bg-opacity-10' : 'border-secondary'} cursor-pointer`}
+                  style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+                  onClick={() => setDeviceAction('replace')}
+                >
+                  <div className="d-flex align-items-center mb-2">
+                    <i className="bi bi-arrow-repeat fs-3 me-3 text-warning"></i>
+                    <h5 className="mb-0">Replace Device</h5>
+                  </div>
+                  <p className="text-muted mb-0">
+                    Replace one of the employee's current devices with a new one
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {errors.action && <div className="text-danger small mt-2">{errors.action}</div>}
+            
+            <div className="d-flex justify-content-between gap-2 mt-4">
+              <button 
+                type="button" 
+                className="btn btn-secondary"
+                onClick={handleStepBack}
+              >
+                <i className="bi bi-arrow-left me-1"></i> Back
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary"
+                onClick={handleStepNext}
+                disabled={!deviceAction}
+              >
+                Next <i className="bi bi-arrow-right ms-1"></i>
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {/* STEP 3A: Device Selection (Assign) */}
+        {currentStep === 3 && deviceAction === 'assign' && (
+          <div className="p-4 rounded" style={{ background:'rgba(16,185,129,0.06)', border:'1px solid rgba(16,185,129,0.2)' }}>
+            <h5 className="fw-bold mb-3" style={{ color:'#10b981' }}>
+              <i className="bi bi-laptop-fill me-2"></i>Step 3: Select Device to Assign
+            </h5>
+            
+            <div className="mb-3">
+              <label className="form-label fw-500">
+                Search Available Devices <span className="text-danger">*</span>
+              </label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Search by name, serial number, model, or category..."
+                value={deviceSearchQuery}
+                onChange={e => setDeviceSearchQuery(e.target.value)}
+              />
+            </div>
+            
+            <div style={{ maxHeight: 400, overflowY: 'auto' }} className="border rounded p-3">
+              {filteredDevices.length === 0 ? (
+                <div className="text-center text-muted py-4">
+                  <i className="bi bi-inbox fs-1 d-block mb-2"></i>
+                  No available devices found
+                </div>
+              ) : (
+                <div className="row g-3">
+                  {filteredDevices.map(device => {
+                    const deviceId = device.id || device.asset_id;
+                    const isSelected = primaryDevice && (primaryDevice.id === deviceId || primaryDevice.asset_id === deviceId);
+                    
+                    return (
+                      <div key={deviceId} className="col-md-6">
+                        <div 
+                          className={`p-3 rounded border ${isSelected ? 'border-success border-2 bg-success bg-opacity-10' : 'border-secondary'} cursor-pointer`}
+                          style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+                          onClick={() => setPrimaryDevice(device)}
+                        >
+                          <div className="d-flex justify-content-between align-items-start mb-2">
+                            <h6 className="mb-0">{device.asset_name}</h6>
+                            {isSelected && <i className="bi bi-check-circle-fill text-success"></i>}
+                          </div>
+                          <div className="small text-muted">
+                            <div><strong>Category:</strong> {device.category}</div>
+                            <div><strong>Serial:</strong> {device.serial_number || 'N/A'}</div>
+                            <div><strong>Model:</strong> {device.model_name || 'N/A'}</div>
+                            <span className="badge bg-success mt-1">{device.status}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            
+            {errors.device && <div className="text-danger small mt-2">{errors.device}</div>}
+            
+            <div className="d-flex justify-content-between gap-2 mt-4">
+              <button 
+                type="button" 
+                className="btn btn-secondary"
+                onClick={handleStepBack}
+              >
+                <i className="bi bi-arrow-left me-1"></i> Back
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary"
+                onClick={handleStepNext}
+                disabled={!primaryDevice}
+              >
+                Next <i className="bi bi-arrow-right ms-1"></i>
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {/* STEP 3B: Device Selection (Replace) */}
+        {currentStep === 3 && deviceAction === 'replace' && (
+          <div className="p-4 rounded" style={{ background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.2)' }}>
+            <h5 className="fw-bold mb-3" style={{ color:'#f59e0b' }}>
+              <i className="bi bi-arrow-repeat me-2"></i>Step 3: Select Devices for Replacement
+            </h5>
+            
+            {/* Select Old Device */}
+            <div className="mb-4">
+              <h6 className="fw-bold mb-2">Current Assigned Devices:</h6>
+              {employeeDevices.length === 0 ? (
+                <div className="alert alert-warning">
+                  <i className="bi bi-exclamation-triangle me-2"></i>
+                  This employee has no devices assigned currently
+                </div>
+              ) : (
+                <div className="row g-3">
+                  {employeeDevices.map(device => {
+                    const deviceId = device.id || device.asset_id;
+                    const isSelected = oldDevice && (oldDevice.id === deviceId || oldDevice.asset_id === deviceId);
+                    
+                    return (
+                      <div key={deviceId} className="col-md-6">
+                        <div 
+                          className={`p-3 rounded border ${isSelected ? 'border-danger border-2 bg-danger bg-opacity-10' : 'border-secondary'} cursor-pointer`}
+                          style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+                          onClick={() => setOldDevice(device)}
+                        >
+                          <div className="d-flex justify-content-between align-items-start mb-2">
+                            <h6 className="mb-0">{device.asset_name}</h6>
+                            {isSelected && <i className="bi bi-check-circle-fill text-danger"></i>}
+                          </div>
+                          <div className="small text-muted">
+                            <div><strong>Category:</strong> {device.category}</div>
+                            <div><strong>Serial:</strong> {device.serial_number || 'N/A'}</div>
+                            <div><strong>Model:</strong> {device.model_name || 'N/A'}</div>
+                            <span className="badge bg-warning text-dark mt-1">{device.status}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {errors.oldDevice && <div className="text-danger small mt-2">{errors.oldDevice}</div>}
+            </div>
+            
+            {/* Select New Device */}
+            {oldDevice && (
+              <div>
+                <h6 className="fw-bold mb-2">
+                  <i className="bi bi-arrow-down-circle me-1"></i>
+                  Select Replacement Device:
+                </h6>
+                
+                <div className="mb-3">
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Search by name, serial number, model, or category..."
+                    value={deviceSearchQuery}
+                    onChange={e => setDeviceSearchQuery(e.target.value)}
+                  />
+                </div>
+                
+                <div style={{ maxHeight: 300, overflowY: 'auto' }} className="border rounded p-3">
+                  {filteredDevices.length === 0 ? (
+                    <div className="text-center text-muted py-4">
+                      <i className="bi bi-inbox fs-1 d-block mb-2"></i>
+                      No available devices found
+                    </div>
+                  ) : (
+                    <div className="row g-3">
+                      {filteredDevices.map(device => {
+                        const deviceId = device.id || device.asset_id;
+                        const isSelected = primaryDevice && (primaryDevice.id === deviceId || primaryDevice.asset_id === deviceId);
+                        
+                        return (
+                          <div key={deviceId} className="col-md-6">
+                            <div 
+                              className={`p-3 rounded border ${isSelected ? 'border-success border-2 bg-success bg-opacity-10' : 'border-secondary'} cursor-pointer`}
+                              style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+                              onClick={() => setPrimaryDevice(device)}
+                            >
+                              <div className="d-flex justify-content-between align-items-start mb-2">
+                                <h6 className="mb-0">{device.asset_name}</h6>
+                                {isSelected && <i className="bi bi-check-circle-fill text-success"></i>}
+                              </div>
+                              <div className="small text-muted">
+                                <div><strong>Category:</strong> {device.category}</div>
+                                <div><strong>Serial:</strong> {device.serial_number || 'N/A'}</div>
+                                <div><strong>Model:</strong> {device.model_name || 'N/A'}</div>
+                                <span className="badge bg-success mt-1">{device.status}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                
+                {errors.device && <div className="text-danger small mt-2">{errors.device}</div>}
+              </div>
+            )}
+            
+            <div className="d-flex justify-content-between gap-2 mt-4">
+              <button 
+                type="button" 
+                className="btn btn-secondary"
+                onClick={handleStepBack}
+              >
+                <i className="bi bi-arrow-left me-1"></i> Back
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary"
+                onClick={handleStepNext}
+                disabled={!oldDevice || !primaryDevice}
+              >
+                Next <i className="bi bi-arrow-right ms-1"></i>
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {/* STEP 4: Accessories Selection */}
+        {currentStep === 4 && (
+          <div className="p-4 rounded" style={{ background:'rgba(236,72,153,0.06)', border:'1px solid rgba(236,72,153,0.2)' }}>
+            <h5 className="fw-bold mb-3" style={{ color:'#ec4899' }}>
+              <i className="bi bi-mouse-fill me-2"></i>Step 4: Select Accessories (Optional)
+            </h5>
+            
+            <p className="text-muted mb-4">
+              Select Mouse and/or Headphones to assign along with the primary device. This step is optional.
+            </p>
+            
+            {/* Mouse Selection */}
+            <div className="mb-4">
+              <h6 className="fw-bold mb-2">
+                <i className="bi bi-mouse me-1"></i>Mouse
+              </h6>
+              
+              <div className="mb-2">
+                <input
+                  type="text"
+                  className="form-control form-control-sm"
+                  placeholder="Search mouse..."
+                  value={mouseSearchQuery}
+                  onChange={e => setMouseSearchQuery(e.target.value)}
+                />
+              </div>
+              
+              <div style={{ maxHeight: 200, overflowY: 'auto' }} className="border rounded p-2">
+                {filteredMouse.length === 0 ? (
+                  <div className="text-center text-muted py-2 small">
+                    No available mouse found
+                  </div>
+                ) : (
+                  <div className="row g-2">
+                    {filteredMouse.map(mouse => {
+                      const mouseId = mouse.id || mouse.asset_id;
+                      const isSelected = selectedAccessories.some(acc => (acc.id || acc.asset_id) === mouseId);
+                      
+                      return (
+                        <div key={mouseId} className="col-md-6">
+                          <div 
+                            className={`p-2 rounded border ${isSelected ? 'border-success border-2 bg-success bg-opacity-10' : 'border-secondary'} cursor-pointer small`}
+                            style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+                            onClick={() => toggleAccessory(mouse)}
+                          >
+                            <div className="d-flex justify-content-between align-items-center">
+                              <div>
+                                <div className="fw-bold">{mouse.asset_name}</div>
+                                <div className="text-muted" style={{ fontSize: '0.75rem' }}>
+                                  SN: {mouse.serial_number || 'N/A'}
+                                </div>
+                              </div>
+                              {isSelected && <i className="bi bi-check-circle-fill text-success"></i>}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Headphones Selection */}
+            <div>
+              <h6 className="fw-bold mb-2">
+                <i className="bi bi-headphones me-1"></i>Headphones
+              </h6>
+              
+              <div className="mb-2">
+                <input
+                  type="text"
+                  className="form-control form-control-sm"
+                  placeholder="Search headphones..."
+                  value={headphonesSearchQuery}
+                  onChange={e => setHeadphonesSearchQuery(e.target.value)}
+                />
+              </div>
+              
+              <div style={{ maxHeight: 200, overflowY: 'auto' }} className="border rounded p-2">
+                {filteredHeadphones.length === 0 ? (
+                  <div className="text-center text-muted py-2 small">
+                    No available headphones found
+                  </div>
+                ) : (
+                  <div className="row g-2">
+                    {filteredHeadphones.map(headphone => {
+                      const headphoneId = headphone.id || headphone.asset_id;
+                      const isSelected = selectedAccessories.some(acc => (acc.id || acc.asset_id) === headphoneId);
+                      
+                      return (
+                        <div key={headphoneId} className="col-md-6">
+                          <div 
+                            className={`p-2 rounded border ${isSelected ? 'border-success border-2 bg-success bg-opacity-10' : 'border-secondary'} cursor-pointer small`}
+                            style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+                            onClick={() => toggleAccessory(headphone)}
+                          >
+                            <div className="d-flex justify-content-between align-items-center">
+                              <div>
+                                <div className="fw-bold">{headphone.asset_name}</div>
+                                <div className="text-muted" style={{ fontSize: '0.75rem' }}>
+                                  SN: {headphone.serial_number || 'N/A'}
+                                </div>
+                              </div>
+                              {isSelected && <i className="bi bi-check-circle-fill text-success"></i>}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {selectedAccessories.length > 0 && (
+              <div className="alert alert-info mt-3 mb-0">
+                <i className="bi bi-info-circle me-2"></i>
+                <strong>{selectedAccessories.length}</strong> accessory/accessories selected
+              </div>
+            )}
+            
+            <div className="d-flex justify-content-between gap-2 mt-4">
+              <button 
+                type="button" 
+                className="btn btn-secondary"
+                onClick={handleStepBack}
+              >
+                <i className="bi bi-arrow-left me-1"></i> Back
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary"
+                onClick={handleStepNext}
+              >
+                Next <i className="bi bi-arrow-right ms-1"></i>
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {/* STEP 5: Review and Confirm */}
+        {currentStep === 5 && (
+          <div className="p-4 rounded" style={{ background:'rgba(59,130,246,0.06)', border:'1px solid rgba(59,130,246,0.2)' }}>
+            <h5 className="fw-bold mb-3" style={{ color:'#3b82f6' }}>
+              <i className="bi bi-check-circle-fill me-2"></i>Step 5: Review & Confirm
+            </h5>
+            
+            <div className="p-3 bg-light rounded mb-3">
+              <h6 className="fw-bold mb-2">Employee:</h6>
+              <div className="small">
+                <div><strong>{selectedEmployee.emp_id}</strong> - {selectedEmployee.employee_name}</div>
+                <div className="text-muted">{selectedEmployee.email}</div>
+                <div className="text-muted">{selectedEmployee.department} - {selectedEmployee.designation}</div>
+              </div>
+            </div>
+            
+            <div className="p-3 bg-light rounded mb-3">
+              <h6 className="fw-bold mb-2">Action:</h6>
+              <span className={`badge ${deviceAction === 'assign' ? 'bg-success' : 'bg-warning text-dark'} fs-6`}>
+                {deviceAction === 'assign' ? 'Assign Device' : 'Replace Device'}
+              </span>
+            </div>
+            
+            {deviceAction === 'replace' && oldDevice && (
+              <div className="p-3 rounded mb-3" style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)' }}>
+                <h6 className="fw-bold mb-2 text-danger">
+                  <i className="bi bi-x-circle me-1"></i>Old Device (To be returned):
+                </h6>
+                <div className="small">
+                  <div className="fw-bold">{oldDevice.asset_name}</div>
+                  <div className="text-muted">{oldDevice.category} | SN: {oldDevice.serial_number}</div>
+                </div>
+              </div>
+            )}
+            
+            <div className="p-3 rounded mb-3" style={{ background:'rgba(34,197,94,0.1)', border:'1px solid rgba(34,197,94,0.3)' }}>
+              <h6 className="fw-bold mb-2 text-success">
+                <i className="bi bi-plus-circle me-1"></i>New Device:
+              </h6>
+              <div className="small">
+                <div className="fw-bold">{primaryDevice.asset_name}</div>
+                <div className="text-muted">{primaryDevice.category} | SN: {primaryDevice.serial_number}</div>
+                {primaryDevice.model_name && <div className="text-muted">Model: {primaryDevice.model_name}</div>}
+              </div>
+            </div>
+            
+            {selectedAccessories.length > 0 && (
+              <div className="p-3 bg-light rounded mb-3">
+                <h6 className="fw-bold mb-2">Accessories:</h6>
+                <ul className="mb-0 small">
+                  {selectedAccessories.map(acc => (
+                    <li key={acc.id || acc.asset_id}>
+                      <i className="bi bi-check text-success me-1"></i>
+                      <strong>{acc.asset_name}</strong> ({acc.category}) - SN: {acc.serial_number || 'N/A'}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
+            <div className="mb-3">
+              <label className="form-label fw-500">Reason:</label>
+              <input
+                type="text"
+                className="form-control"
+                value={reason}
+                onChange={e => setReason(e.target.value)}
+                placeholder="Enter reason for assignment/replacement"
+              />
+            </div>
+            
+            <div className="mb-3">
+              <label className="form-label fw-500">Remarks (Optional):</label>
+              <textarea
+                className="form-control"
+                value={remarks}
+                onChange={e => setRemarks(e.target.value)}
+                placeholder="Additional remarks or notes"
+                rows={3}
+              />
+            </div>
+            
+            <div className="alert alert-warning mb-3">
+              <i className="bi bi-exclamation-triangle-fill me-2"></i>
+              <strong>Important:</strong> This action will be performed in a single transaction. 
+              If any operation fails, all changes will be rolled back.
+            </div>
+            
+            <div className="d-flex justify-content-between gap-2">
+              <button 
+                type="button" 
+                className="btn btn-secondary"
+                onClick={handleStepBack}
+                disabled={saving}
+              >
+                <i className="bi bi-arrow-left me-1"></i> Back
+              </button>
+              <button 
+                type="submit" 
+                className="btn btn-success btn-lg"
+                disabled={saving}
+              >
+                {saving ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <i className="bi bi-check-circle-fill me-2"></i>
+                    Confirm Assignment
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+      </form>
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// OLD EXISTING DEVICE FORM - BACKUP (can be removed after testing)
+// ═══════════════════════════════════════════════════════════════════════════════
+function OldExistingDeviceForm({ navigate }) {
   const [form,       setForm]       = useState(EMPTY_EXISTING);
   const [saving,     setSaving]     = useState(false);
   const [errors,     setErrors]     = useState({});

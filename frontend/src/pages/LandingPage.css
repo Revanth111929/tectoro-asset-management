@@ -36,7 +36,7 @@
   font-size: 14px; font-weight: 600; text-decoration: none !important;
   transition: background .2s;
 }
-.lp-btn-signin:hover { background: #1f2937; }
+.lp-btn-signin:hover { background: #151515; }
 
 /* ── Hero ── */
 .lp-hero {
@@ -91,7 +91,7 @@
 .lp-btn-primary:hover { background: #1d4ed8; transform: translateY(-1px); color: #fff; box-shadow: 0 8px 28px rgba(37,99,235,0.35); }
 
 .lp-btn-outline {
-  background: #fff; color: #374151;
+  background: #fff; color: #2A2A2A;
   padding: 12px 28px; border-radius: 10px;
   font-size: 15px; font-weight: 600; text-decoration: none;
   border: 1.5px solid #e5e7eb;
@@ -154,7 +154,7 @@
 .lp-donut svg { width: 80px; height: 80px; }
 .lp-donut-label {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-  font-size: 9px; font-weight: 700; color: #374151;
+  font-size: 9px; font-weight: 700; color: #2A2A2A;
 }
 .lp-bar-chart {
   flex: 1; display: flex; align-items: flex-end; gap: 4px; height: 70px;

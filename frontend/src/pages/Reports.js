@@ -1,5 +1,6 @@
 // Reports.js – Export CSV/Excel and view activity log
 import React, { useState, useEffect } from 'react';
+import BackButton from '../components/BackButton';
 import { reportAPI } from '../services/api';
 import { formatDateTime } from '../utils/dateUtils';
 
@@ -66,7 +67,10 @@ function Reports() {
   return (
     <div>
       <div className="mb-4">
-        <h2 className="fw-bold mb-1">Reports & Exports</h2>
+        <div className="d-flex align-items-center gap-2 mb-1">
+          <BackButton />
+          <h2 className="fw-bold mb-0">Reports & Exports</h2>
+        </div>
         <p className="text-muted mb-0">Download asset data and view audit logs</p>
       </div>
 

@@ -1,7 +1,9 @@
 // InventoryLifecycle.js - Complete Asset Lifecycle Timeline (Read-Only)
 // Future-proof: Currently uses assetId, ready for inventory master table migration
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
+import { NavButton } from '../components/NavButton';
+import BackButton from '../components/BackButton';
 import { assetAPI } from '../services/api';
 import axios from 'axios';
 import jsPDF from 'jspdf';
@@ -351,12 +353,7 @@ function InventoryLifecycle() {
       <div className="d-flex justify-content-between align-items-start mb-4">
         <div>
           <div className="d-flex align-items-center gap-2 mb-2">
-            <button 
-              onClick={() => navigate(-1)} 
-              className="btn btn-sm btn-outline-secondary"
-            >
-              <i className="bi bi-arrow-left"></i>
-            </button>
+            <BackButton />
             <h2 className="fw-bold mb-0">
               <i className="bi bi-clock-history me-2"></i>
               Complete Lifecycle Timeline
@@ -601,20 +598,20 @@ function InventoryLifecycle() {
 
       {/* Quick Actions */}
       <div className="mt-4 d-flex gap-2 justify-content-center">
-        <Link 
+        <NavButton 
           to={`/inventory/detail/${assetId}`}
           className="btn btn-outline-primary"
         >
           <i className="bi bi-box-seam me-2"></i>
           Back to Inventory Detail
-        </Link>
-        <Link 
+        </NavButton>
+        <NavButton 
           to={`/assets/view/${assetId}`}
           className="btn btn-outline-secondary"
         >
           <i className="bi bi-eye me-2"></i>
           View in Operations
-        </Link>
+        </NavButton>
       </div>
     </div>
   );

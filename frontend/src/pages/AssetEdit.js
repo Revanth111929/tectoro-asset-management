@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { assetAPI } from '../services/api';
 import EmployeeAutocomplete from '../components/EmployeeAutocomplete';
+import BackButton from '../components/BackButton';
 
 const CATEGORIES = ['Laptop', 'CPU', 'Monitor', 'Printer', 'Phone', 'Server', 'Other'];
 const OS_LIST    = ['Windows 11', 'Windows 10', 'Ubuntu', 'macOS', 'Chrome OS', 'Other'];
@@ -284,7 +285,10 @@ function AssetEdit() {
   return (
     <div>
       <div className="mb-4">
-        <h2 className="fw-bold mb-1">Edit Asset</h2>
+        <div className="d-flex align-items-center gap-2 mb-2">
+          <BackButton fallbackRoute={returnTo} />
+          <h2 className="fw-bold mb-0">Edit Asset</h2>
+        </div>
         <p className="text-muted mb-0">
           Editing: <strong>{form.asset_name}</strong> &nbsp;|&nbsp;
           <code>{form.serial_number}</code>

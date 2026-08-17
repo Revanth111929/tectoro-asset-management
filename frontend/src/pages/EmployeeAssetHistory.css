@@ -209,3 +209,41 @@
 .fw-600 {
   font-weight: 600;
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   DARK MODE OVERRIDES
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+[data-theme="dark"] .asset-card {
+  background: #161616;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="dark"] .asset-card:hover {
+  background: #1a1a1a;
+  border-color: rgba(20, 184, 166, 0.5) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .timeline-vertical::before {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1));
+}
+
+[data-theme="dark"] .timeline-icon-badge {
+  background: #1a1a1a;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #a1a1a1;
+}
+
+[data-theme="dark"] .timeline-content h4 {
+  color: #F5F5F5;
+}
+
+[data-theme="dark"] .timeline-content p {
+  color: #a1a1a1;
+}
+
+[data-theme="dark"] .timeline-meta {
+  color: #737373;
+}

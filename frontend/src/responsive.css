@@ -1,0 +1,811 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   TECTORO ASSET MANAGEMENT - RESPONSIVE DESIGN
+   Making the existing UI fully responsive while preserving visual identity
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Mobile Navigation ─────────────────────────────────────────────────────── */
+.mobile-menu-toggle {
+  display: none;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 1.5rem;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: background-color 0.2s;
+}
+
+.mobile-menu-toggle:hover {
+  background: rgba(0,0,0,0.05);
+}
+
+[data-theme="dark"] .mobile-menu-toggle:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+.mobile-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 999;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.mobile-overlay.active {
+  opacity: 1;
+}
+
+/* ── Table Responsive Container ────────────────────────────────────────────── */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius);
+}
+
+.table-responsive::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+  background: var(--bg);
+  border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ── Responsive Grid Utilities ─────────────────────────────────────────────── */
+.responsive-grid {
+  display: grid;
+  gap: 20px;
+}
+
+.responsive-grid-1 { grid-template-columns: 1fr; }
+.responsive-grid-2 { grid-template-columns: repeat(2, 1fr); }
+.responsive-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.responsive-grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+/* ── Button Wrapping ───────────────────────────────────────────────────────── */
+.btn-group-responsive {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.action-buttons-responsive {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ── Large Desktop: 1440px+ ────────────────────────────────────────────────── */
+@media (min-width: 1440px) {
+  .page-content {
+    padding: 32px;
+  }
+  
+  .responsive-grid-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* ── Desktop: 1024px-1439px ────────────────────────────────────────────────── */
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .page-content {
+    padding: 24px;
+  }
+  
+  .responsive-grid-4 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ── Tablet: 768px-1023px ──────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  /* Sidebar collapsible */
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+  
+  .sidebar.mobile-open {
+    transform: translateX(0);
+    box-shadow: 4px 0 20px rgba(0,0,0,0.2);
+  }
+  
+  .main-content {
+    margin-left: 0 !important;
+  }
+  
+  /* Show mobile menu toggle */
+  .mobile-menu-toggle {
+    display: flex;
+  }
+  
+  .mobile-overlay {
+    display: block;
+  }
+  
+  /* Page content */
+  .page-content {
+    padding: 20px 16px;
+  }
+  
+  /* Grid adjustments */
+  .responsive-grid-4,
+  .responsive-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  /* Stat cards */
+  .stat-card {
+    padding: 16px;
+  }
+  
+  .stat-value {
+    font-size: 1.75rem;
+  }
+  
+  /* Forms - reduce to 2 columns */
+  .row .col-md-6 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+  
+  .row .col-md-4 {
+    flex: 0 0 50%;
+    max-width: 50%;
+  }
+  
+  /* Table actions */
+  .btn-group {
+    flex-wrap: wrap;
+  }
+  
+  /* Page headers */
+  .d-flex.justify-content-between {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start !important;
+  }
+  
+  .d-flex.justify-content-between > div:last-child {
+    width: 100%;
+  }
+  
+  .d-flex.justify-content-between .btn,
+  .d-flex.justify-content-between .d-flex {
+    width: 100%;
+  }
+}
+
+/* ── Mobile: 480px-767px ───────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  /* Sidebar always off-canvas */
+  .sidebar {
+    width: 260px !important;
+  }
+  
+  .sidebar.collapsed {
+    width: 260px !important;
+  }
+  
+  .sidebar .nav-link span,
+  .sidebar-brand span,
+  .nav-section-label {
+    display: block !important;
+  }
+  
+  /* Top navbar */
+  .top-navbar {
+    padding: 0 12px;
+    height: 56px;
+  }
+  
+  .navbar-right {
+    gap: 4px;
+  }
+  
+  .navbar-right .btn {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  
+  /* Page content */
+  .page-content {
+    padding: 16px 12px;
+  }
+  
+  /* Grid - single column */
+  .responsive-grid-4,
+  .responsive-grid-3,
+  .responsive-grid-2 {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  /* Dashboard stat cards */
+  .stat-card {
+    padding: 16px;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+  
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+  }
+  
+  .stat-value {
+    font-size: 1.5rem;
+  }
+  
+  .stat-label {
+    font-size: 12px;
+  }
+  
+  /* Tables */
+  .table {
+    font-size: 12px;
+  }
+  
+  .table thead th,
+  .table tbody td {
+    padding: 8px 6px;
+  }
+  
+  .table thead th {
+    font-size: 11px;
+  }
+  
+  /* Buttons */
+  .btn {
+    font-size: 13px;
+    padding: 8px 14px;
+  }
+  
+  .btn-sm {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+  
+  .btn-group {
+    width: 100%;
+  }
+  
+  .btn-group .btn {
+    flex: 1;
+    font-size: 11px;
+    padding: 6px 8px;
+  }
+  
+  /* Forms - full width */
+  .row .col-md-6,
+  .row .col-md-4,
+  .row .col-md-3,
+  .row .col-lg-6,
+  .row .col-lg-4,
+  .row .col-lg-3 {
+    flex: 0 0 100%;
+    max-width: 100%;
+    margin-bottom: 12px;
+  }
+  
+  .form-control,
+  .form-select {
+    font-size: 14px;
+    padding: 10px 12px;
+  }
+  
+  /* Search and filters */
+  .input-group {
+    width: 100%;
+  }
+  
+  /* Pagination */
+  .pagination {
+    font-size: 12px;
+  }
+  
+  .page-link {
+    padding: 6px 10px;
+  }
+  
+  /* Badges */
+  .badge {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+  
+  /* Modals */
+  .modal-dialog {
+    margin: 8px;
+    max-width: calc(100% - 16px);
+  }
+  
+  .modal-content {
+    border-radius: 12px;
+  }
+  
+  .modal-header {
+    padding: 16px;
+  }
+  
+  .modal-body {
+    padding: 16px;
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+  }
+  
+  .modal-footer {
+    padding: 12px 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .modal-footer .btn {
+    flex: 1;
+    min-width: 120px;
+  }
+  
+  /* Page headers - stack */
+  .d-flex.justify-content-between {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start !important;
+  }
+  
+  .d-flex.justify-content-between h2,
+  .d-flex.justify-content-between h3 {
+    font-size: 1.5rem;
+  }
+  
+  .d-flex.justify-content-between > div {
+    width: 100%;
+  }
+  
+  .d-flex.justify-content-between .btn {
+    width: 100%;
+  }
+  
+  .d-flex.justify-content-between .d-flex.gap-2 {
+    width: 100%;
+    flex-direction: column;
+  }
+  
+  .d-flex.justify-content-between .d-flex.gap-2 .btn {
+    width: 100%;
+  }
+  
+  /* Cards */
+  .table-card {
+    padding: 16px;
+    border-radius: 10px;
+  }
+  
+  /* Charts */
+  canvas {
+    max-height: 250px !important;
+  }
+  
+  /* Activity feed */
+  .activity-item {
+    font-size: 12px;
+  }
+  
+  /* Fix horizontal overflow */
+  body,
+  .app-container,
+  .main-content,
+  .page-content {
+    overflow-x: hidden;
+  }
+  
+  /* Avatar */
+  .avatar-circle {
+    width: 32px;
+    height: 32px;
+    font-size: 0.75rem;
+  }
+}
+
+/* ── Small Mobile: below 480px ─────────────────────────────────────────────── */
+@media (max-width: 479px) {
+  /* Ultra compact */
+  .top-navbar {
+    height: 52px;
+    padding: 0 10px;
+  }
+  
+  .page-content {
+    padding: 12px 10px;
+  }
+  
+  h1 {
+    font-size: 1.5rem;
+  }
+  
+  h2 {
+    font-size: 1.25rem;
+  }
+  
+  h3 {
+    font-size: 1.1rem;
+  }
+  
+  .stat-card {
+    padding: 12px;
+  }
+  
+  .stat-value {
+    font-size: 1.25rem;
+  }
+  
+  .stat-label {
+    font-size: 11px;
+  }
+  
+  .table {
+    font-size: 11px;
+  }
+  
+  .table thead th,
+  .table tbody td {
+    padding: 6px 4px;
+  }
+  
+  .btn {
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+  
+  .btn-sm {
+    font-size: 11px;
+    padding: 5px 8px;
+  }
+  
+  .btn-group .btn {
+    font-size: 10px;
+    padding: 5px 6px;
+  }
+  
+  .form-control,
+  .form-select {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+  
+  .badge {
+    font-size: 9px;
+    padding: 2px 5px;
+  }
+  
+  .pagination {
+    font-size: 11px;
+  }
+  
+  .page-link {
+    padding: 5px 8px;
+  }
+  
+  .modal-dialog {
+    margin: 4px;
+    max-width: calc(100% - 8px);
+  }
+}
+
+/* ── Login Page Responsive ─────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .login-container {
+    flex-direction: column !important;
+    min-height: 100vh;
+  }
+  
+  .login-left,
+  .login-right {
+    width: 100% !important;
+    min-height: auto !important;
+  }
+  
+  .login-left {
+    padding: 40px 20px !important;
+    min-height: 200px;
+  }
+  
+  .login-right {
+    padding: 40px 20px !important;
+  }
+  
+  .login-card {
+    max-width: 100% !important;
+    padding: 30px 20px !important;
+  }
+  
+  .login-logo {
+    font-size: 1.5rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-left {
+    padding: 30px 15px !important;
+  }
+  
+  .login-right {
+    padding: 30px 15px !important;
+  }
+  
+  .login-card {
+    padding: 24px 16px !important;
+  }
+  
+  .login-logo {
+    font-size: 1.25rem !important;
+  }
+}
+
+/* ── Dashboard Responsive ──────────────────────────────────────────────────── */
+@media (max-width: 1200px) {
+  .dashboard-stats {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-stats {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .dashboard-charts {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Filter Row Responsive ─────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .filter-row {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  
+  .filter-row > div,
+  .filter-row > .col-md-6,
+  .filter-row > .col-md-4,
+  .filter-row > .col-md-3 {
+    width: 100% !important;
+    flex: none !important;
+  }
+}
+
+/* ── Action Bar Responsive ─────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .action-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  
+  .action-bar > * {
+    width: 100% !important;
+  }
+  
+  .action-bar .btn-group {
+    width: 100%;
+    justify-content: stretch;
+  }
+  
+  .action-bar .btn-group .btn {
+    flex: 1;
+  }
+}
+
+/* ── Inventory Page Responsive ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .inventory-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  
+  .inventory-actions {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .inventory-actions .btn {
+    width: 100%;
+  }
+}
+
+/* ── Asset Detail Responsive ───────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .asset-detail-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .asset-actions {
+    flex-direction: column !important;
+    width: 100% !important;
+  }
+  
+  .asset-actions .btn {
+    width: 100% !important;
+  }
+}
+
+/* ── Reports Page Responsive ───────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .report-filters {
+    flex-direction: column !important;
+  }
+  
+  .report-filters > * {
+    width: 100% !important;
+  }
+}
+
+/* ── Settings Page Responsive ──────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .settings-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Ensure No Horizontal Scrolling ────────────────────────────────────────── */
+body,
+html {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+.app-container,
+.main-content,
+.page-content {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Allow horizontal scroll only in table containers */
+.table-responsive {
+  overflow-x: auto;
+}
+
+/* ── Print Responsive ──────────────────────────────────────────────────────── */
+@media print {
+  .sidebar,
+  .top-navbar,
+  .mobile-menu-toggle,
+  .btn,
+  .pagination,
+  .action-buttons-responsive {
+    display: none !important;
+  }
+  
+  .main-content {
+    margin-left: 0 !important;
+  }
+  
+  .page-content {
+    padding: 0 !important;
+  }
+  
+  .table-card {
+    box-shadow: none !important;
+    border: 1px solid #000 !important;
+  }
+}
+
+/* ── Touch Device Improvements ─────────────────────────────────────────────── */
+@media (hover: none) and (pointer: coarse) {
+  /* Increase touch targets */
+  .btn {
+    min-height: 44px;
+  }
+  
+  .nav-link {
+    min-height: 44px;
+  }
+  
+  .form-control,
+  .form-select {
+    min-height: 44px;
+  }
+  
+  /* Remove hover effects on touch devices */
+  .stat-card:hover {
+    transform: none;
+  }
+  
+  .nav-link:hover {
+    background: transparent;
+  }
+}
+
+/* ── Landscape Mobile ──────────────────────────────────────────────────────── */
+@media (max-width: 900px) and (orientation: landscape) {
+  .sidebar {
+    width: 200px !important;
+  }
+  
+  .top-navbar {
+    height: 50px;
+  }
+  
+  .page-content {
+    padding: 16px;
+  }
+}
+
+/* ── Accessibility Enhancements ────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── High Contrast Mode ────────────────────────────────────────────────────── */
+@media (prefers-contrast: high) {
+  :root {
+    --border: #000;
+  }
+  
+  [data-theme="dark"] {
+    --border: #fff;
+  }
+  
+  .table-card,
+  .stat-card {
+    border-width: 2px;
+  }
+}
+
+/* ── Focus Visible (Keyboard Navigation) ───────────────────────────────────── */
+.btn:focus-visible,
+.form-control:focus-visible,
+.form-select:focus-visible,
+.nav-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ── Safe Area Insets (iPhone notch, etc.) ─────────────────────────────────── */
+@supports (padding: max(0px)) {
+  .top-navbar {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+  
+  .sidebar {
+    padding-left: env(safe-area-inset-left);
+  }
+  
+  .page-content {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}

@@ -1,5 +1,6 @@
 // Settings.js – User Management
 import React, { useState, useEffect } from 'react';
+import BackButton from '../components/BackButton';
 import api from '../services/api';
 
 const EMPTY = { username: '', email: '', password: '', role: 'user', smtp_password: '' };
@@ -200,7 +201,10 @@ function Settings() {
       {/* Header */}
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
-          <h2 className="fw-bold mb-1">Settings</h2>
+          <div className="d-flex align-items-center gap-2 mb-1">
+            <BackButton />
+            <h2 className="fw-bold mb-0">Settings</h2>
+          </div>
           <p className="text-muted mb-0">Manage users and access permissions</p>
         </div>
       </div>

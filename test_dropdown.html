@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Category Dropdown</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            padding: 40px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        
+        /* Light mode (default) */
+        body {
+            background: #ffffff;
+            color: #000000;
+        }
+        
+        .form-select {
+            width: 100%;
+            background: #ffffff;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 14px;
+            padding: 10px 14px;
+            color: #212529;
+            transition: all 0.2s;
+            height: 40px;
+            cursor: pointer;
+            appearance: auto;
+            -webkit-appearance: menulist;
+            -moz-appearance: menulist;
+        }
+        
+        .form-select:hover {
+            border-color: #80bdff;
+        }
+        
+        .form-select:focus {
+            outline: 2px solid #007bff;
+            outline-offset: 2px;
+            border-color: #007bff;
+        }
+        
+        /* Dark mode */
+        body.dark-mode {
+            background: #0a0a0a;
+            color: #F5F5F5;
+        }
+        
+        body.dark-mode .form-select {
+            background: #1C1C1C;
+            border-color: #333333;
+            color: #F5F5F5;
+        }
+        
+        body.dark-mode .form-select option {
+            background: #1C1C1C;
+            color: #F5F5F5;
+        }
+        
+        body.dark-mode .form-select option:hover,
+        body.dark-mode .form-select option:focus,
+        body.dark-mode .form-select option:checked {
+            background: #2a2a2a;
+            color: #F5F5F5;
+        }
+        
+        .test-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+        
+        body.dark-mode .test-info {
+            background: #1a1a1a;
+            border: 1px solid #333;
+        }
+        
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        body.dark-mode .success {
+            background: #1e4620;
+            color: #d4edda;
+            border-color: #2d5a2f;
+        }
+        
+        h1 {
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #6c757d;
+            margin-bottom: 30px;
+        }
+        
+        body.dark-mode .subtitle {
+            color: #adb5bd;
+        }
+        
+        label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        
+        .required {
+            color: #dc3545;
+        }
+        
+        .help-text {
+            font-size: 13px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        
+        body.dark-mode .help-text {
+            color: #adb5bd;
+        }
+    </style>
+</head>
+<body>
+    <button class="theme-toggle" onclick="toggleTheme()">Toggle Dark Mode</button>
+    
+    <h1>🧪 Category Dropdown Test</h1>
+    <p class="subtitle">Testing Asset Category Dropdown Functionality</p>
+    
+    <div>
+        <label for="categorySelect">
+            Asset Category <span class="required">*</span>
+        </label>
+        <select id="categorySelect" class="form-select" onchange="handleCategoryChange(this.value)">
+            <option value="">Select Category</option>
+            <option value="CPU">CPU</option>
+            <option value="Desktop">Desktop</option>
+            <option value="Hard Disk">Hard Disk</option>
+            <option value="Headphones">Headphones</option>
+            <option value="Laptop">Laptop</option>
+            <option value="Monitor">Monitor</option>
+            <option value="Mouse">Mouse</option>
+            <option value="Phone">Phone</option>
+            <option value="Printer">Printer</option>
+            <option value="Server">Server</option>
+            <option value="UPS">UPS</option>
+        </select>
+        <p class="help-text">Choose the type of assets you want to import (11 categories available)</p>
+    </div>
+    
+    <div class="test-info">
+        <h3 style="margin-top: 0;">Test Checklist</h3>
+        <ul>
+            <li>✓ Dropdown displays "Select Category" initially</li>
+            <li>✓ Click opens the dropdown menu</li>
+            <li>✓ All 11 categories are visible</li>
+            <li>✓ Options are readable in light mode</li>
+            <li>✓ Options are readable in dark mode (toggle above)</li>
+            <li>✓ Selected value remains after selection</li>
+            <li>✓ Cursor changes to pointer on hover</li>
+            <li>✓ Focus outline appears when focused</li>
+        </ul>
+    </div>
+    
+    <div id="status"></div>
+    
+    <script>
+        function handleCategoryChange(value) {
+            const statusDiv = document.getElementById('status');
+            if (value) {
+                statusDiv.innerHTML = `
+                    <div class="status success">
+                        ✓ Category Selected: <strong>${value}</strong><br>
+                        <small>Dropdown is working correctly!</small>
+                    </div>
+                `;
+                console.log('[Test] Category selected:', value);
+            } else {
+                statusDiv.innerHTML = '';
+            }
+        }
+        
+        function toggleTheme() {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+            console.log('[Test] Theme switched to:', isDark ? 'dark' : 'light');
+        }
+        
+        // Log on page load
+        console.log('[Test] Dropdown test page loaded');
+        console.log('[Test] Categories available: 11');
+    </script>
+</body>
+</html>

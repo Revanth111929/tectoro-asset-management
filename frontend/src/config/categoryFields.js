@@ -2,11 +2,19 @@
 
 // Define all available categories first
 export const CATEGORIES = [
-  'Laptop', 'CPU', 'Monitor', 'Printer', 'Phone', 'Server', 
-  'Mouse', 'Headphones', 'Hard Disk', 'UPS', 'Laptop Bag', 'Other'
+  'Corporate SIM', 'Laptop', 'Desktop', 'Monitor', 'Printer', 'Phone', 'Server', 
+  'Mouse', 'Headphones', 'Hard Disk', 'Laptop Bag', 'Other'
 ];
 
 export const CATEGORY_FIELDS = {
+  'Corporate SIM': {
+    basic: ['iccid', 'mobile_number', 'carrier', 'location'],
+    specifications: ['plan_type', 'sim_type', 'data_limit_gb', 'monthly_cost'],
+    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'activation_date', 'vendor'],
+    assignment: [],
+    other: ['corporate_account', 'account_manager', 'puk_code', 'remarks']
+  },
+  
   'Laptop': {
     basic: ['brand_name', 'model_name', 'serial_number', 'location'],
     specifications: ['processor', 'ram', 'storage_type', 'storage_capacity', 'os', 'os_version', 'screen_size'],
@@ -15,7 +23,7 @@ export const CATEGORY_FIELDS = {
     other: ['charger_serial', 'old_user', 'old_device', 'date', 'remarks', 'comments']
   },
   
-  'CPU': {
+  'Desktop': {
     basic: ['brand_name', 'model_name', 'serial_number', 'location'],
     specifications: ['processor', 'ram', 'storage_type', 'storage_capacity', 'graphics_card', 'os', 'os_version'],
     purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'invoice_number', 'invoice_date', 'invoice_attachment', 'warranty_start_date', 'warranty_end_date'],
@@ -63,14 +71,6 @@ export const CATEGORY_FIELDS = {
     other: ['old_user', 'old_device', 'date', 'remarks', 'comments']
   },
   
-  'UPS': {
-    basic: ['brand_name', 'model_name', 'serial_number', 'location'],
-    specifications: ['capacity_va', 'battery_type', 'backup_time'],
-    purchase: ['purchase_vendor', 'purchase_price', 'purchase_date', 'invoice_number', 'invoice_date', 'invoice_attachment', 'warranty_start_date', 'warranty_end_date'],
-    assignment: [],
-    other: ['old_user', 'old_device', 'date', 'remarks', 'comments']
-  },
-  
   'Mouse': {
     basic: ['brand_name', 'model_name', 'serial_number', 'location'],
     specifications: ['connection_type'],
@@ -106,6 +106,19 @@ export const CATEGORY_FIELDS = {
 
 // Field metadata - labels, types, options
 export const FIELD_METADATA = {
+  // Corporate SIM specific fields
+  iccid: { label: 'ICCID', type: 'text', placeholder: '19-20 digit ICCID number', required: true },
+  carrier: { label: 'Carrier', type: 'select', options: ['Airtel', 'Jio', 'Vi (Vodafone Idea)', 'BSNL', 'MTNL', 'Other'], required: true },
+  plan_type: { label: 'Plan Type', type: 'select', options: ['Prepaid', 'Postpaid'] },
+  data_limit_gb: { label: 'Data Limit (GB)', type: 'number', placeholder: 'Data limit in GB', min: '0' },
+  monthly_cost: { label: 'Monthly Cost (₹)', type: 'number', placeholder: '0.00', step: '0.01' },
+  corporate_account: { label: 'Corporate Account', type: 'text', placeholder: 'Corporate account name/number' },
+  account_manager: { label: 'Account Manager', type: 'text', placeholder: 'Account manager contact' },
+  sim_type: { label: 'SIM Type', type: 'select', options: ['Nano', 'Micro', 'Mini', 'eSIM'] },
+  puk_code: { label: 'PUK Code', type: 'text', placeholder: 'PUK code (8 digits)' },
+  activation_date: { label: 'Activation Date', type: 'date' },
+  vendor: { label: 'Vendor', type: 'text', placeholder: 'Vendor/supplier name' },
+  
   // Basic fields
   asset_name: { label: 'Asset Name', type: 'text', placeholder: 'Enter asset name', required: false },
   brand_name: { label: 'Brand Name', type: 'text', placeholder: 'e.g. Dell, HP, Apple', required: true },
@@ -145,11 +158,6 @@ export const FIELD_METADATA = {
   
   // Hard Disk specific
   interface_type: { label: 'Interface Type', type: 'select', options: ['USB', 'SATA', 'NVMe', 'SAS', 'Thunderbolt'] },
-  
-  // UPS specific
-  capacity_va: { label: 'Capacity (VA)', type: 'text', placeholder: 'e.g. 1000VA, 1500VA' },
-  battery_type: { label: 'Battery Type', type: 'text', placeholder: 'e.g. Lead Acid, Lithium-ion' },
-  backup_time: { label: 'Backup Time', type: 'text', placeholder: 'e.g. 30 minutes, 1 hour' },
   
   // Peripherals specific
   connection_type: { label: 'Connection Type', type: 'select', options: ['USB', 'Wireless', 'Bluetooth', 'USB-C', 'Wired', '3.5mm Jack'] },

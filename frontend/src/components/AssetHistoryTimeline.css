@@ -104,7 +104,7 @@
   transition: all 0.2s;
   font-size: 0.8rem;
   white-space: nowrap;
-  color: #1f2937;
+  color: #151515;
   flex: 0 1 auto;
 }
 
@@ -202,7 +202,7 @@
   font-size: 0.9rem;
   font-weight: 600;
   margin: 0;
-  color: #1f2937;
+  color: #151515;
 }
 
 .timeline-date {
@@ -304,4 +304,95 @@
   .asset-history-timeline {
     box-shadow: none;
   }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   DARK MODE OVERRIDES
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+[data-theme="dark"] .asset-history-timeline {
+  background: #161616;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .timeline-header {
+  background: #1a1a1a;
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .timeline-header h3 {
+  color: #F5F5F5;
+}
+
+[data-theme="dark"] .filter-btn {
+  background: #1a1a1a;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #a1a1a1;
+}
+
+[data-theme="dark"] .filter-btn.active {
+  background: rgba(20, 184, 166, 0.15);
+  color: #5eead4;
+  border-color: rgba(20, 184, 166, 0.3);
+}
+
+[data-theme="dark"] .filter-btn:hover {
+  background: #242424;
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+[data-theme="dark"] .timeline-content {
+  background: #161616;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .timeline-item {
+  border-left-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .timeline-marker {
+  background: #1a1a1a;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="dark"] .timeline-event-content h4 {
+  color: #F5F5F5;
+}
+
+[data-theme="dark"] .timeline-event-content p {
+  color: #a1a1a1;
+}
+
+[data-theme="dark"] .timeline-meta {
+  color: #737373;
+}
+
+/* ── Activity History Standard Dark Mode ──────────────────────────────────── */
+[data-theme="dark"] .asset-history-timeline {
+  background: #151515 !important;
+  border: 1px solid #2A2A2A !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .timeline-content {
+  background: #151515 !important;
+  border-color: #2A2A2A !important;
+}
+
+[data-theme="dark"] .asset-history-timeline h2,
+[data-theme="dark"] .asset-history-timeline h3,
+[data-theme="dark"] .asset-history-timeline p {
+  color: #F5F5F5 !important;
+}
+
+[data-theme="dark"] .asset-history-timeline .text-muted {
+  color: #A3A3A3 !important;
+}
+
+[data-theme="dark"] .asset-history-timeline .badge {
+  background: #151515 !important;
+  border-color: #2A2A2A !important;
+  color: #F5F5F5 !important;
 }

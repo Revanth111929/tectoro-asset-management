@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { NavButton } from '../components/NavButton';
 import './LandingPage.css';
 
 function LandingPage() {
@@ -16,7 +16,7 @@ function LandingPage() {
         <div className="lp-nav-links">
           <a href="#features">Features</a>
           <a href="#features">About</a>
-          <Link to="/login" className="lp-btn-signin">Sign In</Link>
+          <NavButton to="/login" className="lp-btn-signin">Sign In</NavButton>
         </div>
       </nav>
 
@@ -38,9 +38,9 @@ function LandingPage() {
             Real-time dashboards, employee assignments, inventory alerts, and detailed reports.
           </p>
           <div className="lp-hero-actions">
-            <Link to="/login" className="lp-btn-primary">
+            <NavButton to="/login" className="lp-btn-primary">
               <i className="bi bi-rocket-takeoff me-2"></i>Get Started
-            </Link>
+            </NavButton>
             <a href="#features" className="lp-btn-outline">
               <i className="bi bi-play-circle me-2"></i>Learn More
             </a>
@@ -163,9 +163,9 @@ function LandingPage() {
           ))}
         </div>
         <div className="lp-features-cta">
-          <Link to="/login" className="lp-btn-primary">
+          <NavButton to="/login" className="lp-btn-primary">
             <i className="bi bi-arrow-right-circle me-2"></i>Go to Dashboard
-          </Link>
+          </NavButton>
         </div>
       </section>
 

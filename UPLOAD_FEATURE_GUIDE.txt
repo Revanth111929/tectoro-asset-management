@@ -1,0 +1,370 @@
+================================================================================
+                    UPLOAD/IMPORT FEATURE - USER GUIDE
+================================================================================
+
+OVERVIEW:
+Every Inventory category page now has Upload/Import functionality.
+
+SUPPORTED CATEGORIES (12):
+1.  Laptop        ✓
+2.  CPU           ✓
+3.  Monitor       ✓
+4.  Printer       ✓
+5.  Phone         ✓
+6.  Server        ✓
+7.  Mouse         ✓
+8.  Headphones    ✓
+9.  Hard Disk     ✓
+10. UPS           ✓
+11. Laptop Bag    ✓
+12. Other         ✓
+
+NOTE: Corporate SIMs has its own separate management system.
+
+================================================================================
+HOW TO USE
+================================================================================
+
+STEP 1: NAVIGATE TO INVENTORY CATEGORY
+---------------------------------------
+From sidebar, click:
+  Inventory → [Select any category]
+
+Examples:
+  - Inventory → CPU
+  - Inventory → Monitor
+  - Inventory → Printer
+  - Inventory → Phone
+  etc.
+
+STEP 2: CLICK UPLOAD/IMPORT BUTTON
+----------------------------------
+Look for the green button at the top-right:
+  
+  [Upload/Import] [Add New]
+   ↑ Click this
+
+Button only appears if you have create permissions.
+
+STEP 3: DOWNLOAD TEMPLATE
+-------------------------
+In the modal that opens:
+
+  1. Click "Download Template" button (green)
+  2. Excel file will download
+  3. Open in Excel/LibreOffice
+
+STEP 4: FILL YOUR DATA
+----------------------
+In the template:
+
+  REQUIRED FIELDS:
+  • Asset NAME       - Name of the asset
+  • SERIAL NUMBER    - Must be unique
+  • CATEGORY         - MUST match the category (e.g., "CPU", "Monitor")
+
+  OPTIONAL FIELDS:
+  • MODEL NAME       - Model/brand info
+  • EMP ID           - Employee ID (if assigning)
+  • EMPLOYEE NAME    - Employee name
+  • MOBILE NUMBER    - Employee mobile
+  • OS               - Operating system
+  • Ram              - RAM size
+  • LOCATION         - Physical location
+  • INVOICE NUMBER   - Purchase invoice
+  • INVOICE DATE     - Purchase date
+  • WARRANTY DATE    - Warranty expiry
+  • etc.
+
+IMPORTANT:
+  ⚠ Set CATEGORY column to match your category!
+  
+  Example: If importing CPUs, set CATEGORY = "CPU" for all rows
+  Example: If importing Monitors, set CATEGORY = "Monitor" for all rows
+
+STEP 5: UPLOAD FILE
+------------------
+Back in the modal:
+
+  1. Click "Choose File"
+  2. Select your filled Excel file
+  3. File name and size will appear
+  4. Click "Import Assets" button
+
+STEP 6: REVIEW RESULTS
+---------------------
+Import will process your file:
+
+  SUCCESS MESSAGE:
+    ✓ Import Completed!
+    • Imported: 25 assets
+    • Errors: 2
+
+  ERROR DETAILS (if any):
+    • Row 5: Serial number 'SN-123' already exists
+    • Row 12: Missing Asset NAME
+
+STEP 7: VERIFY
+-------------
+  • Asset list automatically refreshes
+  • New assets appear in the table
+  • Click "View" to see asset details
+
+================================================================================
+VALIDATION RULES
+================================================================================
+
+FILE FORMAT:
+  ✓ .xlsx (Excel 2007+)
+  ✓ .xls  (Excel 97-2003)
+  ✗ .csv, .ods, .pdf (not supported)
+
+REQUIRED FIELDS:
+  • Asset NAME       - cannot be empty
+  • SERIAL NUMBER    - cannot be empty, must be unique
+
+CATEGORY FIELD:
+  • Must match one of: Laptop, CPU, Monitor, Printer, Phone, Server, 
+    Mouse, Headphones, Hard Disk, UPS, Laptop Bag, Other
+  • Case-sensitive
+  • If wrong category, asset will be imported to the correct category
+    based on CATEGORY column value
+
+SERIAL NUMBER:
+  • Must be unique across all assets
+  • Duplicates will be skipped with error message
+
+EMPLOYEE ASSIGNMENT:
+  • If EMP ID provided, employee must exist in Employee Master
+  • If invalid, row will be skipped with error message
+  • If employee info provided, asset status = "Assigned"
+  • If no employee info, asset status = "Available"
+
+DATES:
+  • Excel date format or YYYY-MM-DD
+  • Invalid dates will be ignored (not cause error)
+
+EMPTY ROWS:
+  • Automatically skipped (no error)
+
+================================================================================
+COMMON SCENARIOS
+================================================================================
+
+SCENARIO 1: Import 10 new Monitors
+-----------------------------------
+1. Go to Inventory → Monitor
+2. Click Upload/Import
+3. Download template
+4. Fill 10 rows with monitor data
+5. Set CATEGORY = "Monitor" for all rows
+6. Set unique serial numbers
+7. Upload and import
+8. Result: 10 monitors added to Monitor Inventory
+
+SCENARIO 2: Import assigned assets
+----------------------------------
+1. Fill employee information columns:
+   - EMP ID: EMP001
+   - EMPLOYEE NAME: John Doe
+   - MOBILE NUMBER: 9876543210
+2. Employee must exist in Employee Master
+3. Upload and import
+4. Result: Asset assigned to employee, status = "Assigned"
+
+SCENARIO 3: Import unassigned assets
+------------------------------------
+1. Leave employee columns empty:
+   - EMP ID: (blank)
+   - EMPLOYEE NAME: (blank)
+2. Upload and import
+3. Result: Asset available in inventory, status = "Available"
+
+SCENARIO 4: Import mixed categories in one file
+-----------------------------------------------
+1. Excel file has:
+   - Rows 1-5: CATEGORY = "CPU"
+   - Rows 6-10: CATEGORY = "Monitor"
+   - Rows 11-15: CATEGORY = "Mouse"
+2. Upload from any inventory category page
+3. Result: 
+   - 5 CPUs imported to CPU Inventory
+   - 5 Monitors imported to Monitor Inventory
+   - 5 Mice imported to Mouse Inventory
+
+SCENARIO 5: Handle errors gracefully
+------------------------------------
+1. Excel file has:
+   - Row 1: Valid CPU
+   - Row 2: Duplicate serial number (error)
+   - Row 3: Missing Asset NAME (error)
+   - Row 4: Valid CPU
+   - Row 5: Valid CPU
+2. Upload and import
+3. Result:
+   - Imported: 3 assets (rows 1, 4, 5)
+   - Errors: 2
+   - Error details shown for rows 2 and 3
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+PROBLEM: Upload/Import button not visible
+SOLUTION: Check your user role
+  • Admin: Can import ✓
+  • User: Can import ✓
+  • Viewer: Cannot import ✗
+
+PROBLEM: "No file uploaded" error
+SOLUTION: Make sure to select a file before clicking Import
+
+PROBLEM: "Invalid file format" error
+SOLUTION: File must be .xlsx or .xls format (not .csv, .pdf, etc.)
+
+PROBLEM: Assets imported but appear in wrong category
+SOLUTION: Check CATEGORY column in Excel
+  • Must exactly match: "Laptop", "CPU", "Monitor", etc.
+  • Case-sensitive
+  • Fix CATEGORY column and re-import
+
+PROBLEM: "Serial number already exists" error
+SOLUTION: Serial numbers must be unique
+  • Check if serial number already in database
+  • Use different serial number
+
+PROBLEM: "Employee not found" error
+SOLUTION: Employee must exist in Employee Master
+  • Go to Employees page
+  • Add employee first
+  • Then import asset with that EMP ID
+
+PROBLEM: Import seems stuck
+SOLUTION: 
+  • Large files take time
+  • Wait for completion
+  • If truly stuck, close modal and refresh page
+  • Try smaller batches (e.g., 50 assets at a time)
+
+PROBLEM: Dates not imported correctly
+SOLUTION:
+  • Use Excel date format or YYYY-MM-DD
+  • Example: 2024-01-15 or Excel date cell
+
+================================================================================
+BEST PRACTICES
+================================================================================
+
+✓ Download template first
+  Don't create your own Excel file - use the template
+
+✓ Fill one category at a time
+  Easier to manage and verify
+
+✓ Test with small batch first
+  Try 5-10 assets to verify format is correct
+
+✓ Use unique serial numbers
+  Format: SN-CATEGORY-001, SN-CATEGORY-002, etc.
+
+✓ Verify employee IDs
+  Check Employee Master before importing assigned assets
+
+✓ Double-check CATEGORY column
+  Most common mistake is wrong category name
+
+✓ Keep backup of your Excel file
+  In case you need to re-import or fix errors
+
+✓ Review error details
+  Fix errors in Excel and re-import failed rows
+
+✓ Start with available assets
+  Import unassigned assets first, assign later
+
+✓ Use consistent naming
+  Follow company naming conventions for assets
+
+================================================================================
+KEYBOARD SHORTCUTS
+================================================================================
+
+ESC key      = Close import modal
+Tab key      = Navigate between form fields
+Enter key    = Submit form (when Import button focused)
+
+================================================================================
+PERMISSIONS REQUIRED
+================================================================================
+
+VIEW Upload/Import button:
+  • Admin role ✓
+  • User role ✓
+  • Viewer role ✗
+
+PERFORM Import:
+  • Admin role ✓
+  • User role ✓
+  • Viewer role ✗
+
+DOWNLOAD Template:
+  • Anyone with create permissions ✓
+
+================================================================================
+WHAT HAPPENS AFTER IMPORT
+================================================================================
+
+1. Assets are validated
+2. Valid assets are saved to database
+3. Invalid assets are reported with errors
+4. Audit log created for each imported asset
+5. Asset list automatically refreshes
+6. Success/error summary displayed
+7. You can view imported assets immediately
+8. You can close modal and continue working
+
+================================================================================
+FILE SIZE LIMITS
+================================================================================
+
+No specific frontend limit, but best practices:
+  • < 100 rows: Fast, recommended for regular use
+  • 100-500 rows: Acceptable, may take 10-30 seconds
+  • > 500 rows: Consider splitting into multiple batches
+
+================================================================================
+SAMPLE EXCEL DATA
+================================================================================
+
+| Asset NAME        | SERIAL NUMBER | CATEGORY | EMP ID | STATUS    |
+|-------------------|---------------|----------|--------|-----------|
+| Dell Monitor 27"  | SN-MON-001   | Monitor  |        | Available |
+| HP Monitor 24"    | SN-MON-002   | Monitor  |        | Available |
+| Dell CPU i7       | SN-CPU-001   | CPU      | EMP001 | Assigned  |
+| HP CPU i5         | SN-CPU-002   | CPU      |        | Available |
+| Logitech Mouse    | SN-MOU-001   | Mouse    | EMP002 | Assigned  |
+
+================================================================================
+SUPPORT
+================================================================================
+
+If you encounter issues:
+
+1. Check this guide first
+2. Verify your Excel file format
+3. Test with template file
+4. Check error messages carefully
+5. Contact system administrator
+
+================================================================================
+
+QUICK REFERENCE:
+
+  Navigate → Click Upload/Import → Download Template → Fill Data → Upload
+
+  REQUIRED: Asset NAME, SERIAL NUMBER, CATEGORY
+  OPTIONAL: Everything else
+
+  TIP: Set CATEGORY column correctly!
+
+================================================================================

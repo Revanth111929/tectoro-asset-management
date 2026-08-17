@@ -123,6 +123,22 @@ export const assetAPI = {
     console.log('[assetAPI] getById called for ID:', id);
     return api.get(`/assets/${id}`);
   },
+  getDeleted: (params) => {
+    console.log('[assetAPI] getDeleted called with params:', params);
+    return api.get('/assets/deleted', { params });
+  },
+  restoreAsset: (id) => {
+    console.log('[assetAPI] restoreAsset called for ID:', id);
+    return api.post(`/assets/${id}/restore`);
+  },
+  permanentDelete: (id) => {
+    console.log('[assetAPI] permanentDelete called for ID:', id);
+    return api.delete(`/assets/${id}/permanent-delete`);
+  },
+  bulkPermanentDelete: (assetIds) => {
+    console.log('[assetAPI] bulkPermanentDelete called for IDs:', assetIds);
+    return api.post('/assets/deleted/bulk-permanent-delete', { asset_ids: assetIds });
+  },
   create: (data, file = null) => {
     console.log('[assetAPI] create called with data:', data, 'file:', file?.name);
     if (file) {
@@ -211,6 +227,11 @@ export const assetAPI = {
     console.log('[assetAPI] transferAsset called with:', data);
     return api.post('/operations/transfer', data);
   },
+  // NEW: Dedicated Asset Transfer Module
+  transferAssetOwnership: (data) => {
+    console.log('[assetAPI] transferAssetOwnership called with:', data);
+    return api.post('/assets/transfer', data);
+  },
   // Phase 4.3: Repair Operations
   sendForRepair: (data) => {
     console.log('[assetAPI] sendForRepair called with:', data);
@@ -231,6 +252,18 @@ export const assetAPI = {
   getAssetRepairs: (assetId) => {
     console.log('[assetAPI] getAssetRepairs called for asset:', assetId);
     return api.get(`/assets/${assetId}/repairs`);
+  },
+  
+  // Employee Asset Assignment (Existing/Old Device workflow)
+  employeeAssetAssignment: (data) => {
+    console.log('[assetAPI] employeeAssetAssignment called with:', data);
+    return api.post('/employee-asset-assignment', data);
+  },
+  
+  // Asset Replacement (REPLACE DEVICE action)
+  createAssetReplacement: (data) => {
+    console.log('[assetAPI] createAssetReplacement called with:', data);
+    return api.post('/asset-replacements', data);
   },
   
   // Invoice file operations with authentication
@@ -291,6 +324,10 @@ export const employeeAPI = {
   // Phase 1: New methods
   create: (data) => api.post('/employees', data),
   update: (emp_id, data) => api.put(`/employees/${emp_id}`, data),
+  delete: (emp_id) => {
+    console.log('[employeeAPI] delete called for employee:', emp_id);
+    return api.delete(`/employees/${emp_id}`);
+  },
   disable: (emp_id) => api.post(`/employees/${emp_id}/disable`),
   bulkImport: (file) => {
     const formData = new FormData();
@@ -300,6 +337,19 @@ export const employeeAPI = {
     });
   },
   downloadTemplate: () => api.get('/employees/template', { responseType: 'blob' }),
+  // Bulk actions
+  bulkDeactivate: (emp_ids) => {
+    console.log('[employeeAPI] bulkDeactivate called for:', emp_ids);
+    return api.post('/employees/bulk-deactivate', { emp_ids });
+  },
+  bulkActivate: (emp_ids) => {
+    console.log('[employeeAPI] bulkActivate called for:', emp_ids);
+    return api.post('/employees/bulk-activate', { emp_ids });
+  },
+  bulkDelete: (emp_ids) => {
+    console.log('[employeeAPI] bulkDelete called for:', emp_ids);
+    return api.post('/employees/bulk-delete', { emp_ids });
+  },
   // Existing methods
   getAssets: (emp_id) => api.get(`/employees/${emp_id}/assets`),
   getAssetHistory: (emp_id) => api.get(`/employees/${emp_id}/asset-history`),
@@ -355,6 +405,42 @@ export const invoiceAPI = {
   view: (assetId) => {
     // Returns the file URL for inline viewing
     return `${API_BASE_URL}/assets/${assetId}/invoice/view`;
+  },
+};
+
+// ── PART REPLACEMENT ──────────────────────────────────────────────────────────
+export const partReplacementAPI = {
+  getAll: (params) => {
+    console.log('[partReplacementAPI] getAll called with params:', params);
+    return api.get('/part-replacements', { params });
+  },
+  getById: (id) => {
+    console.log('[partReplacementAPI] getById called for ID:', id);
+    return api.get(`/part-replacements/${id}`);
+  },
+  create: (data) => {
+    console.log('[partReplacementAPI] create called with data:', data);
+    return api.post('/part-replacements', data);
+  },
+  update: (id, data) => {
+    console.log('[partReplacementAPI] update called for ID:', id, 'with data:', data);
+    return api.put(`/part-replacements/${id}`, data);
+  },
+  delete: (id) => {
+    console.log('[partReplacementAPI] delete called for ID:', id);
+    return api.delete(`/part-replacements/${id}`);
+  },
+  getByAsset: (assetId) => {
+    console.log('[partReplacementAPI] getByAsset called for asset:', assetId);
+    return api.get(`/assets/${assetId}/part-replacements`);
+  },
+  getStats: () => {
+    console.log('[partReplacementAPI] getStats called');
+    return api.get('/part-replacements/stats');
+  },
+  getComponents: (category) => {
+    console.log('[partReplacementAPI] getComponents called for category:', category);
+    return api.get(`/part-replacements/components/${category}`);
   },
 };
 

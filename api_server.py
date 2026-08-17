@@ -69,7 +69,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Import models AFTER app is configured
-from models import db, Asset, ActivityLog, User, Employee, Onboarding, OnboardingAssetAssignment
+from models import db, Asset, ActivityLog, User, Employee, Onboarding, OnboardingAssetAssignment, AssetReplacement
 from services.audit_service import AuditService, LifecycleService
 from utils.auth import generate_access_token, generate_refresh_token, token_required, admin_required, get_current_user, non_viewer_required
 from utils.rate_limit import init_limiter, limit_login, limit_api, limit_expensive
@@ -802,101 +802,169 @@ def get_assets_by_employee(emp_id):
 @app.route('/api/assets/<int:asset_id>/history', methods=['GET'])
 def get_asset_history(asset_id):
     """Get complete lifecycle history for an asset"""
-    from models import AssetLifecycle, AuditLog, TemporaryAssignment
-    
-    asset = Asset.query.get_or_404(asset_id)
-    
-    # Get lifecycle events
-    lifecycle_events = AssetLifecycle.query.filter_by(asset_id=asset_id)\
-        .order_by(AssetLifecycle.created_at.desc()).all()
-    
-    # Get audit logs for this asset
-    audit_logs = AuditLog.query.filter_by(asset_id=asset_id)\
-        .order_by(AuditLog.timestamp.desc()).limit(50).all()
-    
-    # Get temporary assignments where this was original or temp asset
-    temp_assignments = TemporaryAssignment.query.filter(
-        or_(
-            TemporaryAssignment.original_asset_id == asset_id,
-            TemporaryAssignment.temp_asset_id == asset_id
-        )
-    ).order_by(TemporaryAssignment.created_at.desc()).all()
-    
-    # Combine and sort all events by date
-    all_events = []
-    
-    # Add lifecycle events
-    for event in lifecycle_events:
-        all_events.append({
-            'type': 'lifecycle',
-            'event_type': event.event_type,
-            'date': event.created_at.isoformat() if event.created_at else '',
-            'from_employee': event.from_employee,
-            'to_employee': event.to_employee,
-            'from_status': event.from_status,
-            'to_status': event.to_status,
-            'reason': event.reason,
-            'performed_by': event.performed_by,
-            'remarks': event.remarks,
-        })
-    
-    # Add key audit logs (assignments, returns, status changes)
-    for log in audit_logs:
-        if log.action_type in ['ASSET_CREATED', 'ASSET_ASSIGNED', 'ASSET_RETURNED', 
-                                'ASSET_REASSIGNED', 'STATUS_CHANGED', 'TEMP_ASSIGNMENT_CREATED',
-                                'TEMP_ASSIGNMENT_COMPLETED', 'ASSET_REPLACED']:
-            all_events.append({
-                'type': 'audit',
-                'action_type': log.action_type,
-                'date': log.timestamp.isoformat() if log.timestamp else '',
-                'employee_name': log.employee_name,
-                'field_name': log.field_name,
-                'old_value': log.old_value,
-                'new_value': log.new_value,
-                'performed_by': log.performed_by,
-                'remarks': log.remarks,
-            })
-    
-    # Add temporary assignments
-    for assignment in temp_assignments:
-        if assignment.original_asset_id == asset_id:
-            all_events.append({
-                'type': 'temp_assignment',
-                'sub_type': 'original',
-                'date': assignment.created_at.isoformat() if assignment.created_at else '',
-                'employee_name': assignment.employee_name,
-                'temp_asset_name': assignment.temp_asset_name,
-                'reason': assignment.reason,
-                'status': assignment.status,
-                'start_date': assignment.start_date.isoformat() if assignment.start_date else '',
-                'expected_return': assignment.expected_return_date.isoformat() if assignment.expected_return_date else '',
-                'actual_return': assignment.actual_return_date.isoformat() if assignment.actual_return_date else '',
-            })
-        else:
-            all_events.append({
-                'type': 'temp_assignment',
-                'sub_type': 'temporary',
-                'date': assignment.created_at.isoformat() if assignment.created_at else '',
-                'employee_name': assignment.employee_name,
-                'original_asset_name': assignment.original_asset_name,
-                'reason': assignment.reason,
-                'status': assignment.status,
-                'start_date': assignment.start_date.isoformat() if assignment.start_date else '',
-                'expected_return': assignment.expected_return_date.isoformat() if assignment.expected_return_date else '',
-                'actual_return': assignment.actual_return_date.isoformat() if assignment.actual_return_date else '',
-            })
-    
-    # Sort all events by date (newest first)
-    all_events.sort(key=lambda x: x['date'], reverse=True)
-    
-    return jsonify({
-        'asset': asset.to_dict(),
-        'history': all_events,
-        'total_events': len(all_events),
-        'lifecycle_events_count': len(lifecycle_events),
-        'audit_logs_count': len(audit_logs),
-        'temp_assignments_count': len(temp_assignments),
-    }), 200
+    try:
+        from models import AssetLifecycle, AuditLog, TemporaryAssignment
+        from utils.timezone_utils import APP_TIMEZONE, utc_to_ist
+        
+        # Get asset or return 404
+        asset = Asset.query.get(asset_id)
+        if not asset:
+            return jsonify({
+                'error': 'Asset not found',
+                'message': f'No asset found with ID {asset_id}'
+            }), 404
+        
+        # Get lifecycle events
+        lifecycle_events = AssetLifecycle.query.filter_by(asset_id=asset_id)\
+            .order_by(AssetLifecycle.created_at.desc()).all()
+        
+        # Get audit logs for this asset
+        audit_logs = AuditLog.query.filter_by(asset_id=asset_id)\
+            .order_by(AuditLog.timestamp.desc()).limit(50).all()
+        
+        # Get temporary assignments where this was original or temp asset
+        temp_assignments = TemporaryAssignment.query.filter(
+            or_(
+                TemporaryAssignment.original_asset_id == asset_id,
+                TemporaryAssignment.temp_asset_id == asset_id
+            )
+        ).order_by(TemporaryAssignment.created_at.desc()).all()
+        
+        # Collect unique employees who used this asset
+        unique_employees = set()
+        
+        # From lifecycle events
+        for event in lifecycle_events:
+            if event.to_employee_id:
+                unique_employees.add(event.to_employee_id)
+            if event.from_employee_id:
+                unique_employees.add(event.from_employee_id)
+        
+        # From audit logs - check for employee assignments
+        for log in audit_logs:
+            if log.action_type in ['ASSET_ASSIGNED', 'ASSET_REASSIGNED']:
+                # Check new_value for employee ID
+                if log.new_value and log.field_name in ['emp_id', 'employee_id']:
+                    unique_employees.add(log.new_value)
+        
+        # From current assignment
+        if asset.emp_id:
+            unique_employees.add(asset.emp_id)
+        
+        # Remove empty values
+        unique_employees.discard(None)
+        unique_employees.discard('')
+        
+        # Combine and sort all events by date
+        all_events = []
+        
+        # Add lifecycle events
+        for event in lifecycle_events:
+            try:
+                event_dt = utc_to_ist(event.created_at) if event.created_at else None
+                all_events.append({
+                    'type': 'lifecycle',
+                    'event_type': event.event_type or '',
+                    'date': event_dt.isoformat() if event_dt else '',
+                    'timestamp': event_dt.isoformat() if event_dt else '',
+                    'from_employee': event.from_employee or '',
+                    'from_employee_id': event.from_employee_id or '',
+                    'to_employee': event.to_employee or '',
+                    'to_employee_id': event.to_employee_id or '',
+                    'from_status': event.from_status or '',
+                    'to_status': event.to_status or '',
+                    'reason': event.reason or '',
+                    'performed_by': event.performed_by or '',
+                    'remarks': event.remarks or '',
+                })
+            except Exception as e:
+                logger.warning(f"Error processing lifecycle event {event.id}: {str(e)}")
+                continue
+        
+        # Add key audit logs (assignments, returns, status changes)
+        for log in audit_logs:
+            try:
+                if log.action_type in ['ASSET_CREATED', 'ASSET_ASSIGNED', 'ASSET_RETURNED', 
+                                        'ASSET_REASSIGNED', 'STATUS_CHANGED', 'TEMP_ASSIGNMENT_CREATED',
+                                        'TEMP_ASSIGNMENT_COMPLETED', 'ASSET_REPLACED']:
+                    log_dt = utc_to_ist(log.timestamp) if log.timestamp else None
+                    all_events.append({
+                        'type': 'audit',
+                        'action_type': log.action_type or '',
+                        'date': log_dt.isoformat() if log_dt else '',
+                        'timestamp': log_dt.isoformat() if log_dt else '',
+                        'employee_name': log.employee_name or '',
+                        'employee_id': log.new_value if log.field_name in ['emp_id', 'employee_id'] else '',
+                        'field_name': log.field_name or '',
+                        'old_value': log.old_value or '',
+                        'new_value': log.new_value or '',
+                        'performed_by': log.performed_by or '',
+                        'remarks': log.remarks or '',
+                    })
+            except Exception as e:
+                logger.warning(f"Error processing audit log {log.id}: {str(e)}")
+                continue
+        
+        # Add temporary assignments
+        for assignment in temp_assignments:
+            try:
+                assign_dt = utc_to_ist(assignment.created_at) if assignment.created_at else None
+                if assignment.original_asset_id == asset_id:
+                    all_events.append({
+                        'type': 'temp_assignment',
+                        'sub_type': 'original',
+                        'date': assign_dt.isoformat() if assign_dt else '',
+                        'timestamp': assign_dt.isoformat() if assign_dt else '',
+                        'employee_name': assignment.employee_name or '',
+                        'employee_id': assignment.employee_id or '',
+                        'temp_asset_name': assignment.temp_asset_name or '',
+                        'reason': assignment.reason or '',
+                        'status': assignment.status or '',
+                        'start_date': assignment.start_date.isoformat() if assignment.start_date else '',
+                        'expected_return': assignment.expected_return_date.isoformat() if assignment.expected_return_date else '',
+                        'actual_return': assignment.actual_return_date.isoformat() if assignment.actual_return_date else '',
+                    })
+                else:
+                    all_events.append({
+                        'type': 'temp_assignment',
+                        'sub_type': 'temporary',
+                        'date': assign_dt.isoformat() if assign_dt else '',
+                        'timestamp': assign_dt.isoformat() if assign_dt else '',
+                        'employee_name': assignment.employee_name or '',
+                        'employee_id': assignment.employee_id or '',
+                        'original_asset_name': assignment.original_asset_name or '',
+                        'reason': assignment.reason or '',
+                        'status': assignment.status or '',
+                        'start_date': assignment.start_date.isoformat() if assignment.start_date else '',
+                        'expected_return': assignment.expected_return_date.isoformat() if assignment.expected_return_date else '',
+                        'actual_return': assignment.actual_return_date.isoformat() if assignment.actual_return_date else '',
+                    })
+            except Exception as e:
+                logger.warning(f"Error processing temp assignment {assignment.id}: {str(e)}")
+                continue
+        
+        # Sort all events by date (newest first)
+        # Handle empty dates
+        all_events.sort(key=lambda x: x.get('date', ''), reverse=True)
+        
+        return jsonify({
+            'asset': asset.to_dict(),
+            'history': all_events,  # Frontend expects 'history' key
+            'events': all_events,   # Keep for backward compatibility
+            'total_events': len(all_events),
+            'lifecycle_events_count': len(lifecycle_events),
+            'audit_logs_count': len(audit_logs),
+            'temp_assignments_count': len(temp_assignments),
+            'unique_users': list(unique_employees),
+            'total_users': len(unique_employees),
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error fetching asset history for asset {asset_id}: {str(e)}", exc_info=True)
+        return jsonify({
+            'error': 'Failed to fetch asset history',
+            'message': 'An error occurred while retrieving the asset history'
+        }), 500
 
 # ══════════════════════════════════════════════════════════════════════════════
 # DASHBOARD ROUTES
@@ -954,7 +1022,7 @@ def dashboard_activity():
     return jsonify({'logs': [l.to_dict() for l in logs]}), 200
 
 @app.route('/api/dashboard/lifecycle-stats', methods=['GET'])
-@non_viewer_required
+@token_required
 def lifecycle_stats():
     from sqlalchemy import func, extract
     from models import AssetLifecycle, TemporaryAssignment, AssetReplacement
@@ -1014,7 +1082,7 @@ def get_assets():
     page     = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
 
-    q = Asset.query
+    q = Asset.query.filter(Asset.is_deleted == False)  # Exclude soft-deleted assets
 
     if search:
         q = q.filter(or_(
@@ -1592,11 +1660,296 @@ def delete_asset(asset_id):
     OnboardingAssetAssignment.query.filter_by(asset_id=asset_id).delete()
     
     # Delete the asset
-    db.session.delete(asset)
-    log_activity('DELETE', 'Asset', f'Deleted asset: {name} [{serial}]', username)
-    db.session.commit()
+    # SOFT DELETE: Set is_deleted flag instead of hard delete
+    asset.is_deleted = True
+    asset.deleted_at = datetime.utcnow()
+    asset.deleted_by = username
     
-    logger.info(f"Asset deleted: {name} [{serial}] (ID: {asset_id}) by {username}")
+    log_activity('DELETE', 'Asset', f'Soft deleted asset: {name} [{serial}]', username)
+    db.session.commit()
+    logger.info(f"Asset soft deleted: {name} [{serial}] (ID: {asset_id}) by {username}")
+    return jsonify({'success': True, 'message': 'Asset moved to deleted assets'}), 200
+
+
+@app.route('/api/assets/deleted', methods=['GET'])
+@admin_required
+def get_deleted_assets():
+    """Get all soft-deleted assets (Admin only)"""
+    try:
+        # Get filter parameters
+        search = request.args.get('search', '').strip()
+        category = request.args.get('category', '').strip()
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 50, type=int)
+        
+        # Base query: only deleted assets
+        query = Asset.query.filter(Asset.is_deleted == True)
+        
+        # Apply search filter
+        if search:
+            search_pattern = f'%{search}%'
+            query = query.filter(
+                or_(
+                    Asset.asset_name.ilike(search_pattern),
+                    Asset.serial_number.ilike(search_pattern),
+                    Asset.employee_name.ilike(search_pattern),
+                    Asset.emp_id.ilike(search_pattern),
+                    Asset.model_name.ilike(search_pattern),
+                    Asset.brand_name.ilike(search_pattern)
+                )
+            )
+        
+        # Apply category filter
+        if category:
+            query = query.filter(Asset.category == category)
+        
+        # Get total count
+        total = query.count()
+        
+        # Apply pagination
+        deleted_assets = query.order_by(Asset.deleted_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
+        
+        # Format response
+        assets_data = []
+        for asset in deleted_assets:
+            assets_data.append({
+                'id': asset.id,
+                'asset_name': asset.asset_name,
+                'category': asset.category,
+                'serial_number': asset.serial_number,
+                'model_name': asset.model_name,
+                'brand_name': asset.brand_name,
+                'employee_name': asset.employee_name or '',
+                'emp_id': asset.emp_id or '',
+                'status': asset.status,
+                'deleted_at': asset.deleted_at.isoformat() if asset.deleted_at else None,
+                'deleted_by': asset.deleted_by or '',
+            })
+        
+        logger.info(f"Retrieved {len(assets_data)} deleted assets (page {page}, total {total})")
+        
+        return jsonify({
+            'assets': assets_data,
+            'total': total,
+            'page': page,
+            'pages': (total + per_page - 1) // per_page if total > 0 else 0
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error retrieving deleted assets: {e}")
+        return jsonify({'error': 'Failed to retrieve deleted assets'}), 500
+
+
+@app.route('/api/assets/<int:asset_id>/restore', methods=['POST'])
+@token_required
+@non_viewer_required
+def restore_asset(asset_id):
+    """Restore a soft-deleted asset back to active inventory"""
+    try:
+        asset = Asset.query.get_or_404(asset_id)
+        current_user = get_current_user()
+        username = current_user.get('username') if current_user else 'system'
+        
+        # Verify asset is deleted
+        if not asset.is_deleted:
+            return jsonify({'error': 'Asset is not deleted'}), 400
+        
+        # Restore asset
+        asset.is_deleted = False
+        asset.deleted_at = None
+        asset.deleted_by = None
+        
+        # Log restore action
+        AuditService.log(
+            action_type='ASSET_RESTORED',
+            module='Asset',
+            asset_id=asset.id,
+            asset_name=asset.asset_name,
+            asset_serial=asset.serial_number,
+            category=asset.category,
+            old_value='Deleted',
+            new_value='Restored',
+            performed_by=username,
+            remarks=f'Asset restored from deleted assets'
+        )
+        
+        log_activity('RESTORE', 'Asset', f'Restored asset: {asset.asset_name} [{asset.serial_number}]', username)
+        db.session.commit()
+        
+        logger.info(f"Asset restored: {asset.asset_name} (ID: {asset_id}) by {username}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Asset restored successfully',
+            'asset': {
+                'id': asset.id,
+                'asset_name': asset.asset_name,
+                'serial_number': asset.serial_number,
+                'category': asset.category
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error restoring asset {asset_id}: {e}")
+        return jsonify({'error': f'Failed to restore asset: {str(e)}'}), 500
+
+
+@app.route('/api/assets/<int:asset_id>/permanent-delete', methods=['DELETE'])
+@admin_required
+def permanent_delete_asset(asset_id):
+    """Permanently delete an asset (only for deleted assets)"""
+    try:
+        from models import AssetLifecycle, AssetReplacement, TemporaryAssignment, ExitAssetCollection, OnboardingAssetAssignment
+        from utils.file_upload import delete_invoice_file
+        
+        asset = Asset.query.get_or_404(asset_id)
+        current_user = get_current_user()
+        username = current_user.get('username') if current_user else 'system'
+        
+        # Security: Only allow permanent delete of already-deleted assets
+        if not asset.is_deleted:
+            return jsonify({'error': 'Cannot permanently delete an active asset. Please delete it first.'}), 400
+        
+        name = asset.asset_name
+        serial = asset.serial_number
+        category = asset.category
+        
+        # Delete invoice attachment file if exists
+        if asset.invoice_attachment:
+            success, error_msg = delete_invoice_file(asset.invoice_attachment)
+            if not success:
+                logger.warning(f"Failed to delete invoice file for asset {asset_id}: {error_msg}")
+        
+        # Create final audit log before permanent deletion
+        AuditService.log(
+            action_type='ASSET_PERMANENT_DELETE',
+            module='Asset',
+            asset_id=asset.id,
+            asset_name=name,
+            asset_serial=serial,
+            category=category,
+            performed_by=username,
+            remarks='Asset permanently deleted from archived assets'
+        )
+        
+        # Delete ALL related records first to avoid foreign key constraints
+        # 1. Delete lifecycle events
+        AssetLifecycle.query.filter_by(asset_id=asset_id).delete()
+        
+        # 2. Delete asset replacements where this asset is involved (old or new)
+        AssetReplacement.query.filter(
+            (AssetReplacement.old_asset_id == asset_id) | 
+            (AssetReplacement.new_asset_id == asset_id)
+        ).delete(synchronize_session=False)
+        
+        # 3. Delete temporary assignments where this asset is involved (original or temp)
+        TemporaryAssignment.query.filter(
+            (TemporaryAssignment.original_asset_id == asset_id) |
+            (TemporaryAssignment.temp_asset_id == asset_id)
+        ).delete(synchronize_session=False)
+        
+        # 4. Delete exit asset collection records
+        ExitAssetCollection.query.filter_by(asset_id=asset_id).delete()
+        
+        # 5. Delete onboarding asset assignments
+        OnboardingAssetAssignment.query.filter_by(asset_id=asset_id).delete()
+        
+        # Now permanently delete the asset
+        db.session.delete(asset)
+        log_activity('PERMANENT_DELETE', 'Asset', f'Permanently deleted asset: {name} [{serial}]', username)
+        db.session.commit()
+        
+        logger.info(f"Asset permanently deleted: {name} [{serial}] (ID: {asset_id}) by {username}")
+        
+        return jsonify({'success': True, 'message': 'Asset permanently deleted'}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error permanently deleting asset {asset_id}: {e}")
+        return jsonify({'error': f'Failed to permanently delete asset: {str(e)}'}), 500
+
+
+@app.route('/api/assets/deleted/bulk-permanent-delete', methods=['POST'])
+@admin_required
+def bulk_permanent_delete_assets():
+    """Permanently delete multiple archived assets at once"""
+    try:
+        from models import AssetLifecycle, AssetReplacement, TemporaryAssignment, ExitAssetCollection, OnboardingAssetAssignment
+        from utils.file_upload import delete_invoice_file
+        
+        data = request.get_json() or {}
+        asset_ids = data.get('asset_ids', [])
+        
+        if not asset_ids or not isinstance(asset_ids, list):
+            return jsonify({'error': 'asset_ids array is required'}), 400
+        
+        current_user = get_current_user()
+        username = current_user.get('username') if current_user else 'system'
+        
+        deleted_count = 0
+        failed_count = 0
+        errors = []
+        
+        for asset_id in asset_ids:
+            try:
+                asset = Asset.query.get(asset_id)
+                if not asset:
+                    errors.append(f"Asset {asset_id}: Not found")
+                    failed_count += 1
+                    continue
+                
+                # Security: Only allow permanent delete of already-deleted assets
+                if not asset.is_deleted:
+                    errors.append(f"Asset {asset_id} ({asset.asset_name}): Cannot delete active asset")
+                    failed_count += 1
+                    continue
+                
+                name = asset.asset_name
+                serial = asset.serial_number
+                
+                # Delete invoice file
+                if asset.invoice_attachment:
+                    delete_invoice_file(asset.invoice_attachment)
+                
+                # Delete related records
+                AssetLifecycle.query.filter_by(asset_id=asset_id).delete()
+                AssetReplacement.query.filter(
+                    (AssetReplacement.old_asset_id == asset_id) | 
+                    (AssetReplacement.new_asset_id == asset_id)
+                ).delete(synchronize_session=False)
+                TemporaryAssignment.query.filter(
+                    (TemporaryAssignment.original_asset_id == asset_id) |
+                    (TemporaryAssignment.temp_asset_id == asset_id)
+                ).delete(synchronize_session=False)
+                ExitAssetCollection.query.filter_by(asset_id=asset_id).delete()
+                OnboardingAssetAssignment.query.filter_by(asset_id=asset_id).delete()
+                
+                # Permanently delete
+                db.session.delete(asset)
+                deleted_count += 1
+                logger.info(f"Bulk permanent delete: {name} [{serial}] (ID: {asset_id})")
+                
+            except Exception as e:
+                errors.append(f"Asset {asset_id}: {str(e)}")
+                failed_count += 1
+                logger.error(f"Error in bulk permanent delete for asset {asset_id}: {e}")
+        
+        db.session.commit()
+        log_activity('BULK_PERMANENT_DELETE', 'Asset', f'Bulk permanently deleted {deleted_count} asset(s)', username)
+        
+        return jsonify({
+            'success': True,
+            'deleted': deleted_count,
+            'failed': failed_count,
+            'errors': errors if errors else None
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in bulk permanent delete: {e}")
+        return jsonify({'error': f'Failed to bulk permanently delete assets: {str(e)}'}), 500
+
 
     return jsonify({'success': True}), 200
 
@@ -1977,6 +2330,223 @@ def transfer_asset_operation():
         }), 500
 
 
+@app.route('/api/employee-asset-assignment', methods=['POST'])
+@non_viewer_required
+def employee_asset_assignment():
+    """
+    Transactional endpoint for employee asset assignment/replacement with accessories.
+    Handles: assign device, replace device, assign mouse, assign headphones.
+    Rolls back all operations if any fail.
+    """
+    data = request.get_json() or {}
+    current_user = get_current_user()
+    performed_by = current_user.get('username') if current_user else 'system'
+    
+    # Extract payload
+    employee_id = data.get('employee_id', '').strip()
+    action = data.get('action', '').strip().lower()  # 'assign' or 'replace'
+    primary_asset_id = data.get('primary_asset_id')
+    old_asset_id = data.get('old_asset_id')  # Required for replace action
+    accessory_asset_ids = data.get('accessory_asset_ids', [])  # List of asset IDs
+    reason = data.get('reason', '').strip() or 'Device assignment'
+    remarks = data.get('remarks', '').strip() or None
+    
+    # Validation
+    if not employee_id:
+        return jsonify({'error': 'employee_id is required'}), 400
+    if action not in ['assign', 'replace']:
+        return jsonify({'error': 'action must be "assign" or "replace"'}), 400
+    if not primary_asset_id:
+        return jsonify({'error': 'primary_asset_id is required'}), 400
+    if action == 'replace' and not old_asset_id:
+        return jsonify({'error': 'old_asset_id is required for replace action'}), 400
+    
+    try:
+        # Start transaction
+        # 1. Validate employee exists
+        employee = Employee.query.filter_by(emp_id=employee_id).first()
+        if not employee:
+            return jsonify({'error': f'Employee {employee_id} not found'}), 404
+        
+        # 2. Validate primary asset
+        primary_asset = Asset.query.get(primary_asset_id)
+        if not primary_asset:
+            return jsonify({'error': f'Primary asset {primary_asset_id} not found'}), 404
+        if primary_asset.status != 'Available':
+            return jsonify({'error': f'Primary asset {primary_asset.asset_name} is not available (status: {primary_asset.status})'}), 400
+        
+        # 3. Validate old asset if replacement
+        old_asset = None
+        if action == 'replace':
+            old_asset = Asset.query.get(old_asset_id)
+            if not old_asset:
+                return jsonify({'error': f'Old asset {old_asset_id} not found'}), 404
+            if old_asset.assigned_to != employee_id:
+                return jsonify({'error': f'Old asset {old_asset.asset_name} is not assigned to employee {employee_id}'}), 400
+        
+        # 4. Validate accessories
+        accessories = []
+        if accessory_asset_ids:
+            for acc_id in accessory_asset_ids:
+                acc = Asset.query.get(acc_id)
+                if not acc:
+                    return jsonify({'error': f'Accessory asset {acc_id} not found'}), 404
+                if acc.category not in ['Mouse', 'Headphones']:
+                    return jsonify({'error': f'Accessory {acc.asset_name} must be Mouse or Headphones (got {acc.category})'}), 400
+                if acc.status != 'Available':
+                    return jsonify({'error': f'Accessory {acc.asset_name} is not available (status: {acc.status})'}), 400
+                accessories.append(acc)
+        
+        # 5. Perform operations using existing services
+        assigned_assets = []
+        
+        # Handle replacement or assignment of primary device
+        if action == 'replace':
+            # Use OperationsService.transfer_asset for replacement
+            result = OperationsService.transfer_asset(
+                asset_id=primary_asset_id,
+                to_employee_id=employee_id,
+                reason=reason,
+                remarks=remarks,
+                performed_by=performed_by
+            )
+            
+            # Create replacement record
+            replacement = AssetReplacement(
+                employee_id=employee_id,
+                old_asset_id=old_asset_id,
+                new_asset_id=primary_asset_id,
+                replacement_date=datetime.utcnow(),
+                reason=reason,
+                remarks=remarks,
+                created_by=performed_by
+            )
+            db.session.add(replacement)
+            
+            # Update old asset status to Available
+            old_asset.status = 'Available'
+            old_asset.assigned_to = None
+            old_asset.assignment_date = None
+            
+            # Log lifecycle for old asset
+            LifecycleService.log_lifecycle(
+                asset_id=old_asset_id,
+                from_status='Assigned',
+                to_status='Available',
+                performed_by=performed_by,
+                remarks=f'Replaced with {primary_asset.asset_name} (ID: {primary_asset_id})'
+            )
+            
+            assigned_assets.append({
+                'asset_id': primary_asset_id,
+                'asset_name': primary_asset.asset_name,
+                'serial_number': primary_asset.serial_number,
+                'category': primary_asset.category,
+                'type': 'primary',
+                'action': 'replace'
+            })
+        else:
+            # Simple assignment
+            result = OperationsService.assign_asset(
+                asset_id=primary_asset_id,
+                employee_id=employee_id,
+                reason=reason,
+                remarks=remarks,
+                performed_by=performed_by
+            )
+            
+            assigned_assets.append({
+                'asset_id': primary_asset_id,
+                'asset_name': primary_asset.asset_name,
+                'serial_number': primary_asset.serial_number,
+                'category': primary_asset.category,
+                'type': 'primary',
+                'action': 'assign'
+            })
+        
+        # 6. Assign accessories
+        for acc in accessories:
+            acc_result = OperationsService.assign_asset(
+                asset_id=acc.id,
+                employee_id=employee_id,
+                reason=f'{acc.category} for {primary_asset.asset_name}',
+                remarks=remarks,
+                performed_by=performed_by
+            )
+            
+            assigned_assets.append({
+                'asset_id': acc.id,
+                'asset_name': acc.asset_name,
+                'serial_number': acc.serial_number,
+                'category': acc.category,
+                'type': 'accessory'
+            })
+        
+        # 7. Create comprehensive audit log
+        AuditService.log_activity(
+            action='EMPLOYEE_ASSET_ASSIGNMENT',
+            performed_by=performed_by,
+            details={
+                'employee_id': employee_id,
+                'employee_name': employee.employee_name,
+                'action': action,
+                'primary_asset': {
+                    'id': primary_asset_id,
+                    'name': primary_asset.asset_name,
+                    'serial': primary_asset.serial_number
+                },
+                'old_asset': {
+                    'id': old_asset_id,
+                    'name': old_asset.asset_name if old_asset else None,
+                    'serial': old_asset.serial_number if old_asset else None
+                } if action == 'replace' else None,
+                'accessories': [
+                    {
+                        'id': acc.id,
+                        'name': acc.asset_name,
+                        'category': acc.category
+                    } for acc in accessories
+                ],
+                'reason': reason,
+                'remarks': remarks
+            }
+        )
+        
+        # 8. Commit transaction
+        db.session.commit()
+        
+        logger.info(f"Employee asset assignment completed: {employee_id}, action={action}, primary={primary_asset_id}, accessories={len(accessories)}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Asset assignment completed successfully',
+            'employee': {
+                'employee_id': employee_id,
+                'name': employee.employee_name,
+                'email': employee.email,
+                'department': employee.department
+            },
+            'assigned_assets': assigned_assets,
+            'action': action
+        }), 200
+        
+    except OperationError as e:
+        db.session.rollback()
+        logger.error(f"Operation error in employee asset assignment: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 400
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Unexpected error in employee asset assignment: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Internal server error',
+            'details': str(e)
+        }), 500
+
+
 @app.route('/api/operations/send-for-repair', methods=['POST'])
 @non_viewer_required
 def send_for_repair_operation():
@@ -2138,88 +2708,262 @@ def get_asset_repairs(asset_id):
 
 @app.route('/api/assets/template', methods=['GET'])
 def download_asset_template():
-    """Download Excel template for bulk asset import"""
+    """Download unified Excel template for bulk asset import (all categories)"""
     try:
-        import openpyxl
-        from openpyxl.styles import Font, PatternFill
-        from io import BytesIO
-        
-        # Create workbook
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = "Assets"
-        
-        # Define headers - matching user's Excel format exactly
-        headers = [
-            'Sl no.', 'EMP ID', 'EMPLOYEE NAME', 'MOBILE NUMBER', 'Asset NAME',
-            'CATEGORY', 'SERIAL NUMBER', 'MODEL NAME', 'OS', 'Version', 'Ram',
-            'LOCATION', 'INVOICE NUMBER', 'INVOICE DATE', 'WARRANTY DATE',
-            'Charger Serial Number', 'Old User', 'Date', 'Old Device', 'Comments'
-        ]
-        
-        # Style header row
-        header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
-        header_font = Font(color='FFFFFF', bold=True)
-        
-        for col_num, header in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col_num)
-            cell.value = header
-            cell.fill = header_fill
-            cell.font = header_font
-        
-        # Add sample data rows matching user's format
-        sample_data = [
-            ['1', 'EMP001', 'John Doe', '1234567890', 'Dell Laptop XPS 15',
-             'Laptop', 'SN-DELL-001', 'XPS 15 9500', 'Windows', '11', '16GB',
-             'HQ Office', 'INV-001', '2024-01-15', '2027-01-15',
-             'CHG-001', '', '2024-01-15', '', 'Primary work laptop'],
-            ['2', '', '', '', 'HP Monitor 27"',
-             'Monitor', 'SN-MON-002', 'HP E27', '', '', '',
-             'HQ Office', 'INV-002', '2024-02-20', '2027-02-20',
-             '', '', '2024-02-20', '', 'External display']
-        ]
-        
-        for row_num, row_data in enumerate(sample_data, 2):
-            for col_num, value in enumerate(row_data, 1):
-                ws.cell(row=row_num, column=col_num, value=value)
-        
-        # Adjust column widths
-        for col in ws.columns:
-            max_length = 0
-            column = col[0].column_letter
-            for cell in col:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(cell.value)
-                except:
-                    pass
-            adjusted_width = min(max_length + 2, 30)
-            ws.column_dimensions[column].width = adjusted_width
-        
-        # Save to BytesIO
-        output = BytesIO()
-        wb.save(output)
-        output.seek(0)
-        
+        from unified_import_template import generate_unified_template
         from flask import send_file
+        
+        # Generate unified template
+        output = generate_unified_template()
+        
         return send_file(
             output,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             as_attachment=True,
-            download_name='asset_import_template.xlsx'
+            download_name='Asset_Import_Template_Unified.xlsx'
         )
-    except ImportError:
+    except ImportError as e:
+        logger.error(f"Import error: {e}")
         return jsonify({
-            'error': 'openpyxl library not installed. Please install it: pip install openpyxl'
+            'error': 'Required library not installed. Please install openpyxl: pip install openpyxl'
         }), 500
     except Exception as e:
-        logger.error(f"Error generating template: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error generating unified template: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to generate template: {str(e)}'}), 500
+
+@app.route('/api/assets/detect-category', methods=['POST'])
+@token_required
+def detect_asset_category():
+    """
+    DEPRECATED - kept for backward compatibility.
+    Use /api/assets/import/preview instead.
+    
+    Preview and validate uploaded Excel file with mixed categories.
+    """
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Only accept .xlsx files (openpyxl doesn't support .xls reliably)
+        if not file.filename.endswith('.xlsx'):
+            return jsonify({
+                'error': 'Invalid file format',
+                'details': 'Please upload an Excel file with .xlsx extension',
+                'suggestion': 'If you have an .xls file, please save it as .xlsx in Excel and try again'
+            }), 400
+        
+        from unified_import_processor import validate_and_parse_excel
+        
+        # Validate and parse
+        result = validate_and_parse_excel(file.stream)
+        
+        if not result['success']:
+            return jsonify({
+                'error': 'Validation failed',
+                'details': '; '.join(result['errors']),
+                'suggestion': 'Please check your Excel file and ensure it matches the unified template'
+            }), 400
+        
+        # Return preview data
+        return jsonify({
+            'success': True,
+            'total_rows': result['total_rows'],
+            'valid_rows': result['valid_rows'],
+            'invalid_rows': result['invalid_rows'],
+            'category_counts': result['category_counts'],
+            'detected_categories': list(result['category_counts'].keys()),
+            'validation': {
+                'template_recognized': True,
+                'has_valid_rows': result['valid_rows'] > 0,
+                'has_invalid_rows': result['invalid_rows'] > 0,
+                'categories_detected': len(result['category_counts'])
+            },
+            'warnings': result['warnings'],
+            'preview_rows': [
+                {
+                    'row_number': row['row_number'],
+                    'category': row['category'],
+                    'asset_name': row['data'].get('ASSET NAME', row['data'].get('ICCID', 'N/A')),
+                    'serial_or_iccid': row['data'].get('SERIAL NUMBER', row['data'].get('ICCID', 'N/A')),
+                    'is_valid': row['is_valid'],
+                    'errors': row['errors'],
+                    'warnings': row['warnings']
+                }
+                for row in result['rows'][:20]  # Preview first 20 rows
+            ]
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"[Category Detection] Error: {str(e)}", exc_info=True)
+        return jsonify({
+            'error': 'Failed to process Excel file',
+            'details': str(e)
+        }), 500
+
+
+@app.route('/api/assets/import/preview', methods=['POST'])
+@token_required
+def preview_asset_import():
+    """
+    Preview and validate uploaded Excel file before import.
+    Returns detailed validation results with category breakdown.
+    """
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Only accept .xlsx files
+        if not file.filename.endswith('.xlsx'):
+            return jsonify({
+                'error': 'Invalid file format',
+                'details': 'Please upload an Excel file with .xlsx extension',
+                'suggestion': 'If you have an .xls file, save it as .xlsx in Excel and try again'
+            }), 400
+        
+        from unified_import_processor import validate_and_parse_excel
+        
+        # Validate and parse
+        result = validate_and_parse_excel(file.stream)
+        
+        if not result['success']:
+            return jsonify({
+                'success': False,
+                'error': 'File validation failed',
+                'errors': result['errors']
+            }), 400
+        
+        # Prepare detailed response
+        response = {
+            'success': True,
+            'total_rows': result['total_rows'],
+            'valid_rows': result['valid_rows'],
+            'invalid_rows': result['invalid_rows'],
+            'category_counts': result['category_counts'],
+            'detected_categories': list(result['category_counts'].keys()),
+            'warnings': result['warnings'],
+            'errors': result['errors'],
+            'can_import': result['invalid_rows'] == 0,
+            'preview_rows': []
+        }
+        
+        # Add preview of rows (first 20)
+        for row in result['rows'][:20]:
+            response['preview_rows'].append({
+                'row_number': row['row_number'],
+                'category': row['category'],
+                'asset_name': row['data'].get('Asset NAME', row['data'].get('ICCID', 'N/A')),
+                'serial_or_iccid': row['data'].get('SERIAL NUMBER', row['data'].get('ICCID', 'N/A')),
+                'employee': row['data'].get('EMPLOYEE NAME', ''),
+                'is_valid': row['is_valid'],
+                'errors': row['errors'],
+                'warnings': row['warnings']
+            })
+        
+        # Add error details for invalid rows
+        if result['invalid_rows'] > 0:
+            error_details = []
+            for row in result['rows']:
+                if not row['is_valid']:
+                    for error in row['errors']:
+                        error_details.append(f"Row {row['row_number']}: {error}")
+            response['error_details'] = error_details[:50]  # Limit to 50
+        
+        return jsonify(response), 200
+        
+    except Exception as e:
+        logger.error(f"[Import Preview] Error: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': 'Failed to process Excel file',
+            'details': str(e)
+        }), 500
+
 
 @app.route('/api/assets/import', methods=['POST'])
 @token_required
 def import_assets():
-    """Bulk import assets from Excel file"""
+    """
+    Import assets from unified Excel file.
+    Supports mixed categories in same file.
+    Each row routes to correct table based on CATEGORY column.
+    """
+    try:
+        logger.info(f"[Unified Import] Starting import, request.files keys: {list(request.files.keys())}")
+        
+        if 'file' not in request.files:
+            logger.error("[Unified Import] No 'file' key in request.files")
+            return jsonify({'error': 'No file uploaded'}), 400
+        
+        file = request.files['file']
+        logger.info(f"[Unified Import] File received: {file.filename}")
+        
+        if file.filename == '':
+            logger.error("[Unified Import] Empty filename")
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Only accept .xlsx files
+        if not file.filename.endswith('.xlsx'):
+            logger.error(f"[Unified Import] Invalid file extension: {file.filename}")
+            return jsonify({
+                'error': 'Invalid file format',
+                'details': 'Please upload an Excel file with .xlsx extension',
+                'suggestion': 'If you have an .xls file, save it as .xlsx in Excel and try again'
+            }), 400
+        
+        current_user = get_current_user()
+        current_username = current_user.get('username') if current_user else 'system'
+        
+        from unified_import_processor import import_unified_excel
+        
+        # Import using unified processor
+        result = import_unified_excel(file.stream, db, current_username)
+        
+        if not result['success']:
+            return jsonify({
+                'success': False,
+                'error': result['message'],
+                'error_details': result['errors']
+            }), 400
+        
+        logger.info(f"[Unified Import] Import completed - {result['message']}")
+        
+        return jsonify({
+            'success': True,
+            'message': result['message'],
+            'imported': result['imported'],
+            'failed': result['failed'],
+            'skipped': result['skipped'],
+            'category_breakdown': result['category_breakdown'],
+            'errors': result['errors']
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"[Unified Import] Unexpected error: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': f'Import failed: {str(e)}'
+        }), 500
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LEGACY IMPORT ENDPOINT (Deprecated but kept for compatibility)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/assets/import/legacy', methods=['POST'])
+@token_required
+def import_assets_legacy():
+    """Bulk import assets from Excel file (LEGACY - single category only)"""
     try:
         import openpyxl
         from datetime import datetime
@@ -3158,6 +3902,221 @@ def disable_employee(emp_id):
         return jsonify({'error': str(e)}), 400
 
 
+@app.route('/api/employees/<emp_id>', methods=['DELETE'])
+@admin_required
+def delete_employee(emp_id):
+    """Delete employee - Business Rules: Only if Inactive/Exited AND no assets"""
+    from models import Employee
+    
+    employee = Employee.query.filter_by(emp_id=emp_id).first()
+    if not employee:
+        return jsonify({'error': 'Employee not found'}), 404
+    
+    # Business rule: Cannot delete if status is Active
+    if employee.status == 'Active':
+        return jsonify({'error': 'Cannot delete active employee. Please deactivate first.'}), 400
+    
+    # Business rule: Cannot delete if employee has assigned assets
+    asset_count = Asset.query.filter_by(emp_id=emp_id).count()
+    if asset_count > 0:
+        return jsonify({'error': f'Cannot delete employee with {asset_count} assigned asset(s). Please return all assets first.'}), 400
+    
+    current_user = get_current_user()
+    employee_name = employee.employee_name
+    
+    try:
+        db.session.delete(employee)
+        log_activity('DELETE', 'Employee', f'Deleted employee: {employee_name} [{emp_id}]', current_user)
+        db.session.commit()
+        logger.info(f"Employee deleted: {emp_id} by {current_user.get('username') if current_user else 'system'}")
+        return jsonify({'success': True, 'message': 'Employee deleted successfully'}), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting employee {emp_id}: {e}")
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/api/employees/bulk-deactivate', methods=['POST'])
+@admin_required
+def bulk_deactivate_employees():
+    """Bulk deactivate employees - Change Active to Inactive"""
+    from models import Employee
+    
+    data = request.get_json() or {}
+    emp_ids = data.get('emp_ids', [])
+    
+    if not emp_ids or not isinstance(emp_ids, list):
+        return jsonify({'error': 'emp_ids array is required'}), 400
+    
+    current_user = get_current_user()
+    current_username = current_user.get('username') if current_user else 'system'
+    
+    results = {
+        'success': [],
+        'skipped': [],
+        'failed': []
+    }
+    
+    for emp_id in emp_ids:
+        try:
+            employee = Employee.query.filter_by(emp_id=emp_id).first()
+            if not employee:
+                results['failed'].append({'emp_id': emp_id, 'reason': 'Employee not found'})
+                continue
+            
+            # Skip if already Inactive or Exited
+            if employee.status in ['Inactive', 'Exited']:
+                results['skipped'].append({'emp_id': emp_id, 'name': employee.employee_name, 'reason': f'Already {employee.status}'})
+                continue
+            
+            # Deactivate: Active → Inactive
+            employee.status = 'Inactive'
+            employee.is_active = False
+            employee.updated_at = datetime.utcnow()
+            
+            log_activity('DEACTIVATE', 'Employee', f'Bulk deactivated employee: {employee.employee_name} [{emp_id}]', current_username)
+            results['success'].append({'emp_id': emp_id, 'name': employee.employee_name})
+            
+        except Exception as e:
+            logger.error(f"Error deactivating employee {emp_id}: {e}")
+            results['failed'].append({'emp_id': emp_id, 'reason': str(e)})
+    
+    try:
+        db.session.commit()
+        logger.info(f"Bulk deactivate: {len(results['success'])} success, {len(results['skipped'])} skipped, {len(results['failed'])} failed by {current_username}")
+        return jsonify({
+            'success': True,
+            'message': f"Deactivated {len(results['success'])} employee(s)",
+            'results': results
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error committing bulk deactivate: {e}")
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+
+
+@app.route('/api/employees/bulk-activate', methods=['POST'])
+@admin_required
+def bulk_activate_employees():
+    """Bulk activate employees - Change Inactive/Exited to Active"""
+    from models import Employee
+    
+    data = request.get_json() or {}
+    emp_ids = data.get('emp_ids', [])
+    
+    if not emp_ids or not isinstance(emp_ids, list):
+        return jsonify({'error': 'emp_ids array is required'}), 400
+    
+    current_user = get_current_user()
+    current_username = current_user.get('username') if current_user else 'system'
+    
+    results = {
+        'success': [],
+        'skipped': [],
+        'failed': []
+    }
+    
+    for emp_id in emp_ids:
+        try:
+            employee = Employee.query.filter_by(emp_id=emp_id).first()
+            if not employee:
+                results['failed'].append({'emp_id': emp_id, 'reason': 'Employee not found'})
+                continue
+            
+            # Skip if already Active
+            if employee.status == 'Active':
+                results['skipped'].append({'emp_id': emp_id, 'name': employee.employee_name, 'reason': 'Already Active'})
+                continue
+            
+            # Activate: Inactive/Exited → Active
+            employee.status = 'Active'
+            employee.is_active = True
+            employee.updated_at = datetime.utcnow()
+            
+            log_activity('ACTIVATE', 'Employee', f'Bulk activated employee: {employee.employee_name} [{emp_id}]', current_username)
+            results['success'].append({'emp_id': emp_id, 'name': employee.employee_name})
+            
+        except Exception as e:
+            logger.error(f"Error activating employee {emp_id}: {e}")
+            results['failed'].append({'emp_id': emp_id, 'reason': str(e)})
+    
+    try:
+        db.session.commit()
+        logger.info(f"Bulk activate: {len(results['success'])} success, {len(results['skipped'])} skipped, {len(results['failed'])} failed by {current_username}")
+        return jsonify({
+            'success': True,
+            'message': f"Activated {len(results['success'])} employee(s)",
+            'results': results
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error committing bulk activate: {e}")
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+
+
+@app.route('/api/employees/bulk-delete', methods=['POST'])
+@admin_required
+def bulk_delete_employees():
+    """Bulk delete employees - Business Rules: Only if Inactive/Exited AND no assets"""
+    from models import Employee
+    
+    data = request.get_json() or {}
+    emp_ids = data.get('emp_ids', [])
+    
+    if not emp_ids or not isinstance(emp_ids, list):
+        return jsonify({'error': 'emp_ids array is required'}), 400
+    
+    current_user = get_current_user()
+    current_username = current_user.get('username') if current_user else 'system'
+    
+    results = {
+        'success': [],
+        'skipped': [],
+        'failed': []
+    }
+    
+    for emp_id in emp_ids:
+        try:
+            employee = Employee.query.filter_by(emp_id=emp_id).first()
+            if not employee:
+                results['failed'].append({'emp_id': emp_id, 'reason': 'Employee not found'})
+                continue
+            
+            # Business rule: Cannot delete if status is Active
+            if employee.status == 'Active':
+                results['failed'].append({'emp_id': emp_id, 'name': employee.employee_name, 'reason': 'Cannot delete active employee'})
+                continue
+            
+            # Business rule: Cannot delete if employee has assigned assets
+            asset_count = Asset.query.filter_by(emp_id=emp_id).count()
+            if asset_count > 0:
+                results['failed'].append({'emp_id': emp_id, 'name': employee.employee_name, 'reason': f'Has {asset_count} assigned asset(s)'})
+                continue
+            
+            # All checks passed - delete employee
+            employee_name = employee.employee_name
+            db.session.delete(employee)
+            log_activity('DELETE', 'Employee', f'Bulk deleted employee: {employee_name} [{emp_id}]', current_username)
+            results['success'].append({'emp_id': emp_id, 'name': employee_name})
+            
+        except Exception as e:
+            logger.error(f"Error deleting employee {emp_id}: {e}")
+            results['failed'].append({'emp_id': emp_id, 'reason': str(e)})
+    
+    try:
+        db.session.commit()
+        logger.info(f"Bulk delete: {len(results['success'])} success, {len(results['skipped'])} skipped, {len(results['failed'])} failed by {current_username}")
+        return jsonify({
+            'success': True,
+            'message': f"Deleted {len(results['success'])} employee(s)",
+            'results': results
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error committing bulk delete: {e}")
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+
+
 @app.route('/api/employees/bulk-import', methods=['POST'])
 @admin_required
 def bulk_import_employees():
@@ -3865,6 +4824,392 @@ def generate_bulk_assignment_forms():
         return jsonify({'error': str(e)}), 500
 
 # ══════════════════════════════════════════════════════════════════════════════
+# PART REPLACEMENT
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/part-replacements', methods=['GET'])
+@token_required
+def get_part_replacements():
+    """Get all part replacements with optional filters"""
+    from models import AssetPartReplacement
+    
+    asset_id = request.args.get('asset_id', type=int)
+    component = request.args.get('component', '').strip()
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    
+    query = AssetPartReplacement.query
+    
+    if asset_id:
+        query = query.filter_by(asset_id=asset_id)
+    
+    if component:
+        query = query.filter(AssetPartReplacement.component_name.ilike(f'%{component}%'))
+    
+    if date_from:
+        query = query.filter(AssetPartReplacement.replacement_date >= date_from)
+    
+    if date_to:
+        query = query.filter(AssetPartReplacement.replacement_date <= date_to)
+    
+    total = query.count()
+    replacements = query.order_by(AssetPartReplacement.created_at.desc())\
+                       .offset((page - 1) * per_page)\
+                       .limit(per_page)\
+                       .all()
+    
+    return jsonify({
+        'success': True,
+        'replacements': [r.to_dict() for r in replacements],
+        'total': total,
+        'page': page,
+        'pages': (total + per_page - 1) // per_page if total > 0 else 0
+    }), 200
+
+
+@app.route('/api/part-replacements', methods=['POST'])
+@token_required
+def create_part_replacement():
+    """Create a new part replacement record"""
+    from models import AssetPartReplacement, Asset, AssetLifecycle, AuditLog
+    
+    data = request.get_json() or {}
+    current_user = get_current_user()
+    current_username = current_user.get('username') if current_user else 'system'
+    
+    # Validate required fields
+    required_fields = ['asset_id', 'component_name', 'replacement_reason', 'replacement_date']
+    missing_fields = [f for f in required_fields if not data.get(f)]
+    
+    if missing_fields:
+        return jsonify({'error': f'Missing required fields: {", ".join(missing_fields)}'}), 400
+    
+    # Get asset
+    asset = Asset.query.get(data['asset_id'])
+    if not asset:
+        return jsonify({'error': 'Asset not found'}), 404
+    
+    # Get component name (support for 'Other' with custom name) - FIX: Handle None values
+    component_name = data.get('component_name')
+    custom_component_name = data.get('custom_component_name')
+    if custom_component_name is not None and isinstance(custom_component_name, str):
+        custom_component_name = custom_component_name.strip()
+    else:
+        custom_component_name = ''
+    
+    if component_name == 'Other' and not custom_component_name:
+        return jsonify({'error': 'custom_component_name is required when component_name is Other'}), 400
+    
+    # Get replacement reason (support for 'Other' with custom reason) - FIX: Handle None values
+    replacement_reason = data.get('replacement_reason')
+    custom_reason = data.get('custom_reason')
+    if custom_reason is not None and isinstance(custom_reason, str):
+        custom_reason = custom_reason.strip()
+    else:
+        custom_reason = ''
+    
+    if replacement_reason == 'Other' and not custom_reason:
+        return jsonify({'error': 'custom_reason is required when replacement_reason is Other'}), 400
+    
+    # Handle part source and donor asset - FIX: Handle None values
+    part_source = data.get('part_source')
+    if part_source is not None and isinstance(part_source, str):
+        part_source = part_source.strip()
+    else:
+        part_source = ''
+        
+    source_asset_id = data.get('source_asset_id')
+    source_asset = None
+    
+    # Validate donor asset if specified
+    if part_source == 'From Available Spare Asset':
+        if not source_asset_id:
+            return jsonify({'error': 'source_asset_id is required when part_source is "From Available Spare Asset"'}), 400
+        
+        source_asset = Asset.query.get(source_asset_id)
+        if not source_asset:
+            return jsonify({'error': 'Source asset not found'}), 404
+        
+        if source_asset.id == asset.id:
+            return jsonify({'error': 'Source asset cannot be the same as target asset'}), 400
+        
+        if source_asset.status != 'Available':
+            return jsonify({'error': f'Source asset must be Available (current status: {source_asset.status})'}), 400
+    
+    # NEW PART SERIAL IS OPTIONAL - Component identification exists through component_name
+    # This is valid: Screen replacement from donor laptop without new part serial
+    
+    # Parse replacement date using IST timezone utilities
+    from utils.timezone_utils import get_ist_today, validate_date_not_future, parse_date_safe
+    
+    replacement_date_str = data.get('replacement_date')
+    replacement_date = parse_date_safe(replacement_date_str)
+    
+    if not replacement_date:
+        return jsonify({'error': 'Invalid replacement_date format. Expected YYYY-MM-DD'}), 400
+    
+    # Validate replacement date is not in future (IST)
+    is_valid, error_msg = validate_date_not_future(replacement_date, 'Replacement date')
+    if not is_valid:
+        return jsonify({'error': error_msg}), 400
+    
+    # Parse warranty expiry if provided
+    warranty_expiry = None
+    if data.get('warranty_expiry'):
+        warranty_expiry = parse_date_safe(data.get('warranty_expiry'))
+        if not warranty_expiry:
+            return jsonify({'error': 'Invalid warranty_expiry format'}), 400
+    
+    # Helper function to safely get and strip string values
+    def safe_strip(value):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped if stripped else None
+        return None
+    
+    # Create part replacement record
+    try:
+        replacement = AssetPartReplacement(
+            asset_id=asset.id,
+            component_name=component_name,
+            custom_component_name=custom_component_name if component_name == 'Other' and custom_component_name else None,
+            replacement_reason=replacement_reason,
+            custom_reason=custom_reason if replacement_reason == 'Other' and custom_reason else None,
+            replacement_date=replacement_date,
+            part_source=part_source if part_source else None,
+            source_asset_id=source_asset.id if source_asset else None,
+            source_asset_serial=source_asset.serial_number if source_asset else None,
+            source_asset_name=source_asset.asset_name if source_asset else None,
+            source_asset_model=source_asset.model_name if source_asset else None,
+            old_part_serial=safe_strip(data.get('old_part_serial')),
+            old_part_number=safe_strip(data.get('old_part_number')),
+            old_manufacturer=safe_strip(data.get('old_manufacturer')),
+            old_condition=safe_strip(data.get('old_condition')),
+            old_part_remarks=safe_strip(data.get('old_part_remarks')),
+            new_part_serial=safe_strip(data.get('new_part_serial')),
+            new_part_number=safe_strip(data.get('new_part_number')),
+            new_manufacturer=safe_strip(data.get('new_manufacturer')),
+            vendor=safe_strip(data.get('vendor')),
+            invoice_number=safe_strip(data.get('invoice_number')),
+            replacement_cost=float(data.get('replacement_cost', 0)) if data.get('replacement_cost') else 0.0,
+            warranty_expiry=warranty_expiry,
+            installed_by=safe_strip(data.get('installed_by')),
+            remarks=safe_strip(data.get('remarks')),
+            performed_by=current_username,
+            performed_by_role=current_user.get('role') if current_user else None,
+            ip_address=request.remote_addr
+        )
+        
+        db.session.add(replacement)
+        
+        # Create lifecycle event
+        display_component = custom_component_name if component_name == 'Other' else component_name
+        display_reason = custom_reason if replacement_reason == 'Other' else replacement_reason
+        
+        lifecycle_remarks = f"Replaced {display_component}. Reason: {display_reason}"
+        if source_asset:
+            lifecycle_remarks += f" | Part source: {source_asset.asset_name} (SN: {source_asset.serial_number})"
+        
+        lifecycle = AssetLifecycle(
+            asset_id=asset.id,
+            event_type='PART_REPLACED',
+            event_date=replacement_date,
+            to_employee=asset.employee_name or None,
+            to_employee_id=asset.emp_id or None,
+            to_status=asset.status,
+            from_status=asset.status,
+            reason=display_reason,
+            location=asset.location,
+            performed_by=current_username,
+            remarks=lifecycle_remarks
+        )
+        db.session.add(lifecycle)
+        
+        # Create audit log
+        audit_details = f"Component: {display_component}, Old: {data.get('old_part_serial') or 'N/A'}, New: {data.get('new_part_serial') or 'N/A'}"
+        if source_asset:
+            audit_details += f", Source: {source_asset.serial_number}"
+        
+        log_activity(
+            'PART_REPLACED',
+            'Asset',
+            audit_details,
+            current_username,
+            asset_id=asset.id,
+            asset_serial=asset.serial_number,
+            category=asset.category,
+            employee_id=asset.emp_id,
+            employee_name=asset.employee_name
+        )
+        
+        db.session.commit()
+        
+        logger.info(f"Part replacement created: Asset {asset.id}, Component: {display_component}, Performed by: {current_username}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'{display_component} replaced successfully',
+            'replacement': replacement.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating part replacement: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to create part replacement: {str(e)}'}), 500
+
+
+@app.route('/api/part-replacements/<int:replacement_id>', methods=['GET'])
+@token_required
+def get_part_replacement_detail(replacement_id):
+    """Get details of a specific part replacement"""
+    from models import AssetPartReplacement
+    
+    replacement = AssetPartReplacement.query.get_or_404(replacement_id)
+    
+    return jsonify({
+        'success': True,
+        'replacement': replacement.to_dict()
+    }), 200
+
+
+@app.route('/api/part-replacements/<int:replacement_id>', methods=['DELETE'])
+@token_required
+def delete_part_replacement(replacement_id):
+    """Delete a part replacement record"""
+    from models import AssetPartReplacement
+    
+    replacement = AssetPartReplacement.query.get_or_404(replacement_id)
+    current_user = get_current_user()
+    current_username = current_user.get('username') if current_user else 'system'
+    
+    try:
+        component_name = replacement.custom_component_name if replacement.component_name == 'Other' else replacement.component_name
+        asset_id = replacement.asset_id
+        
+        db.session.delete(replacement)
+        
+        log_activity(
+            'DELETE',
+            'AssetPartReplacement',
+            f'Deleted {component_name} replacement record for asset {asset_id}',
+            current_username
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Part replacement record deleted successfully'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting part replacement: {e}")
+        return jsonify({'error': f'Failed to delete part replacement: {str(e)}'}), 500
+
+
+@app.route('/api/assets/<int:asset_id>/part-replacements', methods=['GET'])
+@token_required
+def get_asset_part_replacements(asset_id):
+    """Get all part replacements for a specific asset"""
+    from models import AssetPartReplacement, Asset
+    
+    asset = Asset.query.get_or_404(asset_id)
+    
+    replacements = AssetPartReplacement.query.filter_by(asset_id=asset_id)\
+                                              .order_by(AssetPartReplacement.replacement_date.desc())\
+                                              .all()
+    
+    return jsonify({
+        'success': True,
+        'asset': {
+            'id': asset.id,
+            'asset_name': asset.asset_name,
+            'serial_number': asset.serial_number,
+            'category': asset.category
+        },
+        'replacements': [r.to_dict() for r in replacements],
+        'total': len(replacements)
+    }), 200
+
+
+@app.route('/api/part-replacements/components/<category>', methods=['GET'])
+@token_required
+def get_component_options(category):
+    """Get available component options for a specific asset category"""
+    
+    # Comprehensive component list based on category
+    components = {
+        'Laptop': [
+            'Battery', 'RAM', 'SSD', 'HDD', 'Keyboard', 'Screen / Display', 
+            'Touchpad', 'Trackpad', 'Charging Port / DC Jack', 'Speaker', 
+            'Webcam', 'Microphone', 'Wi-Fi Card', 'Bluetooth Module', 
+            'Motherboard', 'Processor', 'Cooling Fan', 'Heatsink', 
+            'Palm Rest', 'Top Cover / Body', 'Bottom Cover', 'Hinges', 
+            'Display Cable', 'Power Button', 'USB Port', 'HDMI Port', 
+            'Charger', 'Power Adapter', 'Other'
+        ],
+        'Desktop': [
+            'RAM', 'SSD', 'HDD', 'Motherboard', 'Processor', 'Graphics Card', 
+            'Power Supply', 'Cooling Fan', 'Heatsink', 'CMOS Battery', 
+            'USB Port', 'HDMI Port', 'VGA Port', 'Audio Jack', 'Ethernet Port', 
+            'Case / Body', 'Power Button', 'Other'
+        ],
+        'Monitor': [
+            'Power Cable', 'Power Board', 'Display Panel', 'HDMI Cable', 
+            'VGA Cable', 'Stand', 'Buttons', 'Other'
+        ],
+        'Printer': [
+            'Toner Cartridge', 'Drum Unit', 'Fuser Unit', 'Transfer Belt', 
+            'Paper Tray', 'Power Cable', 'USB Cable', 'Network Cable', 'Other'
+        ],
+        'Phone': [
+            'Battery', 'Charger', 'USB Cable', 'Screen Protector', 
+            'Phone Case', 'SIM Tray', 'Other'
+        ],
+        'Server': [
+            'RAM', 'HDD', 'SSD', 'Power Supply', 'Cooling Fan', 
+            'Network Card', 'RAID Controller', 'Other'
+        ],
+        'Mouse': [
+            'Battery', 'USB Cable', 'USB Receiver', 'Mouse Buttons', 'Scroll Wheel', 'Other'
+        ],
+        'Headphones': [
+            'Ear Cushions', 'Headband', 'Cable', 'USB Adapter', 'Battery', 'Other'
+        ],
+        'Hard Disk': [
+            'USB Cable', 'Power Adapter', 'Enclosure', 'Other'
+        ],
+        'Laptop Bag': [
+            'Strap', 'Zipper', 'Padding', 'Other'
+        ],
+        'Corporate SIM': [
+            'SIM Card', 'SIM Tray', 'PUK Code Document', 'Other'
+        ]
+    }
+    
+    # Generic components for Other category
+    generic_components = [
+        'Charger', 'Power Adapter', 'Cable', 'Battery', 
+        'Accessory', 'Part', 'Component', 'Other'
+    ]
+    
+    category_components = components.get(category, generic_components)
+    
+    return jsonify({
+        'success': True,
+        'category': category,
+        'components': category_components
+    }), 200
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # GLOBAL SEARCH
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -4177,7 +5522,7 @@ def create_asset_replacement():
     db.session.add(replacement)
     
     # Update asset statuses
-    old_asset.status = 'Retired'
+    old_asset.status = 'Available'
     old_asset.emp_id = ''
     old_asset.employee_name = ''
     

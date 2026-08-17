@@ -571,9 +571,9 @@ class InventoryValidator:
         # 5. Validate category
         if data.get('category'):
             valid_categories = [
-                'Laptop', 'CPU', 'Phone', 'Monitor', 'Printer', 
+                'Corporate SIM', 'Laptop', 'Desktop', 'Phone', 'Monitor', 'Printer', 
                 'Keyboard', 'Mouse', 'Headset', 'Dock', 'Server', 
-                'Accessories', 'Hard Disk', 'UPS', 'Laptop Bag', 'SIM Card', 'Headphones'
+                'Accessories', 'Hard Disk', 'Laptop Bag', 'SIM Card', 'Headphones'
             ]
             if data['category'] not in valid_categories:
                 result['warnings'].append(f"Category '{data['category']}' is not in standard list")
@@ -622,11 +622,31 @@ class InventoryValidator:
         
         # 3. Validate employee exists if provided
         emp_id = data.get('emp_id', asset.emp_id) if 'emp_id' in data else asset.emp_id
+        emp_name = data.get('employee_name', asset.employee_name) if 'employee_name' in data else asset.employee_name
+        
+        # Validate by emp_id if provided
         if emp_id and emp_id.strip():
             is_valid, error, employee = InventoryValidator.validate_employee_exists(emp_id.strip())
             if not is_valid:
                 result['valid'] = False
                 result['errors'].append(error)
+        # Validate by employee_name if emp_id not provided but name is
+        elif emp_name and emp_name.strip():
+            # If employee_name is provided without emp_id, verify it exists in Employee Master
+            emp_name_clean = emp_name.strip()
+            employee = Employee.query.filter_by(employee_name=emp_name_clean).first()
+            if not employee:
+                result['valid'] = False
+                result['errors'].append(
+                    f"Employee '{emp_name_clean}' does not exist in Employee Master. "
+                    f"Please select a valid employee or leave the employee field empty if the asset is unassigned."
+                )
+            elif not employee.is_active or employee.status != 'Active':
+                result['valid'] = False
+                result['errors'].append(
+                    f"Employee '{emp_name_clean}' is not active (Status: {employee.status}). "
+                    f"Please select an active employee."
+                )
         
         # 4. Get final state (after update would be applied)
         final_emp_id = data.get('emp_id', asset.emp_id) if 'emp_id' in data else asset.emp_id

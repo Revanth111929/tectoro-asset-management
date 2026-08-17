@@ -1,6 +1,7 @@
-// Dashboard.js – Main dashboard with live stats, charts, and recent activity
+// Dashboard.js – Redesigned to match reference structure
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { NavButton } from '../components/NavButton';
+import { useNavigate } from 'react-router-dom';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import { dashboardAPI } from '../services/api';
@@ -8,62 +9,76 @@ import { formatDateTime } from '../utils/dateUtils';
 import { canPerform } from '../utils/permissions';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
-
-// Canvas-rendered chart text doesn't inherit CSS font-family, so it's set
-// explicitly here to keep chart labels/legend/tooltips consistent with Inter
-// used across the rest of the app.
 ChartJS.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
 function Dashboard() {
   const navigate = useNavigate();
-  const [stats, setStats]       = useState(null);
+  const [stats, setStats] = useState(null);
   const [lifecycleStats, setLifecycleStats] = useState(null);
   const [activity, setActivity] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    Promise.all([
-      dashboardAPI.getStats(), 
-      dashboardAPI.getActivity(),
-      dashboardAPI.getLifecycleStats()
-    ])
-      .then(([statsRes, actRes, lifecycleRes]) => {
+    const fetchDashboardData = async () => {
+      try {
+        // Fetch stats and activity (required for all users)
+        const [statsRes, actRes] = await Promise.all([
+          dashboardAPI.getStats(),
+          dashboardAPI.getActivity()
+        ]);
+        
         setStats(statsRes.data);
         setActivity(actRes.data.logs || []);
-        // Extract stats from nested response
-        setLifecycleStats(lifecycleRes?.data?.stats || lifecycleRes?.stats || {});
-      })
-      .catch(() => setError('Failed to load dashboard data'))
-      .finally(() => setLoading(false));
+        
+        // Fetch lifecycle stats (optional, may fail for non-admin users)
+        try {
+          const lifecycleRes = await dashboardAPI.getLifecycleStats();
+          setLifecycleStats(lifecycleRes?.data?.stats || lifecycleRes?.stats || {});
+        } catch (lifecycleError) {
+          // Lifecycle stats not available for this user - not an error
+          console.log('Lifecycle stats not available:', lifecycleError.response?.status);
+          setLifecycleStats(null);
+        }
+      } catch (error) {
+        console.error('Dashboard data error:', error);
+        setError('Failed to load dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchDashboardData();
   }, []);
 
-  if (loading) return (
-    <div className="d-flex justify-content-center align-items-center" style={{ height: '60vh' }}>
-      <div className="spinner-border text-primary" role="status">
-        <span className="visually-hidden">Loading…</span>
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ height: '60vh' }}>
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Loading…</span>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
-  if (error) return (
-    <div className="alert alert-danger">{error}</div>
-  );
+  if (error) {
+    return (
+      <div className="alert alert-danger">{error}</div>
+    );
+  }
 
-  // Laptop Status Chart with percentages
   const laptopTotal = stats.laptopStats?.total || 0;
-  const laptopData = [
-    stats.laptopStats?.available || 0,
-    stats.laptopStats?.assigned || 0,
-    stats.laptopStats?.maintenance || 0,
-    stats.laptopStats?.retired || 0
-  ];
-  
+
   const statusChart = {
     labels: ['Available', 'Assigned', 'Maintenance', 'Retired'],
     datasets: [{
-      data: laptopData,
-      backgroundColor: ['#16a34a', '#2563eb', '#d97706', '#6b7280'],
+      data: [
+        stats.laptopStats?.available || 0,
+        stats.laptopStats?.assigned || 0,
+        stats.laptopStats?.maintenance || 0,
+        stats.laptopStats?.retired || 0
+      ],
+      backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#6b7280'],
       borderWidth: 0,
     }],
   };
@@ -73,12 +88,13 @@ function Dashboard() {
       legend: {
         position: 'bottom',
         labels: {
+          padding: 12,
+          font: { size: 11 },
           generateLabels: (chart) => {
             const data = chart.data;
             if (data.labels.length && data.datasets.length) {
               return data.labels.map((label, i) => {
                 const value = data.datasets[0].data[i];
-                
                 return {
                   text: `${label}: ${value}`,
                   fillStyle: data.datasets[0].backgroundColor[i],
@@ -93,10 +109,7 @@ function Dashboard() {
       },
       tooltip: {
         callbacks: {
-          label: (context) => {
-            const value = context.parsed;
-            return `${context.label}: ${value}`;
-          }
+          label: (context) => `${context.label}: ${context.parsed}`
         }
       }
     },
@@ -105,8 +118,7 @@ function Dashboard() {
       if (elements.length > 0) {
         const index = elements[0].index;
         const statusMap = ['Available', 'Assigned', 'Maintenance', 'Retired'];
-        const status = statusMap[index];
-        navigate(`/assets?status=${status}`);
+        navigate(`/assets?status=${statusMap[index]}`);
       }
     },
   };
@@ -115,210 +127,353 @@ function Dashboard() {
     labels: stats.categories.map(c => c.name),
     datasets: [{
       label: 'Count',
-      data:  stats.categories.map(c => c.count),
-      backgroundColor: '#2563eb',
-      borderRadius: 6,
+      data: stats.categories.map(c => c.count),
+      backgroundColor: '#3b82f6',
+      borderRadius: 4,
     }],
   };
 
-  const actionColor = { CREATE: 'success', UPDATE: 'info', DELETE: 'danger', ASSIGN: 'primary', RETURN: 'secondary' };
+  const barOptions = {
+    plugins: {
+      legend: { display: false }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: { stepSize: 1, font: { size: 11 } }
+      },
+      x: {
+        ticks: { font: { size: 11 } }
+      }
+    },
+    onClick: (event, elements) => {
+      if (elements.length > 0) {
+        const index = elements[0].index;
+        const categoryName = stats.categories[index].name;
+        navigate(`/inventory/${categoryName.toLowerCase()}`);
+      }
+    },
+  };
+
+  const actionColor = {
+    CREATE: 'success',
+    UPDATE: 'info',
+    DELETE: 'danger',
+    ASSIGN: 'primary',
+    RETURN: 'secondary'
+  };
 
   return (
     <div>
-      {/* Header */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
+      {/* Page Header */}
+      <div className="page-header d-flex justify-content-between align-items-start mb-4">
         <div>
-          <h2 className="fw-bold mb-1">Dashboard</h2>
-          <p className="text-muted mb-0">IT Asset Management Overview</p>
+          <h2>Dashboard</h2>
+          <p>Overview of your asset management</p>
         </div>
         {canPerform('create') && (
-          <Link to="/assets/add" className="btn btn-primary">
-            <i className="bi bi-plus-circle me-2"></i>Add Asset
-          </Link>
+          <NavButton to="/assets/add" className="btn btn-primary">
+            <i className="bi bi-plus-circle"></i>
+            Add Asset
+          </NavButton>
         )}
       </div>
 
-      {/* Stat Cards */}
+      {/* KPI Cards - Minimal monochrome enterprise style */}
       <div className="row g-3 mb-4">
         {[
-          { label: 'Total Laptops',    value: stats.laptopStats?.total || 0,       icon: 'bi-laptop',             bg: '#dbeafe', color: '#2563eb', link: '/inventory/laptop' },
-          { label: 'Available',       value: stats.laptopStats?.available || 0,   icon: 'bi-check-circle',       bg: '#dcfce7', color: '#16a34a', link: '/assets?status=Available' },
-          { label: 'Assigned',        value: stats.laptopStats?.assigned || 0,    icon: 'bi-person-check',       bg: '#fef3c7', color: '#d97706', link: '/assets?status=Assigned' },
-          { label: 'Maintenance',     value: stats.laptopStats?.maintenance || 0, icon: 'bi-tools',              bg: '#fee2e2', color: '#dc2626', link: '/assets?status=Maintenance' },
-          { label: 'Warranty Expiring (90d)', value: stats.expiringWarranties, icon: 'bi-shield-exclamation', bg: '#fce7f3', color: '#9333ea', link: '/warranty?filter=expiring90' },
-        ].map((s, i) => (
+          {
+            label: 'Total Assets',
+            value: stats.laptopStats?.total || 0,
+            icon: 'bi-laptop',
+            sublabel: 'All Assets',
+            link: '/inventory/laptop'
+          },
+          {
+            label: 'Assigned Assets',
+            value: stats.laptopStats?.assigned || 0,
+            icon: 'bi-person-check-fill',
+            sublabel: 'Currently Assigned',
+            link: '/assets?status=Assigned'
+          },
+          {
+            label: 'Available Assets',
+            value: stats.laptopStats?.available || 0,
+            icon: 'bi-box-seam',
+            sublabel: 'In Inventory',
+            link: '/assets?status=Available'
+          },
+          {
+            label: 'Under Repair',
+            value: stats.laptopStats?.maintenance || 0,
+            icon: 'bi-tools',
+            sublabel: 'Out for Repair',
+            link: '/assets?status=Maintenance'
+          },
+          {
+            label: 'Retired Assets',
+            value: stats.laptopStats?.retired || 0,
+            icon: 'bi-archive',
+            sublabel: 'Retired',
+            link: '/assets?status=Retired'
+          },
+        ].map((item, i) => (
           <div className="col-6 col-md-4 col-xl" key={i}>
-            <div
-              className="stat-card"
-              onClick={() => navigate(s.link)}
-              style={{ cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s' }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '';
-              }}
-            >
-              <div className="stat-icon" style={{ background: s.bg, color: s.color }}>
-                <i className={`bi ${s.icon}`}></i>
+            <div className="stat-card" onClick={() => navigate(item.link)}>
+              <div className="stat-icon">
+                <i className={`bi ${item.icon}`}></i>
               </div>
-              <div className="stat-value">{s.value}</div>
-              <div className="stat-label">{s.label}</div>
+              <div className="stat-value">{item.value}</div>
+              <div className="stat-label">{item.label}</div>
+              <div className="stat-sublabel">{item.sublabel}</div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Lifecycle Tracking Stats */}
-      {canPerform('create') && lifecycleStats && (
-        <div className="row g-3 mb-4">
-          <div className="col-12">
-            <div className="table-card" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
-              <div className="d-flex justify-content-between align-items-center mb-3">
-                <h6 className="fw-bold mb-0" style={{ color: 'white' }}>
-                  <i className="bi bi-graph-up-arrow me-2"></i>Lifecycle Tracking Overview
-                </h6>
-                <Link to="/activity-history" className="btn btn-sm btn-light">
-                  View All Activity
-                </Link>
-              </div>
-              <div className="row g-3">
-                {[
-                  { label: 'Active Temp Assignments', value: lifecycleStats.active_temp_assignments || 0, icon: 'bi-arrow-repeat', desc: 'Loaner devices in use', link: '/temporary-assignments' },
-                  { label: 'Under Repair', value: lifecycleStats.assets_under_repair || 0, icon: 'bi-wrench', desc: 'Assets being repaired', link: '/assets?status=Under Repair' },
-                  { label: 'Replaced This Month', value: lifecycleStats.assets_replaced_this_month || 0, icon: 'bi-arrow-left-right', desc: 'Asset upgrades/swaps', link: '/asset-replacements' },
-                  { label: 'Total Lifecycle Events', value: lifecycleStats.total_lifecycle_events || 0, icon: 'bi-clock-history', desc: 'All tracked changes', link: '/activity-history' },
-                ].map((stat, idx) => (
-                  <div className="col-6 col-md-3" key={idx}>
-                    <div 
-                      onClick={() => navigate(stat.link)}
-                      style={{ 
-                        background: 'rgba(255,255,255,0.15)', 
-                        borderRadius: '12px', 
-                        padding: '16px', 
-                        backdropFilter: 'blur(10px)',
-                        cursor: 'pointer',
-                        transition: 'transform 0.2s, background 0.2s'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'translateY(-4px)';
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.25)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
-                      }}
-                    >
-                      <div className="d-flex align-items-center mb-2">
-                        <div style={{ width: '40px', height: '40px', background: 'rgba(255,255,255,0.25)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', marginRight: '12px' }}>
-                          <i className={`bi ${stat.icon}`}></i>
+      {/* Main Content Grid - Two Column Layout */}
+      <div className="row g-3 mb-4">
+        {/* Recent Activity */}
+        <div className="col-lg-7">
+          <div className="table-card h-100">
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h6 className="fw-bold mb-0" style={{ fontSize: '15px' }}>Recent Activity</h6>
+              <NavButton to="/activity-history" className="btn btn-sm btn-outline-primary">
+                View All
+              </NavButton>
+            </div>
+            <div className="table-responsive" style={{ maxHeight: '320px' }}>
+              <table className="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Module</th>
+                    <th>Description</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activity.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="text-center text-muted py-4">
+                        <i className="bi bi-inbox" style={{ fontSize: '32px', opacity: 0.3 }}></i>
+                        <p className="mb-0 mt-2">No activity yet</p>
+                      </td>
+                    </tr>
+                  )}
+                  {activity.slice(0, 10).map(log => (
+                    <tr key={log.id}>
+                      <td>
+                        <div className="d-flex align-items-center gap-2">
+                          <div className="avatar-circle" style={{ width: 26, height: 26, fontSize: '11px' }}>
+                            {(log.user || 'A')[0].toUpperCase()}
+                          </div>
+                          <span style={{ fontSize: '13px' }}>{log.user}</span>
                         </div>
-                        <div style={{ fontSize: '28px', fontWeight: 'bold' }}>{stat.value}</div>
-                      </div>
-                      <div style={{ fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>{stat.label}</div>
-                      <div style={{ fontSize: '11px', opacity: 0.85 }}>{stat.desc}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                      </td>
+                      <td>
+                        <span className={`badge bg-${actionColor[log.action] || 'secondary'}`}>
+                          {log.action}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: '13px' }}>{log.module}</td>
+                      <td className="text-truncate" style={{ maxWidth: 220, fontSize: '13px' }}>
+                        {log.description}
+                      </td>
+                      <td className="text-muted" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+                        {formatDateTime(log.timestamp)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
-      )}
 
-      {/* Charts */}
-      <div className="row g-3 mb-4">
-        <div className="col-md-5">
+        {/* Assets by Category Chart */}
+        <div className="col-lg-5">
           <div className="table-card h-100">
-            <h6 className="fw-bold mb-3">Laptop Status Distribution</h6>
-            <div style={{ maxWidth: 280, margin: '0 auto', position: 'relative', cursor: 'pointer' }}>
-              <Doughnut data={statusChart} options={chartOptions} />
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h6 className="fw-bold mb-0" style={{ fontSize: '15px' }}>Assets by Category</h6>
+              <NavButton to="/reports" className="btn btn-sm btn-outline-primary">
+                View Report
+              </NavButton>
+            </div>
+            <div style={{ position: 'relative', height: '280px' }}>
+              <Doughnut
+                data={statusChart}
+                options={chartOptions}
+                style={{ maxHeight: '280px', cursor: 'pointer' }}
+              />
               <div style={{
                 position: 'absolute',
-                top: '50%',
+                top: '35%',
                 left: '50%',
                 transform: 'translate(-50%, -50%)',
                 textAlign: 'center',
                 pointerEvents: 'none'
               }}>
-                <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#1f2937' }}>
+                <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
                   {laptopTotal}
                 </div>
-                <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                  Total Laptops
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                  Total
                 </div>
               </div>
             </div>
           </div>
         </div>
-        <div className="col-md-7">
+      </div>
+
+      {/* Second Row */}
+      <div className="row g-3 mb-4">
+        {/* Warranty Expiring */}
+        <div className="col-lg-5">
           <div className="table-card h-100">
-            <h6 className="fw-bold mb-3">Assigned Assets by Category</h6>
-            <div style={{ cursor: 'pointer' }}>
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h6 className="fw-bold mb-0" style={{ fontSize: '15px' }}>
+                <i className="bi bi-shield-exclamation me-2" style={{ color: 'var(--warning)' }}></i>
+                Warranty Expiring Soon
+              </h6>
+              <NavButton to="/warranty?filter=expiring90" className="btn btn-sm btn-outline-primary">
+                View All
+              </NavButton>
+            </div>
+            <div style={{ padding: '16px 0' }}>
+              <div className="d-flex align-items-center justify-content-center">
+                <div className="text-center">
+                  <div style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '50%',
+                    background: 'var(--warning-light)',
+                    border: '3px solid var(--warning)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 12px'
+                  }}>
+                    <i className="bi bi-shield-exclamation" style={{ fontSize: '28px', color: 'var(--warning)' }}></i>
+                  </div>
+                  <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--warning)' }}>
+                    {stats.expiringWarranties || 0}
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    Assets expiring in 90 days
+                  </div>
+                  <NavButton
+                    to="/warranty?filter=expiring90"
+                    className="btn btn-sm btn-warning mt-3"
+                    style={{ fontSize: '12px' }}
+                  >
+                    Review Warranties
+                  </NavButton>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Category Distribution Bar Chart */}
+        <div className="col-lg-7">
+          <div className="table-card h-100">
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h6 className="fw-bold mb-0" style={{ fontSize: '15px' }}>Asset Distribution</h6>
+            </div>
+            <div style={{ height: '200px' }}>
               <Bar
                 data={catChart}
-                options={{
-                  plugins: { legend: { display: false } },
-                  scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
-                  onClick: (event, elements) => {
-                    if (elements.length > 0) {
-                      const index = elements[0].index;
-                      const categoryName = stats.categories[index].name;
-                      navigate(`/inventory/${categoryName.toLowerCase()}`);
-                    }
-                  },
-                }}
+                options={barOptions}
+                style={{ cursor: 'pointer' }}
               />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Recent Activity */}
-      <div className="table-card">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h6 className="fw-bold mb-0">Recent Activity</h6>
-          <Link to="/reports" className="btn btn-sm btn-outline-primary">View All</Link>
-        </div>
-        <div className="table-responsive" style={{ maxHeight: "320px", overflowY: "auto" }}>
-          <table className="table table-hover mb-0">
-            <thead>
-              <tr>
-                <th>User</th><th>Action</th><th>Module</th><th>Description</th><th>Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {activity.length === 0 && (
-                <tr><td colSpan={5} className="text-center text-muted py-4">No activity yet</td></tr>
-              )}
-              {activity.map(log => (
-                <tr key={log.id}>
-                  <td>
-                    <div className="d-flex align-items-center gap-2">
-                      <div className="avatar-circle" style={{ width: 28, height: 28, fontSize: '0.75rem' }}>
-                        {(log.user || 'A')[0].toUpperCase()}
-                      </div>
-                      {log.user}
+      {/* Lifecycle Stats (Admin Only) - Minimal dark style */}
+      {canPerform('create') && lifecycleStats && (
+        <div className="table-card">
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h6 className="fw-bold mb-0" style={{ fontSize: '15px' }}>
+              <i className="bi bi-graph-up-arrow me-2" style={{ color: 'var(--primary)' }}></i>
+              Lifecycle Tracking
+            </h6>
+            <NavButton to="/activity-history" className="btn btn-sm btn-outline-primary">
+              View Details
+            </NavButton>
+          </div>
+          <div className="row g-3">
+            {[
+              {
+                label: 'Active Temp Assignments',
+                value: lifecycleStats.active_temp_assignments || 0,
+                icon: 'bi-arrow-repeat',
+                desc: 'Loaner devices',
+                link: '/temporary-assignments'
+              },
+              {
+                label: 'Replaced This Month',
+                value: lifecycleStats.assets_replaced_this_month || 0,
+                icon: 'bi-arrow-left-right',
+                desc: 'Asset swaps',
+                link: '/asset-replacements'
+              },
+              {
+                label: 'Lifecycle Events',
+                value: lifecycleStats.total_lifecycle_events || 0,
+                icon: 'bi-clock-history',
+                desc: 'Total changes',
+                link: '/activity-history'
+              },
+            ].map((stat, idx) => (
+              <div className="col-6 col-md-4" key={idx}>
+                <div
+                  className="glass-card"
+                  onClick={() => navigate(stat.link)}
+                  style={{
+                    padding: '16px',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  <div className="d-flex align-items-center mb-2">
+                    <div style={{
+                      width: '36px',
+                      height: '36px',
+                      background: 'var(--primary-light)',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginRight: '10px'
+                    }}>
+                      <i className={`bi ${stat.icon}`} style={{ fontSize: '16px', color: 'var(--primary)' }}></i>
                     </div>
-                  </td>
-                  <td>
-                    <span className={`badge bg-${actionColor[log.action] || 'secondary'}`}>
-                      {log.action}
-                    </span>
-                  </td>
-                  <td>{log.module}</td>
-                  <td className="text-truncate" style={{ maxWidth: 280 }}>{log.description}</td>
-                  <td className="text-muted small">
-                    {formatDateTime(log.timestamp)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                      {stat.value}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                    {stat.label}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    {stat.desc}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
