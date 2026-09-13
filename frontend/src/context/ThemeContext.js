@@ -11,43 +11,27 @@ export const useTheme = () => {
 
 export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('theme') || 'system';
+    return localStorage.getItem('theme') || 'light';
   });
-
-  const [resolvedTheme, setResolvedTheme] = useState('light');
 
   useEffect(() => {
     const root = document.documentElement;
-    
-    const applyTheme = (isDark) => {
-      if (isDark) {
-        root.setAttribute('data-theme', 'dark');
-        setResolvedTheme('dark');
-      } else {
-        root.setAttribute('data-theme', 'light');
-        setResolvedTheme('light');
-      }
-    };
 
-    if (theme === 'system') {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      applyTheme(mediaQuery.matches);
-      
-      const handler = (e) => applyTheme(e.matches);
-      mediaQuery.addEventListener('change', handler);
-      return () => mediaQuery.removeEventListener('change', handler);
+    if (theme === 'dark') {
+      root.setAttribute('data-theme', 'dark');
     } else {
-      applyTheme(theme === 'dark');
+      root.setAttribute('data-theme', 'light');
     }
   }, [theme]);
 
-  const setThemeMode = (newTheme) => {
+  const toggleTheme = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
     localStorage.setItem('theme', newTheme);
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme: setThemeMode, resolvedTheme }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );

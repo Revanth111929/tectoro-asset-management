@@ -125,6 +125,12 @@ def create_app():
 app = create_app()
 
 if __name__ == '__main__':
+    # Security: Never run with debug=True in production
+    # Production should use gunicorn, not Flask development server
+    debug_mode = os.getenv('FLASK_ENV') != 'production'
+    if debug_mode:
+        print("⚠️  WARNING: Running in development mode with debug=True")
+        print("⚠️  For production, use: gunicorn app:app")
+
     # Serve on port 3000 - Frontend and Backend unified
-    # debug=True means the server restarts when you change code (development only)
-    app.run(debug=True, host='0.0.0.0', port=3000)
+    app.run(debug=debug_mode, host='0.0.0.0', port=3000)

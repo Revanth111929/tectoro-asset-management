@@ -96,22 +96,24 @@ function AssetReplacements() {
     setFormData({
       ...formData,
       employee_id: employee.emp_id,
-      employee_name: employee.employee_name
+      employee_name: employee.employee_name,
+      old_asset_id: '' // Clear previous asset selection
     });
     setEmployeeSearch(`${employee.employee_name} (${employee.emp_id})`);
     setShowEmployeeSuggestions(false);
     setEmployeeSuggestions([]);
-    
-    // Automatically fetch assets assigned to this employee
+
+    // Automatically fetch only assigned assets for this employee
     await fetchEmployeeAssets(employee.emp_id);
   };
 
   const fetchEmployeeAssets = async (empId) => {
     if (!empId) return;
-    
+
     setLoadingEmployeeAssets(true);
     try {
-      const response = await api.get(`/assets/by-employee/${empId}`);
+      // Fetch only currently assigned assets for this employee
+      const response = await api.get(`/assets/by-employee/${empId}?status=Assigned`);
       if (response.data.assets && response.data.assets.length > 0) {
         setEmployeeAssets(response.data.assets);
       } else {
@@ -335,7 +337,7 @@ function AssetReplacements() {
                       </td>
                       <td>
                         <div className="action-group">
-                          <button 
+                          <button
                             onClick={() => handleDelete(replacement)}
                             className="action-btn action-delete"
                             title="Delete Replacement"
@@ -437,9 +439,9 @@ function AssetReplacements() {
                             disabled={!formData.employee_id}
                           >
                             <option value="">
-                              {!formData.employee_id 
-                                ? '-- Select Employee First --' 
-                                : employeeAssets.length === 0 
+                              {!formData.employee_id
+                                ? '-- Select Employee First --'
+                                : employeeAssets.length === 0
                                   ? '-- No Assets Assigned to Employee --'
                                   : '-- Select Asset to Replace --'}
                             </option>
@@ -450,8 +452,8 @@ function AssetReplacements() {
                             ))}
                           </select>
                           <small className="text-muted">
-                            {formData.employee_id 
-                              ? employeeAssets.length === 0 
+                            {formData.employee_id
+                              ? employeeAssets.length === 0
                                 ? 'No assets currently assigned to this employee'
                                 : `${employeeAssets.length} asset(s) assigned to this employee`
                               : 'Select an employee to view their assets'}

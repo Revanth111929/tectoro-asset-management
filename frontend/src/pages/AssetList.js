@@ -55,7 +55,7 @@ const AckBadge = ({ asset, onSend }) => {
 };
 
 
-const CATEGORIES = ['Laptop', 'CPU', 'Monitor', 'Printer', 'Phone', 'Server', 'Mouse', 'Headphones', 'Hard Disk', 'UPS', 'Laptop Bag', 'Other'];
+const CATEGORIES = ['Laptop', 'CPU', 'Monitor', 'Printer', 'Phone', 'Server', 'Mouse', 'Headphones', 'Hard Disk', 'Laptop Bag', 'Other'];
 const STATUSES   = ['Available', 'Assigned', 'Maintenance', 'Retired'];
 
 function AssetList() {
@@ -64,7 +64,7 @@ function AssetList() {
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState('');
   // BUG-025: Removed deleting state - delete functionality moved to Inventory only
-  
+
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkAction, setBulkAction] = useState('');
@@ -110,7 +110,7 @@ function AssetList() {
   useEffect(() => { fetchAssets(); }, [fetchAssets]);
 
   // Reset to page 1 when filters change
-  
+
   // Clear selection when page changes
   useEffect(() => { setSelectedIds([]); }, [page]);
 
@@ -134,15 +134,15 @@ function AssetList() {
 
     if (bulkAction === 'delete') {
       console.log('[AssetList] Bulk delete requested for:', selectedIds);
-      
+
       if (!window.confirm(`Move ${selectedIds.length} selected asset(s) to Deleted Assets?\n\nThese assets will be moved to Deleted Assets and can be restored later.`)) {
         console.log('[AssetList] Bulk delete cancelled by user');
         return;
       }
-      
+
       setBulkProcessing(true);
       console.log('[AssetList] Starting bulk delete operation...');
-      
+
       try {
         console.log('[AssetList] Deleting assets:', selectedIds);
         const deletePromises = selectedIds.map(id => {
@@ -151,13 +151,13 @@ function AssetList() {
             .then(response => ({ id, success: true, response }))
             .catch(error => ({ id, success: false, error }));
         });
-        
+
         const results = await Promise.all(deletePromises);
         console.log('[AssetList] Bulk delete results:', results);
-        
+
         const successful = results.filter(r => r.success).length;
         const failed = results.filter(r => !r.success);
-        
+
         if (failed.length === 0) {
           alert(`✓ Successfully deleted ${successful} assets`);
         } else {
@@ -168,11 +168,11 @@ function AssetList() {
             const errorMsg = f.error?.response?.data?.error || f.error?.message || 'Unknown error';
             return `• ${assetName}: ${errorMsg}`;
           }).join('\n');
-          
+
           alert(`⚠️ Deleted ${successful} assets successfully.\n\n${failed.length} assets could not be deleted:\n${failedDetails}\n\nCheck console for more details.`);
           console.error('[AssetList] Failed deletions:', failed);
         }
-        
+
         setSelectedIds([]);
         fetchAssets();
       } catch (error) {
@@ -193,7 +193,7 @@ function AssetList() {
           a.category || '', a.status, a.location || ''
         ])
       ].map(row => row.join(',')).join('\n');
-      
+
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -208,12 +208,12 @@ function AssetList() {
 
   const handleStatusChange = async () => {
     if (!newStatus || selectedIds.length === 0) return;
-    
+
     setBulkProcessing(true);
     let successCount = 0;
     let failCount = 0;
     const errors = [];
-    
+
     try {
       // Update assets one by one to catch individual errors
       for (const id of selectedIds) {
@@ -226,11 +226,11 @@ function AssetList() {
           errors.push(`Asset ID ${id}: ${errorMsg}`);
         }
       }
-      
+
       setSelectedIds([]);
       setShowStatusModal(false);
       fetchAssets();
-      
+
       if (failCount === 0) {
         alert(`✓ Successfully updated ${successCount} assets to ${newStatus}`);
       } else {
@@ -293,6 +293,11 @@ function AssetList() {
                 placeholder="Search name, serial, EMP ID, employee…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
+                autoComplete="off"
+                name={`asset-search-${Math.random().toString(36).substring(7)}`}
+                data-lpignore="true"
+                data-form-type="other"
+                role="searchbox"
               />
               {search && (
                 <button className="btn btn-outline-secondary" onClick={() => setSearch('')}>
@@ -340,7 +345,7 @@ function AssetList() {
           <span><span className="badge bg-warning text-dark me-1">●</span>Warranty expiring ≤ 90 days</span>
           <span><span className="badge bg-danger me-1">●</span>Warranty expired</span>
         </div>
-        
+
         {selectedIds.length > 0 && (
           <div className="d-flex gap-2 align-items-center">
             <span className="badge bg-primary">{selectedIds.length} selected</span>
@@ -411,7 +416,7 @@ function AssetList() {
                     <th>Model</th>
                     <th>OS</th>
                     <th>RAM</th>
-                    <th>Location</th>
+                    <th>CLIENT</th>
                     <th>Warranty Date</th>
                     <th>Status</th>
                   <th>Acknowledgment</th>
@@ -472,9 +477,9 @@ function AssetList() {
                           >
                             <i className="bi bi-eye"></i>
                           </NavButton>
-                          <NavButton 
-                            to={`/assets/timeline/${a.id}`} 
-                            className="action-btn action-history" 
+                          <NavButton
+                            to={`/assets/timeline/${a.id}`}
+                            className="action-btn action-history"
                             title="View Timeline"
                           >
                             <i className="bi bi-clock-history"></i>
@@ -535,17 +540,17 @@ function AssetList() {
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">Change Status for {selectedIds.length} Assets</h5>
-                <button 
-                  type="button" 
-                  className="btn-close" 
+                <button
+                  type="button"
+                  className="btn-close"
                   onClick={() => setShowStatusModal(false)}
                 ></button>
               </div>
               <div className="modal-body">
                 <label className="form-label">Select New Status</label>
-                <select 
-                  className="form-select" 
-                  value={newStatus} 
+                <select
+                  className="form-select"
+                  value={newStatus}
                   onChange={e => setNewStatus(e.target.value)}
                 >
                   <option value="Available">Available</option>
@@ -559,16 +564,16 @@ function AssetList() {
                 </div>
               </div>
               <div className="modal-footer">
-                <button 
-                  type="button" 
-                  className="btn btn-secondary" 
+                <button
+                  type="button"
+                  className="btn btn-secondary"
                   onClick={() => setShowStatusModal(false)}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="button" 
-                  className="btn btn-primary" 
+                <button
+                  type="button"
+                  className="btn btn-primary"
                   onClick={handleStatusChange}
                   disabled={bulkProcessing}
                 >

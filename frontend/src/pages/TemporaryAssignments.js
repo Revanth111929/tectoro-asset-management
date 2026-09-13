@@ -10,8 +10,7 @@ function TemporaryAssignments() {
   const [showModal, setShowModal] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [availableAssets, setAvailableAssets] = useState([]);
-  const [allAssets, setAllAssets] = useState([]);
-  
+
   // Auto-fetch states
   const [originalAssetDetails, setOriginalAssetDetails] = useState(null);
   const [tempAssetDetails, setTempAssetDetails] = useState(null);
@@ -22,7 +21,7 @@ function TemporaryAssignments() {
   const [employeeSuggestions, setEmployeeSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchingEmployees, setSearchingEmployees] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     employee_id: '',
     employee_name: '',
@@ -57,18 +56,8 @@ function TemporaryAssignments() {
     }
   };
 
-  const fetchAllAssets = async () => {
-    try {
-      const response = await api.get('/assets');
-      setAllAssets(response.data.assets || []);
-    } catch (error) {
-      console.error('Error fetching all assets:', error);
-    }
-  };
-
   const openNewAssignmentModal = async () => {
     await fetchAvailableAssets();
-    await fetchAllAssets();
     setShowModal(true);
     setSelectedAssignment(null);
     setOriginalAssetDetails(null);
@@ -400,14 +389,14 @@ function TemporaryAssignments() {
                         <td>
                           {assignment.status === 'Active' && (
                             <div className="btn-group btn-group-sm">
-                              <button 
+                              <button
                                 onClick={() => handleComplete(assignment)}
                                 className="btn btn-success"
                                 title="Complete Assignment"
                               >
                                 <i className="bi bi-check-circle"></i> Complete
                               </button>
-                              <button 
+                              <button
                                 onClick={() => handleDelete(assignment)}
                                 className="btn btn-danger"
                                 title="Delete Assignment"
@@ -421,7 +410,7 @@ function TemporaryAssignments() {
                               <span className="text-muted small me-2">
                                 Completed on {formatDate(assignment.actual_return_date)}
                               </span>
-                              <button 
+                              <button
                                 onClick={() => handleDelete(assignment)}
                                 className="btn btn-danger"
                                 title="Delete Assignment"
@@ -474,6 +463,7 @@ function TemporaryAssignments() {
                                 type="text"
                                 className="form-control"
                                 placeholder="Search by Employee ID or Name..."
+                autoComplete="off"
                                 value={formData.employee_id || formData.employee_name}
                                 onChange={(e) => {
                                   const value = e.target.value;
@@ -612,13 +602,17 @@ function TemporaryAssignments() {
                         required
                       >
                         <option value="">-- Select Asset to Repair --</option>
-                        {allAssets.map(asset => (
+                        {employeeAssets.map(asset => (
                           <option key={asset.id} value={asset.id}>
                             {asset.asset_name} - {asset.serial_number} ({asset.status})
                           </option>
                         ))}
                       </select>
-                      <small className="text-muted">The asset that needs repair/maintenance</small>
+                      <small className="text-muted">
+                        {employeeAssets.length > 0
+                          ? `${employeeAssets.length} asset(s) currently assigned to this employee`
+                          : 'Search for employee above to see their assets'}
+                      </small>
 
                       {/* Original Asset Details */}
                       {loadingOriginalAsset && (

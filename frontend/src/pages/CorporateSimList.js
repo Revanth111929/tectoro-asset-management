@@ -13,7 +13,7 @@ function CorporateSimList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState(null);
-  
+
   // Filters
   const [search, setSearch] = useState('');
   const [carrier, setCarrier] = useState('');
@@ -178,6 +178,7 @@ function CorporateSimList() {
                 placeholder="Search by ICCID or Mobile Number..."
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                autoComplete="off"
               />
             </div>
             <div className="col-md-3">

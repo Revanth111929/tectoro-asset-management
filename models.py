@@ -80,7 +80,7 @@ class Asset(db.Model):
 
     # 14. INVOICE DATE
     invoice_date         = db.Column(db.Date)
-    
+
     # 14b. INVOICE ATTACHMENT - file path to uploaded invoice
     invoice_attachment   = db.Column(db.String(255))  # Stores relative file path
 
@@ -101,7 +101,7 @@ class Asset(db.Model):
 
     # 20. COMMENTS
     comments             = db.Column(db.Text)
-    
+
     # Additional inventory fields
     purchase_price       = db.Column(db.Float)
     quantity             = db.Column(db.Integer, default=1)
@@ -120,7 +120,7 @@ class Asset(db.Model):
     # ── New Dynamic Category-Specific Fields ──
     # Basic fields (additional)
     brand_name           = db.Column(db.String(150))  # Brand (Dell, HP, Apple, etc.)
-    
+
     # Computer specifications
     processor            = db.Column(db.String(150))  # CPU details
     storage_type         = db.Column(db.String(50))   # SSD/HDD/Hybrid/NVMe
@@ -128,52 +128,52 @@ class Asset(db.Model):
     graphics_card        = db.Column(db.String(150))  # GPU for CPUs/workstations
     os_version           = db.Column(db.String(50))   # OS version details
     screen_size          = db.Column(db.String(30))   # Monitor/Laptop screen size
-    
+
     # Mobile/Phone specific
     imei_1               = db.Column(db.String(50))   # Primary IMEI
     imei_2               = db.Column(db.String(50))   # Secondary IMEI (dual SIM)
     mobile_number        = db.Column(db.String(30))   # SIM card number
-    
+
     # Printer specific
     color_or_mono        = db.Column(db.String(30))   # Color or Monochrome
     network_enabled      = db.Column(db.String(10))   # Yes/No
-    
+
     # Monitor specific
     resolution           = db.Column(db.String(50))   # 1920x1080, 4K, etc.
     refresh_rate         = db.Column(db.String(30))   # 60Hz, 144Hz, etc.
-    
+
     # Server specific
     cpu_count            = db.Column(db.Integer)      # Number of CPUs
     raid_config          = db.Column(db.String(100))  # RAID configuration
     ip_address           = db.Column(db.String(50))   # Server IP
     rack_location        = db.Column(db.String(100))  # Rack position
-    
+
     # Hard Disk specific
     interface_type       = db.Column(db.String(50))   # USB/SATA/NVMe/SAS
-    
+
     # UPS specific
     capacity_va          = db.Column(db.String(50))   # VA rating
     battery_type         = db.Column(db.String(100))  # Battery type
     backup_time          = db.Column(db.String(50))   # Backup duration
-    
+
     # Peripherals (Mouse, Headphones)
     connection_type      = db.Column(db.String(50))   # USB/Wireless/Bluetooth
     noise_cancellation   = db.Column(db.String(10))   # Yes/No for headphones
-    
+
     # Laptop Bag specific
     size_compatibility   = db.Column(db.String(50))   # Size compatibility
     color                = db.Column(db.String(50))   # Color
     warranty_period      = db.Column(db.String(50))   # Warranty period
-    
+
     # Purchase & Warranty fields (new naming)
     purchase_vendor      = db.Column(db.String(200))  # Vendor name
     purchase_date        = db.Column(db.Date)         # Purchase date
     warranty_start_date  = db.Column(db.Date)         # Warranty start
     warranty_end_date    = db.Column(db.Date)         # Warranty end
-    
+
     # Assignment fields
     assigned_employee    = db.Column(db.String(150))  # Assigned employee name
-    
+
     # Other fields
     custom_description   = db.Column(db.Text)         # General description
     remarks              = db.Column(db.Text)         # Additional remarks
@@ -294,31 +294,31 @@ class AuditLog(db.Model):
     timestamp        = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
     action_type      = db.Column(db.String(50), nullable=False, index=True)  # CREATED, UPDATED, DELETED, ASSIGNED, etc.
     module           = db.Column(db.String(50), nullable=False)  # Asset, Employee, User, etc.
-    
+
     # Asset information
     asset_id         = db.Column(db.Integer, db.ForeignKey('assets.id'), index=True)
     asset_name       = db.Column(db.String(200))
     asset_serial     = db.Column(db.String(100))
     category         = db.Column(db.String(100))
-    
+
     # Employee information
     employee_id      = db.Column(db.String(50), index=True)
     employee_name    = db.Column(db.String(150))
-    
+
     # Change tracking
     field_name       = db.Column(db.String(100))  # Which field was changed
     old_value        = db.Column(db.Text)         # Previous value
     new_value        = db.Column(db.Text)         # New value
-    
+
     # User tracking
     performed_by     = db.Column(db.String(100), nullable=False)
     user_role        = db.Column(db.String(50))
     ip_address       = db.Column(db.String(50))
-    
+
     # Additional context
     remarks          = db.Column(db.Text)
     extra_data       = db.Column(db.Text)  # JSON string for additional data (renamed from metadata)
-    
+
     created_at       = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -387,23 +387,23 @@ class AssetLifecycle(db.Model):
     asset_id          = db.Column(db.Integer, db.ForeignKey('assets.id', ondelete='CASCADE'), nullable=False, index=True)
     event_type        = db.Column(db.String(50), nullable=False)  # PROCURED, ASSIGNED, RETURNED, REPAIR, REPLACED, RETIRED
     event_date        = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
-    
+
     # Employee tracking
     from_employee_id  = db.Column(db.String(50))
     from_employee     = db.Column(db.String(150))
     to_employee_id    = db.Column(db.String(50))
     to_employee       = db.Column(db.String(150))
-    
+
     # Status tracking
     from_status       = db.Column(db.String(50))
     to_status         = db.Column(db.String(50))
-    
+
     # Additional information
     reason            = db.Column(db.Text)
     location          = db.Column(db.String(150))
     performed_by      = db.Column(db.String(100))
     remarks           = db.Column(db.Text)
-    
+
     created_at        = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -441,26 +441,26 @@ class TemporaryAssignment(db.Model):
     employee_id            = db.Column(db.String(50), nullable=False, index=True)
     employee_name          = db.Column(db.String(150), nullable=False)
     employee_email         = db.Column(db.String(150))
-    
+
     # Original asset (under repair)
     original_asset_id      = db.Column(db.Integer, db.ForeignKey('assets.id'), nullable=False)
     original_asset_name    = db.Column(db.String(200))
     original_asset_serial  = db.Column(db.String(100))
-    
+
     # Temporary replacement asset
     temp_asset_id          = db.Column(db.Integer, db.ForeignKey('assets.id'), nullable=False)
     temp_asset_name        = db.Column(db.String(200))
     temp_asset_serial      = db.Column(db.String(100))
-    
+
     # Assignment details
     reason                 = db.Column(db.Text, nullable=False)
     start_date             = db.Column(db.Date, nullable=False)
     expected_return_date   = db.Column(db.Date)
     actual_return_date     = db.Column(db.Date)
-    
+
     # Status tracking
     status                 = db.Column(db.String(50), default='Active')  # Active, Completed, Overdue
-    
+
     # Audit fields
     created_by             = db.Column(db.String(100))
     completed_by           = db.Column(db.String(100))
@@ -512,22 +512,22 @@ class AssetReplacement(db.Model):
     employee_id          = db.Column(db.String(50), nullable=False, index=True)
     employee_name        = db.Column(db.String(150), nullable=False)
     employee_email       = db.Column(db.String(150))
-    
+
     # Old asset being replaced
     old_asset_id         = db.Column(db.Integer, db.ForeignKey('assets.id'), nullable=True)
     old_asset_name       = db.Column(db.String(200))
     old_asset_serial     = db.Column(db.String(100))
-    
+
     # New replacement asset
     new_asset_id         = db.Column(db.Integer, db.ForeignKey('assets.id'), nullable=True)
     new_asset_name       = db.Column(db.String(200))
     new_asset_serial     = db.Column(db.String(100))
-    
+
     # Replacement details
     replacement_date     = db.Column(db.Date, nullable=False)
     reason               = db.Column(db.Text, nullable=False)
     old_asset_condition  = db.Column(db.String(50))  # Good, Fair, Poor, Damaged, Lost
-    
+
     # Audit fields
     performed_by         = db.Column(db.String(100))
     remarks              = db.Column(db.Text)
@@ -568,13 +568,13 @@ class AssetTransfer(db.Model):
     __tablename__ = 'asset_transfers'
 
     id                    = db.Column(db.Integer, primary_key=True)
-    
+
     # Asset being transferred
     asset_id              = db.Column(db.Integer, db.ForeignKey('assets.id'), nullable=False, index=True)
     asset_name            = db.Column(db.String(200))
     asset_serial          = db.Column(db.String(100))
     category              = db.Column(db.String(100))
-    
+
     # Previous owner (from)
     from_employee_id      = db.Column(db.String(50), index=True)
     from_employee_name    = db.Column(db.String(150))
@@ -582,7 +582,7 @@ class AssetTransfer(db.Model):
     from_employee_mobile  = db.Column(db.String(30))
     from_department       = db.Column(db.String(100))
     from_designation      = db.Column(db.String(100))
-    
+
     # New owner (to)
     to_employee_id        = db.Column(db.String(50), nullable=False, index=True)
     to_employee_name      = db.Column(db.String(150), nullable=False)
@@ -590,12 +590,12 @@ class AssetTransfer(db.Model):
     to_employee_mobile    = db.Column(db.String(30))
     to_department         = db.Column(db.String(100))
     to_designation        = db.Column(db.String(100))
-    
+
     # Transfer details
     transfer_date         = db.Column(db.Date, nullable=False, index=True)
     transfer_reason       = db.Column(db.String(100), nullable=False)  # Department Change, Employee Transfer, etc.
     remarks               = db.Column(db.Text)
-    
+
     # Audit fields
     performed_by          = db.Column(db.String(100), nullable=False)
     performed_by_role     = db.Column(db.String(50))
@@ -648,22 +648,22 @@ class EmployeeExit(db.Model):
     employee_name           = db.Column(db.String(150), nullable=False)
     employee_email          = db.Column(db.String(150))
     department              = db.Column(db.String(100))
-    
+
     # Exit details
     exit_date               = db.Column(db.Date, nullable=False)
     exit_type               = db.Column(db.String(50))  # Resignation, Termination, Retirement, Transfer
     last_working_day        = db.Column(db.Date)
-    
+
     # Asset statistics
     total_assets_assigned   = db.Column(db.Integer, default=0)
     total_assets_returned   = db.Column(db.Integer, default=0)
     total_assets_damaged    = db.Column(db.Integer, default=0)
     total_assets_missing    = db.Column(db.Integer, default=0)
-    
+
     # Process tracking
     exit_status             = db.Column(db.String(50), default='In Progress')  # In Progress, Completed, Pending
     clearance_status        = db.Column(db.String(50), default='Pending')  # Pending, Approved, Rejected
-    
+
     # Audit fields
     processed_by            = db.Column(db.String(100))
     completed_by            = db.Column(db.String(100))
@@ -718,16 +718,16 @@ class ExitAssetCollection(db.Model):
     asset_name          = db.Column(db.String(200))
     asset_serial        = db.Column(db.String(100))
     category            = db.Column(db.String(100))
-    
+
     # Collection details
     collection_status   = db.Column(db.String(50), nullable=False)  # Returned, Damaged, Missing, Lost
     asset_condition     = db.Column(db.String(50))  # Excellent, Good, Fair, Poor, Damaged
     collected_date      = db.Column(db.Date)
-    
+
     # Damage/Loss details
     damage_description  = db.Column(db.Text)
     estimated_cost      = db.Column(db.Float)
-    
+
     # Audit fields
     collected_by        = db.Column(db.String(100))
     remarks             = db.Column(db.Text)
@@ -981,42 +981,42 @@ class CorporateSIM(db.Model):
     __tablename__ = 'corporate_sims'
 
     id                      = db.Column(db.Integer, primary_key=True)
-    
+
     # SIM Identification
     iccid                   = db.Column(db.String(20), unique=True, nullable=False, index=True)  # ICCID (19-20 digits)
     mobile_number           = db.Column(db.String(15), unique=True, nullable=True, index=True)  # Phone number (optional, unique when set)
-    
+
     # Carrier Information
     carrier                 = db.Column(db.String(100), nullable=False, index=True)  # Airtel, Jio, Vi, BSNL, etc.
     plan_type               = db.Column(db.String(50))  # Prepaid, Postpaid
     monthly_cost            = db.Column(db.Float)  # Monthly charge/cost
     data_limit_gb           = db.Column(db.Integer)  # Data limit in GB
-    
+
     # Corporate Account
     corporate_account       = db.Column(db.String(150))  # Corporate account name/number
     account_manager         = db.Column(db.String(150))  # Account manager contact
-    
+
     # Status Management
     status                  = db.Column(db.String(30), default='Available', nullable=False, index=True)
     # Status values: Available, Assigned, Active, Suspended, Returned, Lost, Damaged, Terminated
-    
+
     # Employee Assignment
     assigned_employee_id    = db.Column(db.String(50), db.ForeignKey('employees.emp_id'), nullable=True, index=True)
     assigned_employee_name  = db.Column(db.String(150))
     assigned_employee_email = db.Column(db.String(150))
     assignment_date         = db.Column(db.Date)
     return_date             = db.Column(db.Date)
-    
+
     # Purchase & Activation
     purchase_date           = db.Column(db.Date)
     activation_date         = db.Column(db.Date)
     vendor                  = db.Column(db.String(200))  # Vendor/supplier name
-    
+
     # Additional Information
     sim_type                = db.Column(db.String(50))  # Nano, Micro, Mini, eSIM
     puk_code                = db.Column(db.String(10))  # PUK code (8 digits, encrypted in production)
     remarks                 = db.Column(db.Text)  # Notes/comments
-    
+
     # Audit fields
     created_by              = db.Column(db.String(100))
     updated_by              = db.Column(db.String(100))
@@ -1150,16 +1150,16 @@ class AssetRepair(db.Model):
     id                      = db.Column(db.Integer, primary_key=True)
     repair_number           = db.Column(db.String(50), unique=True, nullable=False, index=True)
     asset_id                = db.Column(db.Integer, db.ForeignKey('assets.id', ondelete='CASCADE'), nullable=False, index=True)
-    
+
     # Issue Details
     issue_category          = db.Column(db.String(50), nullable=False)  # Hardware, Software, Battery, Display, etc.
     issue_description       = db.Column(db.Text, nullable=False)
     priority                = db.Column(db.String(20), nullable=False)  # Low, Medium, High, Critical
-    
+
     # Reporting
     reported_by             = db.Column(db.String(100), nullable=False)
     reported_date           = db.Column(db.Date, nullable=False)
-    
+
     # Repair Details
     vendor                  = db.Column(db.String(200))
     engineer                = db.Column(db.String(150))
@@ -1169,17 +1169,17 @@ class AssetRepair(db.Model):
     diagnosis               = db.Column(db.Text)
     resolution              = db.Column(db.Text)
     remarks                 = db.Column(db.Text)
-    
+
     # Status Tracking
     status                  = db.Column(db.String(50), default='Pending', nullable=False)  # Pending, In Progress, Completed, Cancelled
-    
+
     # Employee Context (who had it when repair started)
     previous_emp_id         = db.Column(db.String(50))
     previous_employee_name  = db.Column(db.String(150))
-    
+
     # Completion Action
     completion_action       = db.Column(db.String(50))  # return_to_employee, return_to_inventory, retire
-    
+
     # Timestamps
     created_at              = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at              = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -1229,7 +1229,7 @@ class RepairPart(db.Model):
 
     id                  = db.Column(db.Integer, primary_key=True)
     repair_id           = db.Column(db.Integer, db.ForeignKey('asset_repairs.id', ondelete='CASCADE'), nullable=False, index=True)
-    
+
     # Part Details
     part_name           = db.Column(db.String(100), nullable=False)  # Battery, SSD, RAM, Keyboard, Screen, etc.
     vendor              = db.Column(db.String(200))
@@ -1237,7 +1237,7 @@ class RepairPart(db.Model):
     replacement_date    = db.Column(db.Date)
     warranty            = db.Column(db.String(100))  # e.g., "6 months", "1 year"
     remarks             = db.Column(db.Text)
-    
+
     # Timestamps
     created_at          = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -1267,28 +1267,28 @@ class AssetPartReplacement(db.Model):
 
     id                      = db.Column(db.Integer, primary_key=True)
     asset_id                = db.Column(db.Integer, db.ForeignKey('assets.id', ondelete='CASCADE'), nullable=False, index=True)
-    
+
     # Component Information
     component_name          = db.Column(db.String(100), nullable=False, index=True)  # Battery, Charger, RAM, SSD, etc.
     custom_component_name   = db.Column(db.String(200))  # For custom/other components
     replacement_reason      = db.Column(db.String(100), nullable=False)  # Faulty, Broken, Dead, Upgrade, etc.
     custom_reason           = db.Column(db.String(200))  # For custom/other reasons
     replacement_date        = db.Column(db.Date, nullable=False, index=True)
-    
+
     # Part Source Information
     part_source             = db.Column(db.String(100))  # New/Purchased, Existing Spare, From Available Spare Asset, Other
     source_asset_id         = db.Column(db.Integer, db.ForeignKey('assets.id', ondelete='SET NULL'), nullable=True, index=True)
     source_asset_serial     = db.Column(db.String(100))  # Cached for reporting
     source_asset_name       = db.Column(db.String(200))  # Cached for reporting
     source_asset_model      = db.Column(db.String(150))  # Cached for reporting
-    
+
     # Old Part Details
     old_part_serial         = db.Column(db.String(100))
     old_part_number         = db.Column(db.String(100))
     old_manufacturer        = db.Column(db.String(150))
     old_condition           = db.Column(db.String(100))  # Working, Faulty, Dead, etc.
     old_part_remarks        = db.Column(db.Text)
-    
+
     # New Part Details
     new_part_serial         = db.Column(db.String(100), index=True)
     new_part_number         = db.Column(db.String(100))
@@ -1298,15 +1298,15 @@ class AssetPartReplacement(db.Model):
     replacement_cost        = db.Column(db.Float, default=0.0)
     warranty_expiry         = db.Column(db.Date)
     installed_by            = db.Column(db.String(150))
-    
+
     # Additional Information
     remarks                 = db.Column(db.Text)
-    
+
     # Audit Fields
     performed_by            = db.Column(db.String(100), nullable=False)
     performed_by_role       = db.Column(db.String(50))
     ip_address              = db.Column(db.String(50))
-    
+
     # Timestamps
     created_at              = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     updated_at              = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -1316,9 +1316,21 @@ class AssetPartReplacement(db.Model):
     source_asset = db.relationship('Asset', foreign_keys=[source_asset_id])
 
     def to_dict(self):
+        # Get asset details from relationship
+        asset_name = ''
+        asset_serial = ''
+        employee_name = ''
+        if self.asset:
+            asset_name = self.asset.asset_name or ''
+            asset_serial = self.asset.serial_number or ''
+            employee_name = self.asset.employee_name or ''
+
         return {
             'id':                  self.id,
             'asset_id':            self.asset_id,
+            'asset_name':          asset_name,
+            'asset_serial':        asset_serial,
+            'employee_name':       employee_name,
             'component_name':      self.component_name,
             'custom_component_name': self.custom_component_name or '',
             'replacement_reason':  self.replacement_reason,

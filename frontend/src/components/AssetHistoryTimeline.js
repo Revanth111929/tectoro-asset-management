@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { formatTimelineDate, formatDateReadable } from '../utils/dateFormatter';
 import './AssetHistoryTimeline.css';
 
 function AssetHistoryTimeline({ assetId, onClose }) {
@@ -59,7 +60,7 @@ function AssetHistoryTimeline({ assetId, onClose }) {
       };
       return icons[event.event_type] || '📋';
     }
-    
+
     if (event.type === 'audit') {
       const icons = {
         'ASSET_CREATED': '🆕',
@@ -73,11 +74,11 @@ function AssetHistoryTimeline({ assetId, onClose }) {
       };
       return icons[event.action_type] || '📝';
     }
-    
+
     if (event.type === 'temp_assignment') {
       return event.sub_type === 'original' ? '🔧' : '⏰';
     }
-    
+
     return '📋';
   };
 
@@ -97,7 +98,7 @@ function AssetHistoryTimeline({ assetId, onClose }) {
       };
       return colors[event.event_type] || '#94a3b8';
     }
-    
+
     if (event.type === 'audit') {
       const colors = {
         'ASSET_CREATED': '#10b981',
@@ -111,7 +112,7 @@ function AssetHistoryTimeline({ assetId, onClose }) {
       };
       return colors[event.action_type] || '#94a3b8';
     }
-    
+
     return '#06b6d4';
   };
 
@@ -131,130 +132,116 @@ function AssetHistoryTimeline({ assetId, onClose }) {
       };
       return titles[event.event_type] || event.event_type;
     }
-    
+
     if (event.type === 'audit') {
       return event.action_type.replace(/_/g, ' ');
     }
-    
+
     if (event.type === 'temp_assignment') {
-      return event.sub_type === 'original' 
+      return event.sub_type === 'original'
         ? 'Sent for Repair (Temp Device Assigned)'
         : 'Used as Temporary Replacement';
     }
-    
+
     return 'Event';
   };
 
   const getEventDetails = (event) => {
     if (event.type === 'lifecycle') {
       const details = [];
-      
+
       if (event.to_employee) {
         details.push(`👤 ${event.to_employee}`);
       }
-      
+
       if (event.from_employee && event.to_employee && event.from_employee !== event.to_employee) {
         details.push(`From: ${event.from_employee}`);
       }
-      
+
       if (event.from_status && event.to_status) {
         details.push(`${event.from_status} → ${event.to_status}`);
       }
-      
+
       if (event.reason) {
         details.push(`💬 ${event.reason}`);
       }
-      
+
       return details;
     }
-    
+
     if (event.type === 'audit') {
       const details = [];
-      
+
       if (event.employee_name) {
         details.push(`👤 ${event.employee_name}`);
       }
-      
+
       if (event.old_value && event.new_value) {
         details.push(`${event.old_value} → ${event.new_value}`);
       }
-      
+
       if (event.remarks) {
         details.push(`💬 ${event.remarks}`);
       }
-      
+
       return details;
     }
-    
+
     if (event.type === 'temp_assignment') {
       const details = [];
-      
+
       if (event.employee_name) {
         details.push(`👤 ${event.employee_name}`);
       }
-      
+
       if (event.sub_type === 'original' && event.temp_asset_name) {
         details.push(`Loaner: ${event.temp_asset_name}`);
       } else if (event.original_asset_name) {
         details.push(`Replacing: ${event.original_asset_name}`);
       }
-      
+
       if (event.reason) {
         details.push(`💬 ${event.reason}`);
       }
-      
+
       if (event.status === 'Active' && event.expected_return) {
-        details.push(`⏰ Expected: ${formatDate(event.expected_return)}`);
+        details.push(`⏰ Expected: ${formatDateReadable(event.expected_return)}`);
       } else if (event.actual_return) {
-        details.push(`✅ Returned: ${formatDate(event.actual_return)}`);
+        details.push(`✅ Returned: ${formatDateReadable(event.actual_return)}`);
       }
-      
+
       return details;
     }
-    
+
     return [];
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return '—';
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return '—';
-      return date.toLocaleDateString('en-IN', { 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZone: 'Asia/Kolkata'
-      });
-    } catch (error) {
-      console.error('Error formatting date:', error);
-      return '—';
-    }
+    // Use centralized IST formatter - backend already returns IST timestamps
+    return formatTimelineDate(dateString);
   };
 
   const getFilteredHistory = () => {
     if (filter === 'all') return history;
-    
+
     if (filter === 'assignments') {
-      return history.filter(e => 
+      return history.filter(e =>
         (e.type === 'lifecycle' && ['ASSIGNED', 'RETURNED', 'REASSIGNED'].includes(e.event_type)) ||
         (e.type === 'audit' && ['ASSET_ASSIGNED', 'ASSET_RETURNED', 'ASSET_REASSIGNED'].includes(e.action_type))
       );
     }
-    
+
     if (filter === 'repairs') {
-      return history.filter(e => 
+      return history.filter(e =>
         (e.type === 'lifecycle' && ['MAINTENANCE_STARTED', 'MAINTENANCE_COMPLETED'].includes(e.event_type)) ||
         (e.type === 'temp_assignment')
       );
     }
-    
+
     if (filter === 'temp') {
       return history.filter(e => e.type === 'temp_assignment');
     }
-    
+
     return history;
   };
 
@@ -373,25 +360,25 @@ function AssetHistoryTimeline({ assetId, onClose }) {
 
       {/* Filters */}
       <div className="history-filters">
-        <button 
+        <button
           className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
           onClick={() => setFilter('all')}
         >
           All Events ({history.length})
         </button>
-        <button 
+        <button
           className={`filter-btn ${filter === 'assignments' ? 'active' : ''}`}
           onClick={() => setFilter('assignments')}
         >
           Assignments
         </button>
-        <button 
+        <button
           className={`filter-btn ${filter === 'repairs' ? 'active' : ''}`}
           onClick={() => setFilter('repairs')}
         >
           Repairs
         </button>
-        <button 
+        <button
           className={`filter-btn ${filter === 'temp' ? 'active' : ''}`}
           onClick={() => setFilter('temp')}
         >
@@ -411,8 +398,8 @@ function AssetHistoryTimeline({ assetId, onClose }) {
           <div className="timeline">
             {filteredHistory.map((event, index) => (
               <div key={index} className="timeline-item">
-                <div 
-                  className="timeline-marker" 
+                <div
+                  className="timeline-marker"
                   style={{backgroundColor: getEventColor(event)}}
                 >
                   <span className="timeline-icon">{getEventIcon(event)}</span>

@@ -170,7 +170,7 @@ def list_assets():
         query = query.filter_by(location=location)
 
     assets = query.order_by(Asset.created_at.desc()).paginate(page=page, per_page=20, error_out=False)
-    
+
     categories = db.session.query(Asset.category).distinct().filter(Asset.category != None).all()
     locations = db.session.query(Asset.location).distinct().filter(Asset.location != None).all()
 
@@ -185,7 +185,7 @@ def list_assets():
 def add_asset():
     if request.method == 'POST':
         serial = request.form['serial_number'].strip()
-        
+
         asset = Asset(
             emp_id           = request.form.get('emp_id', '').strip(),
             employee_name    = request.form.get('employee_name', '').strip(),
@@ -418,18 +418,18 @@ def api_delete_asset(asset_id):
     """Delete an asset"""
     try:
         from models import AssetLifecycle, InvoiceAttachment
-        
+
         asset = Asset.query.get_or_404(asset_id)
         asset_name = asset.asset_name
         serial = asset.serial_number
-        
+
         # Create audit log before deletion
         AuditService.log_asset_deleted(asset, 'admin')
-        
+
         # Delete related records first to avoid foreign key constraint errors
         # 1. Delete lifecycle events
         AssetLifecycle.query.filter_by(asset_id=asset_id).delete()
-        
+
         # 2. Delete invoice attachment if exists
         invoice = InvoiceAttachment.query.filter_by(asset_id=asset_id).first()
         if invoice:
@@ -443,10 +443,10 @@ def api_delete_asset(asset_id):
                     pass
             # Delete database record
             db.session.delete(invoice)
-        
+
         # 3. Now delete the asset
         db.session.delete(asset)
-        
+
         # Log activity (legacy)
         log = ActivityLog(
             user='admin',
@@ -456,7 +456,7 @@ def api_delete_asset(asset_id):
         )
         db.session.add(log)
         db.session.commit()
-        
+
         return jsonify({
             'success': True,
             'message': f'Asset "{asset_name}" deleted successfully'
@@ -470,10 +470,10 @@ def api_update_asset(asset_id):
     try:
         asset = Asset.query.get_or_404(asset_id)
         data = request.get_json()
-        
+
         if not data:
             return jsonify({'error': 'No data provided'}), 400
-        
+
         # BUG-022 FIX: Validate business rules BEFORE updating
         validation_result = InventoryValidator.validate_asset_update(asset_id, data)
         if not validation_result['valid']:
@@ -481,13 +481,13 @@ def api_update_asset(asset_id):
                 'error': 'Validation failed',
                 'errors': validation_result['errors']
             }), 400
-        
+
         # Track changes for audit
         changed_fields = {}
         old_status = asset.status
         old_emp_id = asset.emp_id
         old_employee_name = asset.employee_name
-        
+
         # Parse dates helper
         def parse_date(val):
             if not val:
@@ -496,7 +496,7 @@ def api_update_asset(asset_id):
                 return datetime.strptime(val, '%Y-%m-%d').date()
             except:
                 return None
-        
+
         # Check serial number uniqueness only if it's being changed
         if 'serial_number' in data:
             new_serial = data['serial_number'].strip()
@@ -506,7 +506,7 @@ def api_update_asset(asset_id):
                     return jsonify({'error': 'Serial number already exists'}), 409
                 changed_fields['serial_number'] = (asset.serial_number, new_serial)
                 asset.serial_number = new_serial
-        
+
         # Track and update fields
         field_map = {
             'emp_id': 'emp_id',
@@ -527,7 +527,7 @@ def api_update_asset(asset_id):
             'comments': 'comments',
             'status': 'status',
         }
-        
+
         for data_key, attr_name in field_map.items():
             if data_key in data:
                 old_val = getattr(asset, attr_name)
@@ -535,7 +535,7 @@ def api_update_asset(asset_id):
                 if str(old_val) != str(new_val):
                     changed_fields[attr_name] = (old_val, new_val)
                     setattr(asset, attr_name, new_val)
-        
+
         # Handle email alias
         if 'email' in data:
             old_val = asset.employee_email
@@ -543,7 +543,7 @@ def api_update_asset(asset_id):
             if str(old_val) != str(new_val):
                 changed_fields['employee_email'] = (old_val, new_val)
                 asset.employee_email = new_val
-        
+
         # Date fields
         if 'invoice_date' in data:
             asset.invoice_date = parse_date(data['invoice_date'])
@@ -551,7 +551,7 @@ def api_update_asset(asset_id):
             asset.warranty_date = parse_date(data['warranty_date'])
         if 'date' in data:
             asset.date = parse_date(data['date'])
-        
+
         # Additional fields (not tracked for audit simplicity)
         if 'purchase_price' in data:
             asset.purchase_price = data['purchase_price']
@@ -579,9 +579,9 @@ def api_update_asset(asset_id):
             asset.mobile_number_sim = data['mobile_number_sim']
         if 'testing_status' in data:
             asset.testing_status = data['testing_status']
-        
+
         asset.updated_at = datetime.utcnow()
-        
+
         # Log activity (legacy)
         log = ActivityLog(
             user='admin',
@@ -590,11 +590,11 @@ def api_update_asset(asset_id):
             description=f'Updated asset: {asset.asset_name} [{asset.serial_number}]'
         )
         db.session.add(log)
-        
+
         # Create comprehensive audit logs
         if changed_fields:
             AuditService.log_asset_updated(asset, changed_fields, 'admin')
-        
+
         # Handle status changes
         if 'status' in changed_fields:
             new_status = changed_fields['status'][1]
@@ -606,7 +606,7 @@ def api_update_asset(asset_id):
                 to_status=new_status,
                 performed_by='admin'
             )
-        
+
         # Handle employee assignment changes
         new_emp_id = asset.emp_id
         if old_emp_id != new_emp_id:
@@ -655,9 +655,9 @@ def api_update_asset(asset_id):
                     to_employee=asset.employee_name,
                     performed_by='admin'
                 )
-        
+
         db.session.commit()
-        
+
         return jsonify({
             'success': True,
             'asset': asset.to_dict(),
@@ -673,15 +673,15 @@ def api_create_asset():
     """Create a new asset"""
     try:
         data = request.get_json()
-        
+
         # Validate required fields
         if not data.get('asset_name') or not data.get('serial_number'):
             return jsonify({'error': 'Asset name and serial number are required'}), 400
-        
+
         # Check duplicate serial number
         if Asset.query.filter_by(serial_number=data['serial_number'].strip()).first():
             return jsonify({'error': 'Serial number already exists'}), 409
-        
+
         # Parse dates
         def parse_date(val):
             if not val:
@@ -690,7 +690,7 @@ def api_create_asset():
                 return datetime.strptime(val, '%Y-%m-%d').date()
             except:
                 return None
-        
+
         asset = Asset(
             emp_id          = data.get('emp_id', ''),
             employee_name   = data.get('employee_name', ''),
@@ -714,10 +714,10 @@ def api_create_asset():
             comments        = data.get('comments', ''),
             status          = data.get('status', 'Available'),
         )
-        
+
         db.session.add(asset)
         db.session.flush()  # Get asset.id before full commit
-        
+
         # Log activity (legacy)
         log = ActivityLog(
             user='admin',
@@ -726,7 +726,7 @@ def api_create_asset():
             description=f'Added asset: {asset.asset_name} [{asset.serial_number}]'
         )
         db.session.add(log)
-        
+
         # Create comprehensive audit log and lifecycle event
         AuditService.log_asset_created(asset, 'admin')
         LifecycleService.record_event(
@@ -736,9 +736,9 @@ def api_create_asset():
             reason='New asset added to inventory',
             performed_by='admin'
         )
-        
+
         db.session.commit()  # Commit everything together
-        
+
         return jsonify({
             'success': True,
             'asset': asset.to_dict(),
@@ -776,31 +776,31 @@ def api_import_assets():
     """Import assets from Excel file"""
     if 'file' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400
-    
+
     file = request.files['file']
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
-    
+
     if not file.filename.endswith(('.xlsx', '.xls')):
         return jsonify({'error': 'Only Excel files (.xlsx, .xls) are allowed'}), 400
-    
+
     try:
         import pandas as pd
         from datetime import datetime
-        
+
         # Read Excel file
         df = pd.read_excel(file)
-        
+
         # Expected columns
         required_cols = ['Asset Name', 'Serial Number']
         for col in required_cols:
             if col not in df.columns:
                 return jsonify({'error': f'Missing required column: {col}'}), 400
-        
+
         success_count = 0
         error_count = 0
         errors = []
-        
+
         for idx, row in df.iterrows():
             try:
                 # Check if serial number already exists
@@ -808,7 +808,7 @@ def api_import_assets():
                     errors.append(f"Row {idx+2}: Serial number '{row.get('Serial Number')}' already exists")
                     error_count += 1
                     continue
-                
+
                 # Parse dates
                 def parse_date(val):
                     if pd.isna(val) or val == '':
@@ -822,7 +822,7 @@ def api_import_assets():
                             except:
                                 return None
                     return val.date() if hasattr(val, 'date') else None
-                
+
                 asset = Asset(
                     emp_id           = str(row.get('EMP ID', '')).strip() if not pd.isna(row.get('EMP ID')) else '',
                     employee_name    = str(row.get('Employee Name', '')).strip() if not pd.isna(row.get('Employee Name')) else '',
@@ -850,9 +850,9 @@ def api_import_assets():
             except Exception as e:
                 errors.append(f"Row {idx+2}: {str(e)}")
                 error_count += 1
-        
+
         db.session.commit()
-        
+
         return jsonify({
             'success': True,
             'message': f'Import completed: {success_count} assets added, {error_count} errors',
@@ -860,7 +860,7 @@ def api_import_assets():
             'errors': error_count,
             'error_details': errors[:10]  # Return first 10 errors
         }), 200
-        
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'Import failed: {str(e)}'}), 500
@@ -871,11 +871,11 @@ def api_download_template():
     try:
         import openpyxl
         from openpyxl.styles import Font, PatternFill, Alignment
-        
+
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = 'Asset Import Template'
-        
+
         # Headers
         headers = [
             'EMP ID', 'Employee Name', 'Mobile Number', 'Asset Name', 'Category',
@@ -883,17 +883,17 @@ def api_download_template():
             'Invoice Number', 'Invoice Date', 'Warranty Date', 'Charger Serial Number',
             'Old User', 'Date', 'Old Device', 'Comments', 'Status'
         ]
-        
+
         # Style header
         header_fill = PatternFill(start_color='1e3a5f', end_color='1e3a5f', fill_type='solid')
         header_font = Font(color='FFFFFF', bold=True)
-        
+
         for col_idx, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col_idx, value=header)
             cell.fill = header_fill
             cell.font = header_font
             cell.alignment = Alignment(horizontal='center', vertical='center')
-        
+
         # Add sample data
         sample_data = [
             'EMP001', 'John Doe', '9876543210', 'Dell Laptop XPS 15', 'Laptop',
@@ -901,14 +901,14 @@ def api_download_template():
             'INV-2024-001', '2024-01-15', '2027-01-15', 'CHG-DELL-001',
             '', '2024-01-20', '', 'Primary work laptop', 'Assigned'
         ]
-        
+
         for col_idx, value in enumerate(sample_data, 1):
             ws.cell(row=2, column=col_idx, value=value)
-        
+
         # Auto-fit columns
         for col_idx in range(1, len(headers) + 1):
             ws.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = 18
-        
+
         # Add instructions
         ws2 = wb.create_sheet('Instructions')
         instructions = [
@@ -935,16 +935,16 @@ def api_download_template():
             ['  • Serial numbers must be unique'],
             ['  • Maximum 1000 rows per import'],
         ]
-        
+
         for row_idx, row_data in enumerate(instructions, 1):
             ws2.cell(row=row_idx, column=1, value=row_data[0])
-        
+
         ws2.column_dimensions['A'].width = 60
-        
+
         buffer = io.BytesIO()
         wb.save(buffer)
         buffer.seek(0)
-        
+
         return send_file(
             buffer,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -1441,7 +1441,7 @@ def get_employees():
     preventing status changes from propagating to autocomplete.
     """
     from models import Employee
-    
+
     q = request.args.get('q', '').strip()
 
     # Query Employee table directly
@@ -1452,9 +1452,9 @@ def get_employees():
                 Employee.employee_name.ilike(f'%{q}%'),
                 Employee.email.ilike(f'%{q}%'))
         )
-    
+
     employees = employee_query.order_by(Employee.employee_name).limit(20).all()
-    
+
     return jsonify([emp.to_dict() for emp in employees])
 
 @api_bp.route('/employees/<string:emp_id>', methods=['GET'])
@@ -1473,13 +1473,13 @@ def update_employee(emp_id):
     Status must be updated in Employee.status field ONLY
     """
     from models import Employee
-    
+
     emp = Employee.query.filter_by(emp_id=emp_id).first()
     if not emp:
         return jsonify({'error': 'Employee not found'}), 404
-    
+
     data = request.get_json() or {}
-    
+
     # Update ALL fields including status - no defaults, no overrides
     if 'employee_name' in data:
         emp.employee_name = data['employee_name']
@@ -1501,21 +1501,21 @@ def update_employee(emp_id):
         emp.microsoft_license = data['microsoft_license']
     if 'location' in data:
         emp.location = data['location']
-    
+
     # STATUS UPDATE - Single source of truth
     # Accept exactly what frontend sends, no defaults
     if 'status' in data:
         emp.status = data['status']
-    
+
     if 'is_active' in data:
         emp.is_active = data['is_active']
     if 'exit_date' in data:
         emp.exit_date = data['exit_date']
     if 'application_access' in data:
         emp.application_access = data['application_access']
-    
+
     emp.updated_at = datetime.utcnow()
-    
+
     try:
         db.session.commit()
         return jsonify({'success': True, 'employee': emp.to_dict()})
@@ -1617,22 +1617,22 @@ def save_admin_profile():
 def get_corporate_sims():
     """Get all Corporate SIMs with pagination, search, and filters"""
     from models import CorporateSIM
-    
+
     # Pagination
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
-    
+
     # Search query
     search = request.args.get('search', '').strip()
-    
+
     # Filters
     status = request.args.get('status', '').strip()
     carrier = request.args.get('carrier', '').strip()
     assigned_to = request.args.get('assigned_to', '').strip()
-    
+
     # Build query
     query = CorporateSIM.query
-    
+
     # Apply search
     if search:
         query = query.filter(or_(
@@ -1641,7 +1641,7 @@ def get_corporate_sims():
             CorporateSIM.assigned_employee_name.ilike(f'%{search}%'),
             CorporateSIM.corporate_account.ilike(f'%{search}%')
         ))
-    
+
     # Apply filters
     if status:
         query = query.filter_by(status=status)
@@ -1652,16 +1652,16 @@ def get_corporate_sims():
             CorporateSIM.assigned_employee_id.ilike(f'%{assigned_to}%'),
             CorporateSIM.assigned_employee_name.ilike(f'%{assigned_to}%')
         ))
-    
+
     # Get total count
     total = query.count()
-    
+
     # Apply pagination and get results
     sims = query.order_by(CorporateSIM.created_at.desc())\
                 .offset((page - 1) * per_page)\
                 .limit(per_page)\
                 .all()
-    
+
     return jsonify({
         'sims': [sim.to_dict() for sim in sims],
         'page': page,
@@ -1674,11 +1674,11 @@ def get_corporate_sims():
 def get_corporate_sim(sim_id):
     """Get a single Corporate SIM by ID"""
     from models import CorporateSIM
-    
+
     sim = CorporateSIM.query.get(sim_id)
     if not sim:
         return jsonify({'error': 'SIM not found'}), 404
-    
+
     return jsonify({'sim': sim.to_dict()})
 
 @api_bp.route('/corporate-sims', methods=['POST'])
@@ -1686,24 +1686,24 @@ def get_corporate_sim(sim_id):
 def create_corporate_sim():
     """Create a new Corporate SIM"""
     from models import CorporateSIM
-    
+
     data = request.get_json() or {}
-    
+
     # Validate required fields
     if not data.get('iccid'):
         return jsonify({'error': 'ICCID is required'}), 400
     if not data.get('carrier'):
         return jsonify({'error': 'Carrier is required'}), 400
-    
+
     # Validate ICCID format (19-20 digits)
     iccid = data['iccid'].strip()
     if not iccid.isdigit() or len(iccid) not in [19, 20]:
         return jsonify({'error': 'ICCID must be 19-20 digits'}), 400
-    
+
     # Check for duplicate ICCID
     if CorporateSIM.query.filter_by(iccid=iccid).first():
         return jsonify({'error': f'SIM with ICCID {iccid} already exists'}), 400
-    
+
     # Validate mobile number if provided
     mobile = data.get('mobile_number', '').strip()
     if mobile:
@@ -1712,7 +1712,7 @@ def create_corporate_sim():
         # Check for duplicate mobile number
         if CorporateSIM.query.filter_by(mobile_number=mobile).first():
             return jsonify({'error': f'SIM with mobile number {mobile} already exists'}), 400
-    
+
     # Create new SIM
     user = get_request_user()
     sim = CorporateSIM(
@@ -1733,27 +1733,27 @@ def create_corporate_sim():
         remarks=data.get('remarks'),
         created_by=user.username if user else 'system'
     )
-    
+
     db.session.add(sim)
     db.session.commit()
-    
+
     log_activity('CREATE', 'CorporateSIM', f'Created SIM: {iccid} - {data.get("carrier")}', user.username if user else 'system')
-    
+
     return jsonify({'success': True, 'sim': sim.to_dict()}), 201
 
 @api_bp.route('/corporate-sims/<int:sim_id>', methods=['PUT'])
 @require_not_viewer
 def update_corporate_sim(sim_id):
     """Update a Corporate SIM"""
-    from models import CorporateSIM
-    
+    from models import CorporateSIM, Employee
+
     sim = CorporateSIM.query.get(sim_id)
     if not sim:
         return jsonify({'error': 'SIM not found'}), 404
-    
+
     data = request.get_json() or {}
     user = get_request_user()
-    
+
     # Update fields
     if 'mobile_number' in data:
         mobile = data['mobile_number'].strip()
@@ -1767,7 +1767,7 @@ def update_corporate_sim(sim_id):
             sim.mobile_number = mobile
         else:
             sim.mobile_number = None
-    
+
     if 'carrier' in data:
         sim.carrier = data['carrier']
     if 'plan_type' in data:
@@ -1780,8 +1780,32 @@ def update_corporate_sim(sim_id):
         sim.corporate_account = data['corporate_account']
     if 'account_manager' in data:
         sim.account_manager = data['account_manager']
+
+    # VALIDATION: Status and employee assignment must be consistent
     if 'status' in data:
-        sim.status = data['status']
+        new_status = data['status']
+
+        # If changing to 'Assigned', verify employee assignment exists and is valid
+        if new_status == 'Assigned':
+            if not sim.assigned_employee_id:
+                return jsonify({'error': 'Cannot set status to "Assigned" without a valid employee assignment. Use the Assign endpoint instead.'}), 400
+
+            # Validate the assigned employee still exists
+            employee = Employee.query.filter_by(emp_id=sim.assigned_employee_id).first()
+            if not employee:
+                return jsonify({'error': f'Assigned employee {sim.assigned_employee_id} no longer exists in Employee Master. Please clear assignment or use Return endpoint.'}), 400
+
+        # If changing from 'Assigned' to anything else, warn about clearing assignment
+        if sim.status == 'Assigned' and new_status != 'Assigned':
+            from datetime_utils import today_ist
+            # Clear assignment fields when status changes away from Assigned
+            sim.assigned_employee_id = None
+            sim.assigned_employee_name = None
+            sim.assigned_employee_email = None
+            sim.return_date = today_ist()
+
+        sim.status = new_status
+
     if 'purchase_date' in data:
         sim.purchase_date = datetime.strptime(data['purchase_date'], '%Y-%m-%d').date() if data['purchase_date'] else None
     if 'activation_date' in data:
@@ -1794,38 +1818,49 @@ def update_corporate_sim(sim_id):
         sim.puk_code = encrypt_password(data['puk_code']) if data['puk_code'] else None
     if 'remarks' in data:
         sim.remarks = data['remarks']
-    
+
     sim.updated_by = user.username if user else 'system'
     sim.updated_at = datetime.utcnow()
-    
+
     db.session.commit()
-    
+
     log_activity('UPDATE', 'CorporateSIM', f'Updated SIM: {sim.iccid}', user.username if user else 'system')
-    
+
     return jsonify({'success': True, 'sim': sim.to_dict()})
 
 @api_bp.route('/corporate-sims/<int:sim_id>', methods=['DELETE'])
 @require_role('admin')
 def delete_corporate_sim(sim_id):
     """Delete a Corporate SIM (admin only)"""
-    from models import CorporateSIM
-    
+    from models import CorporateSIM, Employee
+    from flask import current_app
+
     sim = CorporateSIM.query.get(sim_id)
     if not sim:
         return jsonify({'error': 'SIM not found'}), 404
-    
-    # Prevent deletion if assigned
+
+    # Validate assignment status before deletion
     if sim.status == 'Assigned':
-        return jsonify({'error': 'Cannot delete assigned SIM. Please return it first.'}), 400
-    
+        # Additional check: verify if the assigned employee actually exists
+        if sim.assigned_employee_id:
+            employee = Employee.query.filter_by(emp_id=sim.assigned_employee_id).first()
+            if employee:
+                return jsonify({'error': f'Cannot delete assigned SIM. Currently assigned to {employee.employee_name}. Please return it first.'}), 400
+            else:
+                # Employee no longer exists - allow deletion but log warning
+                current_app.logger.warning(f'Deleting SIM {sim.iccid} with status "Assigned" but employee {sim.assigned_employee_id} not found')
+        else:
+            # Status is 'Assigned' but no employee_id - orphaned assignment, allow deletion with warning
+            current_app.logger.warning(f'Deleting SIM {sim.iccid} with status "Assigned" but no assigned_employee_id (orphaned record)')
+
     iccid = sim.iccid
     user = get_request_user()
-    
+
     db.session.delete(sim)
     db.session.commit()
-    
+
     log_activity('DELETE', 'CorporateSIM', f'Deleted SIM: {iccid}', user.username if user else 'system')
-    
+
     return jsonify({'success': True, 'message': 'SIM deleted successfully'})
 
 @api_bp.route('/corporate-sims/<int:sim_id>/assign', methods=['POST'])
@@ -1833,25 +1868,25 @@ def delete_corporate_sim(sim_id):
 def assign_corporate_sim(sim_id):
     """Assign a Corporate SIM to an employee"""
     from models import CorporateSIM, Employee
-    
+
     sim = CorporateSIM.query.get(sim_id)
     if not sim:
         return jsonify({'error': 'SIM not found'}), 404
-    
+
     if sim.status not in ['Available', 'Returned']:
         return jsonify({'error': f'SIM is not available for assignment (current status: {sim.status})'}), 400
-    
+
     data = request.get_json() or {}
     employee_id = data.get('employee_id', '').strip()
-    
+
     if not employee_id:
         return jsonify({'error': 'Employee ID is required'}), 400
-    
+
     # Get employee details
     employee = Employee.query.filter_by(emp_id=employee_id).first()
     if not employee:
         return jsonify({'error': f'Employee {employee_id} not found'}), 404
-    
+
     # Assign SIM
     user = get_request_user()
     sim.assigned_employee_id = employee.emp_id
@@ -1862,14 +1897,14 @@ def assign_corporate_sim(sim_id):
     sim.status = 'Assigned'
     sim.updated_by = user.username if user else 'system'
     sim.updated_at = datetime.utcnow()
-    
+
     if data.get('remarks'):
         sim.remarks = (sim.remarks or '') + f"\n[{today_ist()}] Assigned to {employee.employee_name}: {data['remarks']}"
-    
+
     db.session.commit()
-    
+
     log_activity('ASSIGN', 'CorporateSIM', f'Assigned SIM {sim.iccid} to {employee.employee_name} [{employee_id}]', user.username if user else 'system')
-    
+
     return jsonify({'success': True, 'sim': sim.to_dict()})
 
 @api_bp.route('/corporate-sims/<int:sim_id>/return', methods=['POST'])
@@ -1877,58 +1912,58 @@ def assign_corporate_sim(sim_id):
 def return_corporate_sim(sim_id):
     """Return a Corporate SIM from an employee"""
     from models import CorporateSIM
-    
+
     sim = CorporateSIM.query.get(sim_id)
     if not sim:
         return jsonify({'error': 'SIM not found'}), 404
-    
+
     if sim.status != 'Assigned':
         return jsonify({'error': f'SIM is not assigned (current status: {sim.status})'}), 400
-    
+
     data = request.get_json() or {}
     user = get_request_user()
-    
+
     # Record return
     old_employee = sim.assigned_employee_name
     sim.return_date = today_ist()
     sim.status = data.get('new_status', 'Available')  # Can be Available, Damaged, Lost, etc.
-    
+
     # Clear assignment if returning to available
     if sim.status == 'Available':
         sim.assigned_employee_id = None
         sim.assigned_employee_name = None
         sim.assigned_employee_email = None
-    
+
     if data.get('remarks'):
         sim.remarks = (sim.remarks or '') + f"\n[{today_ist()}] Returned from {old_employee}: {data['remarks']}"
-    
+
     sim.updated_by = user.username if user else 'system'
     sim.updated_at = datetime.utcnow()
-    
+
     db.session.commit()
-    
+
     log_activity('RETURN', 'CorporateSIM', f'Returned SIM {sim.iccid} from {old_employee}', user.username if user else 'system')
-    
+
     return jsonify({'success': True, 'sim': sim.to_dict()})
 
 @api_bp.route('/corporate-sims/stats', methods=['GET'])
 def get_corporate_sim_stats():
     """Get Corporate SIM statistics for dashboard"""
     from models import CorporateSIM
-    
+
     total = CorporateSIM.query.count()
     available = CorporateSIM.query.filter_by(status='Available').count()
     assigned = CorporateSIM.query.filter_by(status='Assigned').count()
     suspended = CorporateSIM.query.filter_by(status='Suspended').count()
     lost = CorporateSIM.query.filter_by(status='Lost').count()
     damaged = CorporateSIM.query.filter_by(status='Damaged').count()
-    
+
     # Carrier breakdown
     carrier_stats = db.session.query(
         CorporateSIM.carrier,
         func.count(CorporateSIM.id).label('count')
     ).group_by(CorporateSIM.carrier).all()
-    
+
     return jsonify({
         'total': total,
         'available': available,

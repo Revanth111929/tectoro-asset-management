@@ -33,6 +33,8 @@ import CorporateSimAdd from './pages/CorporateSimAdd';
 import CorporateSimView from './pages/CorporateSimView';
 import Layout       from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
+import { InactivityProvider } from './context/InactivityContext';
+import { ThemeProvider } from './context/ThemeContext';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
@@ -108,65 +110,69 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <Router>
-        <ToastContainer
-          position="top-right"
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop={true}
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-          theme="light"
-        />
-        <Routes>
-        {/* Public */}
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={
-          isAuthenticated
-            ? <Navigate to="/dashboard" replace />
-            : <LoginPage setAuth={setIsAuthenticated} />
-        } />
+      <ThemeProvider>
+        <Router>
+          <InactivityProvider isAuthenticated={isAuthenticated}>
+            <ToastContainer
+              position="top-right"
+              autoClose={3000}
+              hideProgressBar={false}
+              newestOnTop={true}
+              closeOnClick
+              rtl={false}
+              pauseOnFocusLoss
+              draggable
+              pauseOnHover
+              theme="light"
+            />
+            <Routes>
+            {/* Public */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/login" element={
+              isAuthenticated
+                ? <Navigate to="/dashboard" replace />
+                : <LoginPage setAuth={setIsAuthenticated} />
+            } />
 
-        {/* All protected routes share ONE persistent Layout */}
-        <Route element={<AppLayout />}>
-          <Route path="/dashboard"       element={<Protected><Dashboard /></Protected>} />
-          <Route path="/assets"          element={<Protected><AssetList /></Protected>} />
-          <Route path="/assets/add"      element={<NonViewerOnly><AssetAdd /></NonViewerOnly>} />
-          <Route path="/assets/deleted"  element={<AdminOnly><DeletedAssets /></AdminOnly>} />
-          <Route path="/assets/transfer" element={<NonViewerOnly><AssetTransfer /></NonViewerOnly>} />
-          <Route path="/assets/import"   element={<AdminOnly><AssetImport /></AdminOnly>} />
-          <Route path="/assets/edit/:id" element={<NonViewerOnly><AssetEdit /></NonViewerOnly>} />
-          <Route path="/assets/view/:id" element={<Protected><AssetView /></Protected>} />
-          <Route path="/assets/timeline/:assetId" element={<Protected><AssetTimeline /></Protected>} />
-          <Route path="/inventory/detail/:inventoryId" element={<Protected><InventoryDetail /></Protected>} />
-          <Route path="/inventory/lifecycle/:assetId" element={<Protected><InventoryLifecycle /></Protected>} />
-          <Route path="/inventory/:type" element={<Protected><InventoryCategory /></Protected>} />
-          <Route path="/reports"         element={<Protected><Reports /></Protected>} />
-          <Route path="/warranty"        element={<Protected><Warranty /></Protected>} />
-          <Route path="/activity-history" element={<Protected><ActivityHistory /></Protected>} />
-          <Route path="/temporary-assignments" element={<NonViewerOnly><TemporaryAssignments /></NonViewerOnly>} />
-          <Route path="/asset-replacements" element={<NonViewerOnly><AssetReplacements /></NonViewerOnly>} />
-          <Route path="/part-replacements" element={<NonViewerOnly><PartReplacementHistory /></NonViewerOnly>} />
-          <Route path="/part-replacements/add" element={<NonViewerOnly><PartReplacement /></NonViewerOnly>} />
-          <Route path="/employees" element={<AdminOnly><Employees /></AdminOnly>} />
-          <Route path="/employees/add" element={<AdminOnly><EmployeeAdd /></AdminOnly>} />
-          <Route path="/employees/edit/:empId" element={<AdminOnly><EmployeeAdd /></AdminOnly>} />
-          <Route path="/employees/autocomplete-demo" element={<AdminOnly><EmployeeAutocompleteDemo /></AdminOnly>} />
-          <Route path="/employees/:employeeId/asset-history" element={<AdminOnly><EmployeeAssetHistory /></AdminOnly>} />
-          <Route path="/corporate-sims"          element={<Protected><CorporateSimList /></Protected>} />
-          <Route path="/corporate-sims/add"      element={<NonViewerOnly><CorporateSimAdd /></NonViewerOnly>} />
-          <Route path="/corporate-sims/view/:id" element={<Protected><CorporateSimView /></Protected>} />
-          <Route path="/settings"        element={<AdminOnly><Settings /></AdminOnly>} />
-          <Route path="/email-config"    element={<AdminOnly><EmailConfig /></AdminOnly>} />
-        </Route>
+            {/* All protected routes share ONE persistent Layout */}
+            <Route element={<AppLayout />}>
+              <Route path="/dashboard"       element={<Protected><Dashboard /></Protected>} />
+              <Route path="/assets"          element={<Protected><AssetList /></Protected>} />
+              <Route path="/assets/add"      element={<NonViewerOnly><AssetAdd /></NonViewerOnly>} />
+              <Route path="/assets/deleted"  element={<AdminOnly><DeletedAssets /></AdminOnly>} />
+              <Route path="/assets/transfer" element={<NonViewerOnly><AssetTransfer /></NonViewerOnly>} />
+              <Route path="/assets/import"   element={<AdminOnly><AssetImport /></AdminOnly>} />
+              <Route path="/assets/edit/:id" element={<NonViewerOnly><AssetEdit /></NonViewerOnly>} />
+              <Route path="/assets/view/:id" element={<Protected><AssetView /></Protected>} />
+              <Route path="/assets/timeline/:assetId" element={<Protected><AssetTimeline /></Protected>} />
+              <Route path="/inventory/detail/:inventoryId" element={<Protected><InventoryDetail /></Protected>} />
+              <Route path="/inventory/lifecycle/:assetId" element={<Protected><InventoryLifecycle /></Protected>} />
+              <Route path="/inventory/:type" element={<Protected><InventoryCategory /></Protected>} />
+              <Route path="/reports"         element={<Protected><Reports /></Protected>} />
+              <Route path="/warranty"        element={<Protected><Warranty /></Protected>} />
+              <Route path="/activity-history" element={<Protected><ActivityHistory /></Protected>} />
+              <Route path="/temporary-assignments" element={<NonViewerOnly><TemporaryAssignments /></NonViewerOnly>} />
+              <Route path="/asset-replacements" element={<NonViewerOnly><AssetReplacements /></NonViewerOnly>} />
+              <Route path="/part-replacements" element={<NonViewerOnly><PartReplacementHistory /></NonViewerOnly>} />
+              <Route path="/part-replacements/add" element={<NonViewerOnly><PartReplacement /></NonViewerOnly>} />
+              <Route path="/employees" element={<AdminOnly><Employees /></AdminOnly>} />
+              <Route path="/employees/add" element={<AdminOnly><EmployeeAdd /></AdminOnly>} />
+              <Route path="/employees/edit/:empId" element={<AdminOnly><EmployeeAdd /></AdminOnly>} />
+              <Route path="/employees/autocomplete-demo" element={<AdminOnly><EmployeeAutocompleteDemo /></AdminOnly>} />
+              <Route path="/employees/:employeeId/asset-history" element={<AdminOnly><EmployeeAssetHistory /></AdminOnly>} />
+              <Route path="/corporate-sims"          element={<Protected><CorporateSimList /></Protected>} />
+              <Route path="/corporate-sims/add"      element={<NonViewerOnly><CorporateSimAdd /></NonViewerOnly>} />
+              <Route path="/corporate-sims/view/:id" element={<Protected><CorporateSimView /></Protected>} />
+              <Route path="/settings"        element={<AdminOnly><Settings /></AdminOnly>} />
+              <Route path="/email-config"    element={<AdminOnly><EmailConfig /></AdminOnly>} />
+            </Route>
 
-        {/* Catch-all */}
-        <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
-      </Routes>
-      </Router>
+            {/* Catch-all */}
+            <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
+          </Routes>
+          </InactivityProvider>
+        </Router>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

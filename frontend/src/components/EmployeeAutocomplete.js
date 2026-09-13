@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { employeeAPI } from '../services/api';
 import './EmployeeAutocomplete.css';
 
-function EmployeeAutocomplete({ 
+function EmployeeAutocomplete({
   value,           // Selected employee object { emp_id, employee_name, email, mobile_number, ... }
   onChange,        // Callback when employee selected: (employee) => void
   onClear,         // Callback when cleared: () => void
@@ -61,12 +61,12 @@ function EmployeeAutocomplete({
       if (activeOnly) {
         params.active_only = 'true';
       }
-      
+
       // STEP 2: Log the params being sent
       console.log('[EmployeeAutocomplete] Search params:', params);
       console.log('[EmployeeAutocomplete] activeOnly prop:', activeOnly);
       console.log('[EmployeeAutocomplete] API call: GET /api/employees with params:', JSON.stringify(params));
-      
+
       const response = await employeeAPI.search(params);
       const employees = response.data || [];
 
@@ -77,7 +77,7 @@ function EmployeeAutocomplete({
         name: e.employee_name,
         status: e.status
       })));
-      
+
       // Check for non-Active employees in response
       const nonActive = employees.filter(e => e.status !== 'Active');
       if (nonActive.length > 0 && activeOnly) {
@@ -112,7 +112,7 @@ function EmployeeAutocomplete({
     setSuggestions([]);
     setShowDropdown(false);
     setNotFound(false);
-    
+
     if (onChange) {
       onChange(employee);
     }
@@ -124,7 +124,7 @@ function EmployeeAutocomplete({
     setSuggestions([]);
     setShowDropdown(false);
     setNotFound(false);
-    
+
     if (onClear) {
       onClear();
     }
@@ -164,9 +164,17 @@ function EmployeeAutocomplete({
           required={required}
           disabled={disabled}
           autoComplete="off"
+          name={`employee-search-${Math.random().toString(36).substring(7)}`}
+          id={`employee-search-${Math.random().toString(36).substring(7)}`}
+          data-lpignore="true"
+          data-form-type="other"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-controls="employee-suggestions"
+          aria-expanded={showDropdown}
         />
         {searchTerm && (
-          <button 
+          <button
             type="button"
             className="btn btn-outline-secondary"
             onClick={handleClear}
@@ -193,7 +201,7 @@ function EmployeeAutocomplete({
 
       {/* Dropdown Suggestions */}
       {showDropdown && suggestions.length > 0 && (
-        <div className="employee-autocomplete-dropdown">
+        <div className="employee-autocomplete-dropdown" id="employee-suggestions" role="listbox">
           <div className="dropdown-header">
             <small className="text-muted">
               {suggestions.length} employee{suggestions.length !== 1 ? 's' : ''} found

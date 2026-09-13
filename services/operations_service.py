@@ -26,6 +26,7 @@ AUTOMATIC SYNCHRONIZATION:
 from models import db, Asset, Employee, AssetLifecycle, AuditLog
 from services.audit_service import AuditService, LifecycleService
 from datetime import datetime, date
+from datetime_utils import today_ist
 from typing import Dict, Optional, Tuple
 import logging
 
@@ -47,21 +48,21 @@ class OperationsService:
     """
 
     @staticmethod
-    def assign_asset(asset_id: int, emp_id: str, performed_by: str, 
+    def assign_asset(asset_id: int, emp_id: str, performed_by: str,
                      comments: Optional[str] = None) -> Dict:
         """
         Operation 1: Assign Asset to Employee
-        
+
         Validates:
         - Asset exists and is Available
         - Employee exists and is Active
-        
+
         Updates:
         - Asset status → Assigned
         - Asset employee fields
         - Lifecycle event
         - Audit log
-        
+
         Returns operation result
         """
         try:
@@ -69,7 +70,7 @@ class OperationsService:
             asset = Asset.query.get(asset_id)
             if not asset:
                 raise OperationError(f"Asset ID {asset_id} not found", "ASSET_NOT_FOUND")
-            
+
             # Validate status
             if asset.status != 'Available':
                 raise OperationError(
@@ -77,12 +78,12 @@ class OperationsService:
                     f"Only 'Available' assets can be assigned.",
                     "INVALID_STATUS"
                 )
-            
+
             # Get employee
             employee = Employee.query.filter_by(emp_id=emp_id).first()
             if not employee:
                 raise OperationError(f"Employee {emp_id} not found", "EMPLOYEE_NOT_FOUND")
-            
+
             if not employee.is_active or employee.status != 'Active':
                 raise OperationError(
                     f"Employee {emp_id} is not active (Status: {employee.status})",
@@ -92,17 +93,17 @@ class OperationsService:
             # Store old values for audit
             old_status = asset.status
             old_emp_id = asset.emp_id
-            
+
             # Update asset
             asset.status = 'Assigned'
             asset.emp_id = employee.emp_id
             asset.employee_name = employee.employee_name
             asset.employee_email = employee.email
             asset.mobile_number = employee.mobile_number
-            asset.date = date.today()
+            asset.date = today_ist()
             if comments:
                 asset.comments = comments
-            
+
             # Create lifecycle event
             LifecycleService.record_event(
                 asset_id=asset.id,
@@ -115,7 +116,7 @@ class OperationsService:
                 performed_by=performed_by,
                 remarks=comments
             )
-            
+
             # Create audit log
             AuditService.log(
                 action_type='ASSET_ASSIGNED',
@@ -131,11 +132,11 @@ class OperationsService:
                 performed_by=performed_by,
                 remarks=comments
             )
-            
+
             db.session.commit()
-            
+
             logger.info(f"Asset {asset.id} assigned to {employee.emp_id} by {performed_by}")
-            
+
             return {
                 'success': True,
                 'operation': 'assign',
@@ -143,7 +144,7 @@ class OperationsService:
                 'asset': asset.to_dict(),
                 'employee': employee.to_dict()
             }
-            
+
         except OperationError:
             db.session.rollback()
             raise
@@ -153,20 +154,20 @@ class OperationsService:
             raise OperationError(f"Failed to assign asset: {str(e)}", "ASSIGN_FAILED")
 
     @staticmethod
-    def return_asset(asset_id: int, performed_by: str, 
+    def return_asset(asset_id: int, performed_by: str,
                      comments: Optional[str] = None) -> Dict:
         """
         Operation 2: Return Asset to Inventory
-        
+
         Validates:
         - Asset exists and is Assigned
-        
+
         Updates:
         - Asset status → Available
         - Clear employee fields
         - Lifecycle event
         - Audit log
-        
+
         Returns operation result
         """
         try:
@@ -174,7 +175,7 @@ class OperationsService:
             asset = Asset.query.get(asset_id)
             if not asset:
                 raise OperationError(f"Asset ID {asset_id} not found", "ASSET_NOT_FOUND")
-            
+
             # Validate status
             if asset.status != 'Assigned':
                 raise OperationError(
@@ -182,12 +183,12 @@ class OperationsService:
                     f"Only 'Assigned' assets can be returned.",
                     "INVALID_STATUS"
                 )
-            
+
             # Store old values for audit
             old_emp_id = asset.emp_id
             old_emp_name = asset.employee_name
             old_status = asset.status
-            
+
             # Update asset
             asset.status = 'Available'
             returned_from_emp_id = asset.emp_id
@@ -211,7 +212,7 @@ class OperationsService:
                 performed_by=performed_by,
                 remarks=comments
             )
-            
+
             # Create audit log
             AuditService.log(
                 action_type='ASSET_RETURNED',
@@ -227,11 +228,11 @@ class OperationsService:
                 performed_by=performed_by,
                 remarks=comments
             )
-            
+
             db.session.commit()
-            
+
             logger.info(f"Asset {asset.id} returned from {old_emp_name} by {performed_by}")
-            
+
             return {
                 'success': True,
                 'operation': 'return',
@@ -242,7 +243,7 @@ class OperationsService:
                     'employee_name': returned_from_emp_name
                 }
             }
-            
+
         except OperationError:
             db.session.rollback()
             raise
@@ -253,26 +254,26 @@ class OperationsService:
 
 
     @staticmethod
-    def transfer_asset(asset_id: int, to_emp_id: str, reason: str, 
+    def transfer_asset(asset_id: int, to_emp_id: str, reason: str,
                        performed_by: str, swap_asset_id: Optional[int] = None,
                        comments: Optional[str] = None) -> Dict:
         """
         Operation 3: Transfer Asset Between Employees
-        
+
         Supports two modes:
         1. Simple Transfer: Asset from Employee A to Employee B (B has no asset)
         2. Swap: Asset A from Employee A ↔ Asset B from Employee B
-        
+
         Validates:
         - Asset exists and is Assigned
         - Target employee exists and is Active
         - If swap: Swap asset exists and is Assigned
-        
+
         Updates:
         - Asset employee assignments
         - Lifecycle events (one or two, depending on mode)
         - Audit logs
-        
+
         Returns operation result
         """
         try:
@@ -280,7 +281,7 @@ class OperationsService:
             asset = Asset.query.get(asset_id)
             if not asset:
                 raise OperationError(f"Asset ID {asset_id} not found", "ASSET_NOT_FOUND")
-            
+
             # Validate source asset status
             if asset.status != 'Assigned':
                 raise OperationError(
@@ -288,74 +289,74 @@ class OperationsService:
                     f"Only 'Assigned' assets can be transferred.",
                     "INVALID_STATUS"
                 )
-            
+
             # Validate reason (mandatory)
             if not reason or not reason.strip():
                 raise OperationError("Transfer reason is required", "REASON_REQUIRED")
-            
+
             # Get source employee (current owner)
             from_emp_id = asset.emp_id
             from_emp_name = asset.employee_name
-            
+
             # Get target employee
             to_employee = Employee.query.filter_by(emp_id=to_emp_id).first()
             if not to_employee:
                 raise OperationError(f"Target employee {to_emp_id} not found", "EMPLOYEE_NOT_FOUND")
-            
+
             if not to_employee.is_active or to_employee.status != 'Active':
                 raise OperationError(
                     f"Target employee {to_emp_id} is not active (Status: {to_employee.status})",
                     "EMPLOYEE_INACTIVE"
                 )
-            
+
             # Check if this is a swap operation
             is_swap = swap_asset_id is not None
-            
+
             if is_swap:
                 # SWAP MODE: Exchange assets between two employees
                 swap_asset = Asset.query.get(swap_asset_id)
                 if not swap_asset:
                     raise OperationError(f"Swap asset ID {swap_asset_id} not found", "SWAP_ASSET_NOT_FOUND")
-                
+
                 if swap_asset.status != 'Assigned':
                     raise OperationError(
                         f"Swap asset is not assigned (Status: {swap_asset.status})",
                         "SWAP_ASSET_NOT_ASSIGNED"
                     )
-                
+
                 if swap_asset.emp_id != to_emp_id:
                     raise OperationError(
                         f"Swap asset is not assigned to target employee {to_emp_id}",
                         "SWAP_ASSET_WRONG_EMPLOYEE"
                     )
-                
+
                 # Perform swap
                 swap_from_emp_id = swap_asset.emp_id
                 swap_from_emp_name = swap_asset.employee_name
-                
+
                 # Update main asset (to target employee)
                 asset.emp_id = to_employee.emp_id
                 asset.employee_name = to_employee.employee_name
                 asset.employee_email = to_employee.email
                 asset.mobile_number = to_employee.mobile_number
-                asset.date = date.today()
+                asset.date = today_ist()
                 if comments:
                     asset.comments = comments
-                
+
                 # Update swap asset (to source employee - from the main asset's original owner)
                 # Get the source employee details
                 from_employee = Employee.query.filter_by(emp_id=from_emp_id).first()
                 if not from_employee:
                     raise OperationError(f"Source employee {from_emp_id} not found", "SOURCE_EMPLOYEE_NOT_FOUND")
-                
+
                 swap_asset.emp_id = from_employee.emp_id
                 swap_asset.employee_name = from_employee.employee_name
                 swap_asset.employee_email = from_employee.email
                 swap_asset.mobile_number = from_employee.mobile_number
-                swap_asset.date = date.today()
+                swap_asset.date = today_ist()
                 if comments:
                     swap_asset.comments = comments
-                
+
                 # Create lifecycle events for both assets
                 LifecycleService.record_event(
                     asset_id=asset.id,
@@ -370,7 +371,7 @@ class OperationsService:
                     performed_by=performed_by,
                     remarks=comments
                 )
-                
+
                 LifecycleService.record_event(
                     asset_id=swap_asset.id,
                     event_type='TRANSFERRED',
@@ -384,7 +385,7 @@ class OperationsService:
                     performed_by=performed_by,
                     remarks=comments
                 )
-                
+
                 # Create audit logs for both assets
                 AuditService.log(
                     action_type='ASSET_TRANSFERRED',
@@ -400,7 +401,7 @@ class OperationsService:
                     performed_by=performed_by,
                     remarks=f"SWAP with asset {swap_asset.asset_name} - Reason: {reason}"
                 )
-                
+
                 AuditService.log(
                     action_type='ASSET_TRANSFERRED',
                     module='Operations',
@@ -415,11 +416,11 @@ class OperationsService:
                     performed_by=performed_by,
                     remarks=f"SWAP with asset {asset.asset_name} - Reason: {reason}"
                 )
-                
+
                 db.session.commit()
-                
+
                 logger.info(f"Assets swapped: {asset.id} and {swap_asset.id} between {from_emp_id} and {to_emp_id}")
-                
+
                 return {
                     'success': True,
                     'operation': 'transfer_swap',
@@ -429,7 +430,7 @@ class OperationsService:
                     'from_employee': from_emp_name,
                     'to_employee': to_employee.employee_name
                 }
-                
+
             else:
                 # SIMPLE TRANSFER MODE: Move asset from Employee A to Employee B
                 # Update asset
@@ -437,10 +438,10 @@ class OperationsService:
                 asset.employee_name = to_employee.employee_name
                 asset.employee_email = to_employee.email
                 asset.mobile_number = to_employee.mobile_number
-                asset.date = date.today()
+                asset.date = today_ist()
                 if comments:
                     asset.comments = comments
-                
+
                 # Create lifecycle event
                 LifecycleService.record_event(
                     asset_id=asset.id,
@@ -455,7 +456,7 @@ class OperationsService:
                     performed_by=performed_by,
                     remarks=comments
                 )
-                
+
                 # Create audit log
                 AuditService.log(
                     action_type='ASSET_TRANSFERRED',
@@ -471,11 +472,11 @@ class OperationsService:
                     performed_by=performed_by,
                     remarks=f"Reason: {reason}"
                 )
-                
+
                 db.session.commit()
-                
+
                 logger.info(f"Asset {asset.id} transferred from {from_emp_id} to {to_emp_id}")
-                
+
                 return {
                     'success': True,
                     'operation': 'transfer_simple',
@@ -484,7 +485,7 @@ class OperationsService:
                     'from_employee': from_emp_name,
                     'to_employee': to_employee.employee_name
                 }
-            
+
         except OperationError:
             db.session.rollback()
             raise
@@ -498,7 +499,7 @@ class OperationsService:
     def get_available_operations(asset_id: int) -> Dict:
         """
         Get list of valid operations for an asset based on its current status
-        
+
         Returns:
         {
             'asset_id': int,
@@ -514,9 +515,9 @@ class OperationsService:
                 'available_operations': [],
                 'error': 'Asset not found'
             }
-        
+
         operations = []
-        
+
         # Define operations based on status
         if asset.status == 'Available':
             operations.append({
@@ -526,7 +527,7 @@ class OperationsService:
                 'description': 'Assign this asset to an employee',
                 'color': 'primary'
             })
-        
+
         elif asset.status == 'Assigned':
             operations.extend([
                 {
@@ -551,7 +552,7 @@ class OperationsService:
                     'color': 'warning'
                 }
             ])
-        
+
         elif asset.status in ['Under Repair', 'Maintenance']:
             operations.append({
                 'operation': 'complete_repair',
@@ -560,7 +561,7 @@ class OperationsService:
                 'description': 'Mark repair as complete',
                 'color': 'success'
             })
-        
+
         # Retire is available for most statuses except Retired
         if asset.status != 'Retired':
             operations.append({
@@ -570,7 +571,7 @@ class OperationsService:
                 'description': 'Mark asset as retired',
                 'color': 'danger'
             })
-        
+
         return {
             'asset_id': asset.id,
             'current_status': asset.status,
@@ -586,27 +587,27 @@ class OperationsService:
                        comments: str = None) -> Dict:
         """
         Operation 4: Send Asset For Repair
-        
+
         Validates:
         - Asset exists and is Assigned
-        
+
         Updates:
         - Asset status → Under Repair
         - Clear employee assignment
         - Create repair record
         - Lifecycle event
         - Audit log
-        
+
         Returns operation result with repair_id
         """
         from models import AssetRepair
-        
+
         try:
             # Get asset
             asset = Asset.query.get(asset_id)
             if not asset:
                 raise OperationError(f"Asset ID {asset_id} not found", "ASSET_NOT_FOUND")
-            
+
             # Validate status
             if asset.status != 'Assigned':
                 raise OperationError(
@@ -614,21 +615,21 @@ class OperationsService:
                     f"Only 'Assigned' assets can be sent for repair.",
                     "INVALID_STATUS"
                 )
-            
+
             # Validate required fields
             if not issue_category or not issue_description or not priority:
                 raise OperationError("Issue category, description, and priority are required", "MISSING_REQUIRED_FIELDS")
-            
+
             # Store employee context
             previous_emp_id = asset.emp_id
             previous_emp_name = asset.employee_name
             old_status = asset.status
-            
+
             # Generate repair number
             from datetime import datetime as dt
             repair_count = AssetRepair.query.count() + 1
             repair_number = f"REP-{dt.now().year}-{repair_count:04d}"
-            
+
             # Create repair record
             repair = AssetRepair(
                 repair_number=repair_number,
@@ -637,7 +638,7 @@ class OperationsService:
                 issue_description=issue_description,
                 priority=priority,
                 reported_by=performed_by,
-                reported_date=date.today(),
+                reported_date=today_ist(),
                 vendor=vendor,
                 engineer=engineer,
                 expected_completion_date=datetime.strptime(expected_date, '%Y-%m-%d').date() if expected_date else None,
@@ -647,7 +648,7 @@ class OperationsService:
                 previous_employee_name=previous_emp_name
             )
             db.session.add(repair)
-            
+
             # Update asset
             asset.status = 'Under Repair'
             asset.emp_id = ''
@@ -656,7 +657,7 @@ class OperationsService:
             asset.mobile_number = ''
             if comments:
                 asset.comments = comments
-            
+
             # Create lifecycle event
             LifecycleService.record_event(
                 asset_id=asset.id,
@@ -669,7 +670,7 @@ class OperationsService:
                 performed_by=performed_by,
                 remarks=f"Repair #{repair_number} - Priority: {priority}"
             )
-            
+
             # Create audit log
             AuditService.log(
                 action_type='REPAIR_STARTED',
@@ -685,11 +686,11 @@ class OperationsService:
                 performed_by=performed_by,
                 remarks=f"{issue_category} - {priority} priority"
             )
-            
+
             db.session.commit()
-            
+
             logger.info(f"Asset {asset.id} sent for repair ({repair_number}) by {performed_by}")
-            
+
             return {
                 'success': True,
                 'operation': 'send_for_repair',
@@ -698,7 +699,7 @@ class OperationsService:
                 'repair': repair.to_dict(),
                 'repair_number': repair_number
             }
-            
+
         except OperationError:
             db.session.rollback()
             raise
@@ -714,49 +715,49 @@ class OperationsService:
                        repair_cost: float = 0.0, comments: str = None) -> Dict:
         """
         Operation 5: Complete Repair
-        
+
         Completion actions:
         - return_to_employee: Return to previous employee
         - return_to_inventory: Make Available
         - retire: Mark as Retired
-        
+
         Validates:
         - Repair exists and is In Progress
         - Asset status is Under Repair
-        
+
         Updates:
         - Repair record completed
         - Asset status based on action
         - Lifecycle event
         - Audit log
-        
+
         Returns operation result
         """
         from models import AssetRepair
-        
+
         try:
             # Get repair
             repair = AssetRepair.query.get(repair_id)
             if not repair:
                 raise OperationError(f"Repair ID {repair_id} not found", "REPAIR_NOT_FOUND")
-            
+
             if repair.status != 'In Progress':
                 raise OperationError(
                     f"Repair is not in progress (Status: {repair.status})",
                     "INVALID_REPAIR_STATUS"
                 )
-            
+
             # Get asset
             asset = Asset.query.get(repair.asset_id)
             if not asset:
                 raise OperationError(f"Asset ID {repair.asset_id} not found", "ASSET_NOT_FOUND")
-            
+
             if asset.status != 'Under Repair':
                 raise OperationError(
                     f"Asset is not under repair (Status: {asset.status})",
                     "INVALID_ASSET_STATUS"
                 )
-            
+
             # Validate completion action
             valid_actions = ['return_to_employee', 'return_to_inventory', 'retire']
             if completion_action not in valid_actions:
@@ -764,26 +765,26 @@ class OperationsService:
                     f"Invalid completion action: {completion_action}. Must be one of: {', '.join(valid_actions)}",
                     "INVALID_COMPLETION_ACTION"
                 )
-            
+
             old_status = asset.status
-            
+
             # Update repair record
             repair.status = 'Completed'
             repair.completion_action = completion_action
             repair.diagnosis = diagnosis
             repair.resolution = resolution
             repair.repair_cost = repair_cost or 0.0
-            repair.actual_completion_date = date.today()
+            repair.actual_completion_date = today_ist()
             repair.completed_at = datetime.now()
             if comments:
                 repair.remarks = (repair.remarks or '') + '\n' + comments
-            
+
             # Execute completion action
             if completion_action == 'return_to_employee':
                 # Return to previous employee
                 if not repair.previous_emp_id:
                     raise OperationError("No previous employee found for this repair", "NO_PREVIOUS_EMPLOYEE")
-                
+
                 # Verify employee still exists and is active
                 employee = Employee.query.filter_by(emp_id=repair.previous_emp_id).first()
                 if not employee or not employee.is_active:
@@ -792,34 +793,31 @@ class OperationsService:
                         f"Please choose 'return_to_inventory' instead.",
                         "EMPLOYEE_INACTIVE"
                     )
-                
+
                 # Validate employee has all required information for assignment
                 missing_fields = []
                 if not employee.emp_id or not str(employee.emp_id).strip():
                     missing_fields.append('Employee ID')
                 if not employee.employee_name or not str(employee.employee_name).strip():
                     missing_fields.append('Employee Name')
-                if not employee.email or not str(employee.email).strip():
-                    missing_fields.append('Employee Email')
-                if not employee.mobile_number or not str(employee.mobile_number).strip():
-                    missing_fields.append('Mobile Number')
-                
+                # Email and Mobile Number are OPTIONAL - not required
+
                 if missing_fields:
                     raise OperationError(
                         f"Cannot return asset to employee {employee.emp_id}. Missing required information: {', '.join(missing_fields)}. "
                         f"Please update employee record or choose 'return_to_inventory'.",
                         "INCOMPLETE_EMPLOYEE_INFO"
                     )
-                
+
                 asset.status = 'Assigned'
                 asset.emp_id = employee.emp_id
                 asset.employee_name = employee.employee_name
-                asset.employee_email = employee.email
-                asset.mobile_number = employee.mobile_number
-                asset.date = date.today()
-                
+                asset.employee_email = employee.email or ''  # Optional
+                asset.mobile_number = employee.mobile_number or ''  # Optional
+                asset.date = today_ist()
+
                 new_status_desc = f"Assigned to {employee.employee_name}"
-                
+
             elif completion_action == 'return_to_inventory':
                 # Make Available
                 asset.status = 'Available'
@@ -827,9 +825,9 @@ class OperationsService:
                 asset.employee_name = ''
                 asset.employee_email = ''
                 asset.mobile_number = ''
-                
+
                 new_status_desc = "Available (Inventory)"
-                
+
             elif completion_action == 'retire':
                 # Retire asset
                 asset.status = 'Retired'
@@ -837,9 +835,9 @@ class OperationsService:
                 asset.employee_name = ''
                 asset.employee_email = ''
                 asset.mobile_number = ''
-                
+
                 new_status_desc = "Retired"
-            
+
             # Create lifecycle event
             LifecycleService.record_event(
                 asset_id=asset.id,
@@ -852,7 +850,7 @@ class OperationsService:
                 performed_by=performed_by,
                 remarks=f"Action: {completion_action}, Cost: ${repair_cost}"
             )
-            
+
             # Create audit log
             AuditService.log(
                 action_type='REPAIR_COMPLETED',
@@ -868,11 +866,11 @@ class OperationsService:
                 performed_by=performed_by,
                 remarks=f"Repair cost: ${repair_cost}, Action: {completion_action}"
             )
-            
+
             db.session.commit()
-            
+
             logger.info(f"Repair {repair_id} completed for asset {asset.id} by {performed_by}")
-            
+
             return {
                 'success': True,
                 'operation': 'complete_repair',
@@ -881,7 +879,7 @@ class OperationsService:
                 'repair': repair.to_dict(),
                 'completion_action': completion_action
             }
-            
+
         except OperationError:
             db.session.rollback()
             raise
@@ -897,47 +895,47 @@ class OperationsService:
                        warranty: str = None, remarks: str = None) -> Dict:
         """
         Operation 6: Add Part Replacement to Repair
-        
+
         Validates:
         - Repair exists
         - Part name provided
-        
+
         Creates:
         - RepairPart record
         - Updates repair cost
-        
+
         Returns operation result
         """
         from models import AssetRepair, RepairPart
-        
+
         try:
             # Get repair
             repair = AssetRepair.query.get(repair_id)
             if not repair:
                 raise OperationError(f"Repair ID {repair_id} not found", "REPAIR_NOT_FOUND")
-            
+
             if not part_name or not part_name.strip():
                 raise OperationError("Part name is required", "PART_NAME_REQUIRED")
-            
+
             # Create part record
             part = RepairPart(
                 repair_id=repair_id,
                 part_name=part_name,
                 vendor=vendor,
                 cost=cost or 0.0,
-                replacement_date=datetime.strptime(replacement_date, '%Y-%m-%d').date() if replacement_date else date.today(),
+                replacement_date=datetime.strptime(replacement_date, '%Y-%m-%d').date() if replacement_date else today_ist(),
                 warranty=warranty,
                 remarks=remarks
             )
             db.session.add(part)
-            
+
             # Update repair total cost
             repair.repair_cost = (repair.repair_cost or 0.0) + (cost or 0.0)
-            
+
             db.session.commit()
-            
+
             logger.info(f"Part '{part_name}' added to repair {repair_id}")
-            
+
             return {
                 'success': True,
                 'operation': 'add_repair_part',
@@ -945,7 +943,7 @@ class OperationsService:
                 'part': part.to_dict(),
                 'repair': repair.to_dict()
             }
-            
+
         except OperationError:
             db.session.rollback()
             raise

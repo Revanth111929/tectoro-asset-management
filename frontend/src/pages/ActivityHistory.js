@@ -30,7 +30,7 @@ function ActivityHistory() {
       Object.keys(filters).forEach(key => {
         if (filters[key]) params.append(key, filters[key]);
       });
-      
+
       const response = await axios.get(`${API_BASE_URL}/audit-logs?${params}`);
       setLogs(response.data.logs || []);
       setTotal(response.data.total || 0);
@@ -103,9 +103,10 @@ function ActivityHistory() {
                 value={filters.search}
                 onChange={(e) => setFilters({...filters, search: e.target.value, page: 1})}
                 className="form-control"
+                autoComplete="off"
               />
             </div>
-            
+
             <div className="col-md-3">
               <select
                 value={filters.action_type}
@@ -147,7 +148,7 @@ function ActivityHistory() {
             </div>
 
             <div className="col-md-1">
-              <button 
+              <button
                 onClick={() => setFilters({action_type: '', date_from: '', date_to: '', search: '', page: 1, per_page: 50})}
                 className="btn btn-outline-secondary w-100"
                 title="Clear filters"
@@ -229,7 +230,7 @@ function ActivityHistory() {
               <nav>
                 <ul className="pagination justify-content-center">
                   <li className={`page-item ${filters.page === 1 ? 'disabled' : ''}`}>
-                    <button 
+                    <button
                       className="page-link"
                       onClick={() => setFilters({...filters, page: filters.page - 1})}
                       disabled={filters.page === 1}
@@ -237,15 +238,15 @@ function ActivityHistory() {
                       <i className="bi bi-chevron-left"></i> Previous
                     </button>
                   </li>
-                  
+
                   <li className="page-item active">
                     <span className="page-link">
                       Page {filters.page} of {pages}
                     </span>
                   </li>
-                  
+
                   <li className={`page-item ${filters.page >= pages ? 'disabled' : ''}`}>
-                    <button 
+                    <button
                       className="page-link"
                       onClick={() => setFilters({...filters, page: filters.page + 1})}
                       disabled={filters.page >= pages}

@@ -1,619 +1,511 @@
-# Production Deployment Guide 🚀
+# 🚀 Production Deployment Guide - Quick Reference
 
-**Complete guide for running the Asset Management System in production**
+## ⚠️ MANDATORY STEPS BEFORE DEPLOYMENT
 
----
+### 1. Generate Production Secret Key
 
-## 📋 Table of Contents
-
-1. [Understanding the Error](#understanding-the-error)
-2. [Production Scripts](#production-scripts)
-3. [Quick Start](#quick-start)
-4. [Troubleshooting](#troubleshooting)
-5. [Systemd Service (Auto-start)](#systemd-service-auto-start)
-6. [Nginx Reverse Proxy](#nginx-reverse-proxy-optional)
-7. [Maintenance](#maintenance)
-
----
-
-## Understanding the Error
-
-### The "Address already in use" Error
-
-```
-Address already in use
-Port 3000 is in use by another program.
-```
-
-**What it means**: Another process is already listening on port 3000.
-
-**Common causes**:
-1. ✅ **Application already running** - You started it earlier
-2. 🔴 **React dev server** (`npm start`) is running
-3. 🔴 **Another instance** of the app was started manually
-4. 🔴 **Zombie process** - App crashed but port wasn't released
-
-**How to fix**: Use the production scripts we created!
-
----
-
-## Production Scripts
-
-I've created 4 scripts to manage your application in production:
-
-### 1. `production_start.sh` - Start the Application
-```bash
-./production_start.sh
-```
-
-**What it does**:
-- ✅ Checks if app is already running
-- ✅ Kills any processes on port 3000
-- ✅ Activates virtual environment
-- ✅ Verifies frontend build exists
-- ✅ Starts the server in background
-- ✅ Saves PID for management
-- ✅ Verifies server started successfully
-
-**Interactive**: Asks you to choose between `app.py` or `api_server.py`
-
-### 2. `production_stop.sh` - Stop the Application
-```bash
-./production_stop.sh
-```
-
-**What it does**:
-- ✅ Reads PID from file
-- ✅ Gracefully stops the process (SIGTERM)
-- ✅ Force kills if needed (SIGKILL)
-- ✅ Cleans up PID file
-- ✅ Ensures port 3000 is free
-
-### 3. `production_restart.sh` - Restart the Application
-```bash
-./production_restart.sh
-```
-
-**What it does**:
-- ✅ Stops the application
-- ✅ Waits 2 seconds
-- ✅ Starts the application
-
-### 4. `production_status.sh` - Check Application Status
-```bash
-./production_status.sh
-```
-
-**What it shows**:
-- ✅ PID file status
-- ✅ Process status (running/stopped)
-- ✅ CPU and memory usage
-- ✅ Uptime
-- ✅ Port 3000 status
-- ✅ API health check
-- ✅ Frontend build info
-- ✅ Recent logs (last 10 lines)
-- ✅ Database info
-- ✅ Overall health status
-
----
-
-## Quick Start
-
-### First Time Setup
-
-1. **Stop any running processes**:
-```bash
-# Kill React dev server if running
-pkill -f "react-scripts"
-pkill -f "npm start"
-
-# Kill any Python processes
-pkill -f "python.*app.py"
-pkill -f "python.*api_server.py"
-
-# Or use our stop script
-./production_stop.sh
-```
-
-2. **Start the application**:
-```bash
-./production_start.sh
-```
-
-When prompted, choose:
-- **Option 1** (app.py) - Recommended, includes all blueprints
-- **Option 2** (api_server.py) - Standalone, all routes in one file
-
-3. **Verify it's running**:
-```bash
-./production_status.sh
-```
-
-You should see:
-```
-✅ Overall Status: RUNNING & HEALTHY
-```
-
-4. **Access the application**:
-Open browser: http://192.168.20.180:3000
-
----
-
-## Daily Usage
-
-### Start Application
 ```bash
 cd /home/administrator/Desktop/asset-management
-./production_start.sh
+
+# Generate a secure 64-character secret key
+python3 -c "import secrets; print(secrets.token_hex(32))"
+
+# Copy the output
 ```
 
-### Stop Application
+### 2. Update Backend `.env`
+
 ```bash
-cd /home/administrator/Desktop/asset-management
-./production_stop.sh
+nano .env
+
+# Update these lines:
+FLASK_ENV=production
+SECRET_KEY=<paste-your-generated-secret-key-here>
+APP_ENV=office
 ```
 
-### Restart Application (after changes)
+### 3. Fix Frontend API Configuration
+
 ```bash
-cd /home/administrator/Desktop/asset-management
-./production_restart.sh
+nano frontend/.env
+
+# OPTION 1 (Recommended): Remove the line entirely for relative URL
+# Delete or comment out:
+# REACT_APP_API_URL=http://192.168.20.180:3000/api
+
+# OPTION 2: Set production URL
+REACT_APP_API_URL=https://your-production-domain.com/api
 ```
 
-### Check Status
-```bash
-cd /home/administrator/Desktop/asset-management
-./production_status.sh
-```
+### 4. Rebuild Frontend
 
-### View Live Logs
 ```bash
-cd /home/administrator/Desktop/asset-management
-tail -f logs/production.log
-```
-
-### View Last 50 Lines of Logs
-```bash
-cd /home/administrator/Desktop/asset-management
-tail -50 logs/production.log
+cd frontend
+npm run build
+cd ..
 ```
 
 ---
 
-## Troubleshooting
+## 📦 PRODUCTION SERVER SETUP
 
-### Problem 1: "Address already in use"
+### Install Production Dependencies
 
-**Symptom**:
-```
-Address already in use
-Port 3000 is in use by another program.
-```
-
-**Solution**:
 ```bash
-./production_stop.sh
-./production_start.sh
-```
-
-**Or manually**:
-```bash
-# Find what's using port 3000
-lsof -i:3000
-
-# Kill specific PID
-kill <PID>
-
-# Or kill all processes on port 3000
-fuser -k 3000/tcp
-```
-
----
-
-### Problem 2: Application Won't Start
-
-**Check the logs**:
-```bash
-tail -50 logs/production.log
-```
-
-**Common issues**:
-
-**A. Missing virtual environment**
-```bash
-python3 -m venv venv
+# Install gunicorn (production WSGI server)
 source venv/bin/activate
+pip install gunicorn
+
+# Verify requirements
 pip install -r requirements.txt
 ```
 
-**B. Missing frontend build**
+### Start Production Server
+
 ```bash
-cd frontend
-npm install
-npm run build
-cd ..
+# DO NOT USE: python api_server.py (development only)
+
+# Use gunicorn for production:
+gunicorn -w 4 -b 0.0.0.0:3000 api_server:app
+
+# With auto-reload (for testing):
+gunicorn -w 4 -b 0.0.0.0:3000 --reload api_server:app
+
+# With logging:
+gunicorn -w 4 -b 0.0.0.0:3000 --access-logfile - --error-logfile - api_server:app
 ```
 
-**C. Database not initialized**
-```bash
-source venv/bin/activate
-python3 -c "from app import create_app; from models import db; app = create_app(); app.app_context().push(); db.create_all(); print('Database initialized')"
-```
+### Using Systemd (Recommended)
 
-**D. Wrong .env.production file**
-```bash
-# Check frontend API URL
-cat frontend/.env.production
-# Should be: REACT_APP_API_URL=http://192.168.20.180:3000/api
-
-# Fix if wrong
-echo "REACT_APP_API_URL=http://192.168.20.180:3000/api" > frontend/.env.production
-
-# Rebuild frontend
-cd frontend
-npm run build
-cd ..
-```
-
----
-
-### Problem 3: API Returns Errors
-
-**Check API health**:
-```bash
-curl http://localhost:3000/api/dashboard/stats
-```
-
-**If it fails**:
-```bash
-# Check if server is running
-./production_status.sh
-
-# Check logs for errors
-tail -50 logs/production.log
-
-# Restart
-./production_restart.sh
-```
-
----
-
-### Problem 4: Frontend Shows Old Version
-
-**Rebuild frontend**:
-```bash
-cd frontend
-rm -rf build
-npm run build
-cd ..
-./production_restart.sh
-```
-
-**Clear browser cache**:
-- Press **Ctrl + Shift + R**
-- Or use incognito mode
-
----
-
-### Problem 5: Can't Kill Process
-
-**Force kill everything on port 3000**:
-```bash
-sudo fuser -k 3000/tcp
-```
-
-**Find and kill specific Python processes**:
-```bash
-ps aux | grep python | grep -E '(app|api_server)'
-kill -9 <PID>
-```
-
----
-
-## Systemd Service (Auto-start)
-
-Want the application to start automatically on boot? Create a systemd service.
-
-### Step 1: Create Service File
+Create service file:
 
 ```bash
 sudo nano /etc/systemd/system/asset-management.service
 ```
 
-### Step 2: Add Configuration
+Content:
 
 ```ini
 [Unit]
-Description=Asset Management System
+Description=Asset Management API
 After=network.target
 
 [Service]
-Type=simple
+Type=notify
 User=administrator
 WorkingDirectory=/home/administrator/Desktop/asset-management
-Environment="PATH=/home/administrator/Desktop/asset-management/venv/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/home/administrator/Desktop/asset-management/venv/bin/python3 /home/administrator/Desktop/asset-management/app.py
+Environment="PATH=/home/administrator/Desktop/asset-management/venv/bin"
+ExecStart=/home/administrator/Desktop/asset-management/venv/bin/gunicorn -w 4 -b 0.0.0.0:3000 api_server:app
 Restart=always
 RestartSec=10
-StandardOutput=append:/home/administrator/Desktop/asset-management/logs/production.log
-StandardError=append:/home/administrator/Desktop/asset-management/logs/production.log
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-### Step 3: Enable and Start
+Enable and start:
 
 ```bash
-# Reload systemd
 sudo systemctl daemon-reload
-
-# Enable auto-start on boot
 sudo systemctl enable asset-management
-
-# Start the service
 sudo systemctl start asset-management
-
-# Check status
 sudo systemctl status asset-management
-```
-
-### Managing the Service
-
-```bash
-# Start
-sudo systemctl start asset-management
-
-# Stop
-sudo systemctl stop asset-management
-
-# Restart
-sudo systemctl restart asset-management
-
-# Status
-sudo systemctl status asset-management
-
-# View logs
-sudo journalctl -u asset-management -f
-
-# Disable auto-start
-sudo systemctl disable asset-management
 ```
 
 ---
 
-## Nginx Reverse Proxy (Optional)
+## 🌐 NGINX REVERSE PROXY (Recommended)
 
-Want to run on port 80 (standard HTTP) instead of 3000?
-
-### Step 1: Install Nginx
+### Install Nginx
 
 ```bash
 sudo apt update
-sudo apt install nginx -y
+sudo apt install nginx
 ```
 
-### Step 2: Create Nginx Config
+### Configure Site
 
 ```bash
 sudo nano /etc/nginx/sites-available/asset-management
 ```
 
-### Step 3: Add Configuration
+Content:
 
 ```nginx
 server {
     listen 80;
-    server_name 192.168.20.180;
+    server_name your-domain.com;
 
-    # Increase timeouts for large file uploads
-    client_max_body_size 50M;
-    proxy_connect_timeout 600;
-    proxy_send_timeout 600;
-    proxy_read_timeout 600;
-    send_timeout 600;
+    # Redirect HTTP to HTTPS
+    return 301 https://$server_name$request_uri;
+}
 
+server {
+    listen 443 ssl http2;
+    server_name your-domain.com;
+
+    # SSL Certificate (obtain via Let's Encrypt)
+    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+
+    # Serve frontend static files
     location / {
+        root /home/administrator/Desktop/asset-management/frontend/build;
+        try_files $uri $uri/ /index.html;
+
+        # Cache static assets
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+
+    # Proxy API requests to backend
+    location /api {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+
+        # Timeouts for long requests
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # Health check endpoint
+    location /api/health {
+        proxy_pass http://localhost:3000;
+        access_log off;
     }
 }
 ```
 
-### Step 4: Enable Site
+Enable site:
 
 ```bash
-# Create symlink
 sudo ln -s /etc/nginx/sites-available/asset-management /etc/nginx/sites-enabled/
-
-# Test configuration
 sudo nginx -t
-
-# Restart nginx
 sudo systemctl restart nginx
-
-# Enable auto-start
-sudo systemctl enable nginx
 ```
 
-### Step 5: Update Frontend API URL
+### Obtain SSL Certificate (Let's Encrypt)
 
 ```bash
-# Update .env.production to use port 80
-echo "REACT_APP_API_URL=http://192.168.20.180/api" > frontend/.env.production
-
-# Rebuild frontend
-cd frontend
-npm run build
-cd ..
-
-# Restart application
-./production_restart.sh
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d your-domain.com
+sudo systemctl reload nginx
 ```
-
-Now access at: **http://192.168.20.180** (no port number!)
 
 ---
 
-## Maintenance
+## 🔒 SECURITY HARDENING
 
-### Regular Maintenance Tasks
+### File Permissions
 
-#### Daily
-- **Check status**: `./production_status.sh`
-- **Review logs**: `tail -50 logs/production.log`
-
-#### Weekly
-- **Rotate logs** (if they get too large):
 ```bash
-# Backup old log
-mv logs/production.log logs/production_$(date +%Y%m%d).log
+cd /home/administrator/Desktop/asset-management
 
-# Restart to create new log
-./production_restart.sh
+# Protect sensitive files
+chmod 600 .env
+chmod 600 frontend/.env
+chmod 700 databases/
+
+# Ensure database is not world-readable
+chmod 600 databases/local_assets.db
 ```
 
-#### Monthly
-- **Database backup**:
+### Firewall Configuration
+
 ```bash
-# Create backups directory
-mkdir -p backups
-
-# Backup database
-cp assets.db backups/assets_$(date +%Y%m%d).db
-
-# Keep only last 30 days
-find backups/ -name "assets_*.db" -mtime +30 -delete
+# Allow HTTP, HTTPS, and SSH only
+sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+sudo ufw status
 ```
 
-- **Update dependencies**:
+### Database Backup
+
 ```bash
+# Create backup script
+nano backup_database.sh
+```
+
+Content:
+
+```bash
+#!/bin/bash
+BACKUP_DIR="/home/administrator/backups"
+DB_PATH="/home/administrator/Desktop/asset-management/databases/local_assets.db"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+mkdir -p "$BACKUP_DIR"
+cp "$DB_PATH" "$BACKUP_DIR/assets_backup_$TIMESTAMP.db"
+
+# Keep only last 30 days of backups
+find "$BACKUP_DIR" -name "assets_backup_*.db" -mtime +30 -delete
+
+echo "Backup completed: assets_backup_$TIMESTAMP.db"
+```
+
+Make executable and add to cron:
+
+```bash
+chmod +x backup_database.sh
+
+# Add to crontab (daily at 2 AM)
+crontab -e
+# Add line:
+# 0 2 * * * /home/administrator/Desktop/asset-management/backup_database.sh
+```
+
+---
+
+## ✅ POST-DEPLOYMENT VERIFICATION
+
+### 1. Check Backend Health
+
+```bash
+curl http://localhost:3000/api/health
+```
+
+Expected response:
+```json
+{
+  "status": "ok",
+  "service": "Tectoro Asset Management API",
+  "database": "healthy",
+  "version": "2.0.0",
+  "timestamp": "2026-08-18T06:12:55.796414"
+}
+```
+
+### 2. Test Frontend Access
+
+Open browser: `https://your-domain.com`
+
+Expected: Login page loads correctly
+
+### 3. Test Authentication
+
+- Login as admin user
+- Verify dashboard loads
+- Check All Assets page (should show 31 assets)
+
+### 4. Verify API Connection
+
+Open browser console (F12) and check:
+- No CORS errors
+- API calls to `/api/*` successful
+- No 401/403 errors on authorized pages
+
+### 5. Test Critical Workflows
+
+- ✅ View All Assets
+- ✅ Add New Asset
+- ✅ Edit Asset
+- ✅ Assign Asset to Employee
+- ✅ Create Part Replacement
+- ✅ View Activity History
+- ✅ Generate Report
+
+---
+
+## 🔧 TROUBLESHOOTING
+
+### Issue: Backend Won't Start
+
+```bash
+# Check logs
+journalctl -u asset-management -n 50 --no-pager
+
+# Common causes:
+# 1. Port 3000 already in use
+sudo lsof -i :3000
+
+# 2. Python environment issues
 source venv/bin/activate
-pip install --upgrade -r requirements.txt
-cd frontend
-npm update
-npm run build
-cd ..
-./production_restart.sh
+pip install -r requirements.txt
+
+# 3. Database connection error
+ls -la databases/local_assets.db
 ```
 
----
-
-## Deployment Checklist
-
-Before deploying to production, verify:
-
-### Infrastructure
-- [ ] Port 3000 is free
-- [ ] Virtual environment exists (`venv/`)
-- [ ] Dependencies installed (`pip install -r requirements.txt`)
-- [ ] Frontend built (`frontend/build/`)
-- [ ] Database initialized (`assets.db`)
-- [ ] Logs directory exists (`logs/`)
-
-### Configuration
-- [ ] `.env` file configured
-- [ ] `frontend/.env.production` has correct API URL
-- [ ] Database connection string correct
-- [ ] Secret key set
-
-### Security
-- [ ] Change default admin password
-- [ ] Update SECRET_KEY in environment
-- [ ] Configure ALLOWED_ORIGINS in app
-- [ ] Enable HTTPS (if using Nginx)
-- [ ] Firewall configured
-- [ ] Database backed up
-
-### Testing
-- [ ] Application starts: `./production_start.sh`
-- [ ] Status shows healthy: `./production_status.sh`
-- [ ] API responds: `curl http://localhost:3000/api/dashboard/stats`
-- [ ] Frontend loads in browser
-- [ ] Login works
-- [ ] Core features work (add asset, assign, etc.)
-
----
-
-## Quick Reference
-
-### Common Commands
+### Issue: Frontend Can't Connect to Backend
 
 ```bash
-# Start
-./production_start.sh
+# Check nginx configuration
+sudo nginx -t
+cat /etc/nginx/sites-enabled/asset-management
 
-# Stop
-./production_stop.sh
+# Check backend is running
+curl http://localhost:3000/api/health
 
-# Restart
-./production_restart.sh
-
-# Status
-./production_status.sh
-
-# Logs
-tail -f logs/production.log
-
-# Kill port 3000
-fuser -k 3000/tcp
-
-# Find what's on port 3000
-lsof -i:3000
-
-# Check if app is running
-ps aux | grep -E 'python.*(app|api_server)' | grep -v grep
+# Check frontend build has correct API URL
+grep -r "REACT_APP_API_URL" frontend/.env
+grep -r "192.168.20.180" frontend/build/  # Should find nothing
 ```
 
-### File Locations
+### Issue: 500 Internal Server Error
 
+```bash
+# Check backend logs
+journalctl -u asset-management -f
+
+# Common causes:
+# 1. SECRET_KEY not set or still using dev key
+grep SECRET_KEY .env
+
+# 2. Database permissions
+ls -la databases/local_assets.db
+
+# 3. Missing dependencies
+pip list | grep -i flask
 ```
-/home/administrator/Desktop/asset-management/
-├── app.py                    # Main server file (recommended)
-├── api_server.py             # Alternative server file
-├── assets.db                 # SQLite database
-├── logs/
-│   └── production.log        # Application logs
-├── app.pid                   # Process ID file
-├── frontend/
-│   ├── build/                # Production build
-│   └── .env.production       # Production API URL
-├── production_start.sh       # Start script
-├── production_stop.sh        # Stop script
-├── production_restart.sh     # Restart script
-└── production_status.sh      # Status script
+
+### Issue: Assets Not Loading (Failed to load assets)
+
+**Root Cause:** Backend not running
+
+```bash
+# Check if backend is running
+systemctl status asset-management
+
+# If not running, start it
+sudo systemctl start asset-management
+
+# Check logs for errors
+journalctl -u asset-management -n 50
 ```
 
 ---
 
-## Support
+## 📊 MONITORING
 
-### Getting Help
+### Health Check Endpoint
 
-1. **Check status**: `./production_status.sh`
-2. **Check logs**: `tail -50 logs/production.log`
-3. **Check this guide**: Look for your error in [Troubleshooting](#troubleshooting)
+Set up monitoring to ping: `https://your-domain.com/api/health`
 
-### Common Error Messages
+Expected response time: < 100ms
 
-| Error | Solution |
-|-------|----------|
-| "Address already in use" | `./production_stop.sh` then `./production_start.sh` |
-| "No module named 'flask'" | `source venv/bin/activate && pip install -r requirements.txt` |
-| "Database not found" | Initialize database (see Problem 2C) |
-| "Failed to load" in browser | Rebuild frontend and hard refresh (Ctrl+Shift+R) |
-| "API health check failed" | Check logs: `tail -50 logs/production.log` |
+### Log Monitoring
+
+```bash
+# Real-time backend logs
+journalctl -u asset-management -f
+
+# Nginx access logs
+tail -f /var/log/nginx/access.log
+
+# Nginx error logs
+tail -f /var/log/nginx/error.log
+```
+
+### Database Monitoring
+
+```bash
+# Check database size
+du -h databases/local_assets.db
+
+# Count assets
+sqlite3 databases/local_assets.db "SELECT COUNT(*) FROM assets WHERE is_deleted = 0;"
+
+# Check disk space
+df -h /home/administrator/Desktop/asset-management/databases/
+```
 
 ---
 
-**Last Updated**: July 29, 2026  
-**Version**: 1.0  
-**Port**: 3000  
-**Status**: Production Ready ✅
+## 🔄 UPDATE PROCEDURE
+
+### Updating the Application
+
+```bash
+# 1. Backup database
+./backup_database.sh
+
+# 2. Stop backend
+sudo systemctl stop asset-management
+
+# 3. Pull latest code (if using git)
+git pull origin main
+
+# 4. Update dependencies
+source venv/bin/activate
+pip install -r requirements.txt --upgrade
+
+# 5. Rebuild frontend (if frontend changed)
+cd frontend
+npm install
+npm run build
+cd ..
+
+# 6. Start backend
+sudo systemctl start asset-management
+
+# 7. Verify
+curl http://localhost:3000/api/health
+```
+
+---
+
+## 📞 PRODUCTION SUPPORT CHECKLIST
+
+### Before Contacting Support
+
+- [ ] Check backend service status: `systemctl status asset-management`
+- [ ] Check backend logs: `journalctl -u asset-management -n 50`
+- [ ] Check nginx logs: `tail -100 /var/log/nginx/error.log`
+- [ ] Verify database exists: `ls -la databases/local_assets.db`
+- [ ] Check health endpoint: `curl http://localhost:3000/api/health`
+- [ ] Check disk space: `df -h`
+- [ ] Check system resources: `top` or `htop`
+
+### Information to Provide
+
+1. Exact error message or behavior
+2. When did it start (was there a deployment/change?)
+3. Backend service status output
+4. Last 50 lines of backend logs
+5. Screenshot of browser console errors (if frontend issue)
+6. Steps to reproduce
+
+---
+
+## ✅ PRODUCTION CHECKLIST SUMMARY
+
+Before declaring production ready:
+
+- [x] Backend server running (confirmed: port 3000)
+- [x] Database healthy (confirmed: 31 assets)
+- [x] Frontend builds successfully (confirmed: 394.85 kB)
+- [x] Timezone implementation correct (IST)
+- [ ] **SECRET_KEY updated** ⚠️ CRITICAL
+- [ ] **Frontend API URL fixed** ⚠️ CRITICAL
+- [ ] Frontend rebuilt after config changes
+- [ ] Production WSGI server configured (gunicorn)
+- [ ] Nginx reverse proxy configured
+- [ ] SSL certificate installed
+- [ ] Firewall configured
+- [ ] Database backup automated
+- [ ] Health check monitoring setup
+- [ ] Admin user login tested
+- [ ] Critical workflows tested
+
+---
+
+**Deployment Date:** _____________
+**Deployed By:** _____________
+**Production URL:** _____________
+**Admin Password Changed:** [ ] Yes [ ] No
+
+---
+
+*For detailed audit findings, see PRODUCTION_READINESS_REPORT.md*

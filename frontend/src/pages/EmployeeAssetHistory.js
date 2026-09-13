@@ -12,19 +12,19 @@ import './EmployeeAssetHistory.css';
 function EmployeeAssetHistory() {
   const { employeeId } = useParams();
   const navigate = useNavigate();
-  
+
   const [loading, setLoading] = useState(true);
   const [employee, setEmployee] = useState(null);
   const [currentAssets, setCurrentAssets] = useState([]);
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [statistics, setStatistics] = useState({});
-  
+
   // Filters and search
   const [filterType, setFilterType] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState('desc'); // desc = newest first
-  
+
   useEffect(() => {
     fetchEmployeeHistory();
   }, [employeeId]);
@@ -36,16 +36,16 @@ function EmployeeAssetHistory() {
   const fetchEmployeeHistory = async () => {
     try {
       setLoading(true);
-      
+
       // Fetch complete employee asset history
       const response = await employeeAPI.getAssetHistory(employeeId);
       const data = response.data;
-      
+
       setEmployee(data.employee);
       setCurrentAssets(data.current_assets || []);
       setStatistics(data.statistics || {});
       setEvents(data.events || []);
-      
+
     } catch (error) {
       console.error('Error fetching employee history:', error);
     } finally {
@@ -55,7 +55,7 @@ function EmployeeAssetHistory() {
 
   const applyFiltersAndSearch = () => {
     let filtered = [...events];
-    
+
     // Apply filter
     if (filterType !== 'all') {
       filtered = filtered.filter(event => {
@@ -69,7 +69,7 @@ function EmployeeAssetHistory() {
           case 'temp_assignments':
             return event.type === 'temp_assignment';
           case 'repairs':
-            return (event.event_type === 'MAINTENANCE_STARTED' || 
+            return (event.event_type === 'MAINTENANCE_STARTED' ||
                     event.event_type === 'MAINTENANCE_COMPLETED' ||
                     event.type === 'temp_assignment');
           case 'current':
@@ -79,7 +79,7 @@ function EmployeeAssetHistory() {
         }
       });
     }
-    
+
     // Apply search
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -95,16 +95,16 @@ function EmployeeAssetHistory() {
           event.reason,
           event.remarks
         ].filter(Boolean).join(' ').toLowerCase();
-        
+
         return searchableText.includes(term);
       });
     }
-    
+
     // Apply sort
     if (sortOrder === 'asc') {
       filtered.reverse();
     }
-    
+
     setFilteredEvents(filtered);
   };
 
@@ -120,7 +120,7 @@ function EmployeeAssetHistory() {
       };
       return icons[event.event_type] || 'circle';
     }
-    
+
     if (event.type === 'audit') {
       const icons = {
         'ASSET_ASSIGNED': 'person-check',
@@ -130,15 +130,15 @@ function EmployeeAssetHistory() {
       };
       return icons[event.action_type] || 'circle';
     }
-    
+
     if (event.type === 'temp_assignment') {
       return 'clock-history';
     }
-    
+
     if (event.type === 'replacement') {
       return 'arrow-repeat';
     }
-    
+
     return 'circle';
   };
 
@@ -154,7 +154,7 @@ function EmployeeAssetHistory() {
       };
       return colors[event.event_type] || 'secondary';
     }
-    
+
     if (event.type === 'audit') {
       const colors = {
         'ASSET_ASSIGNED': 'primary',
@@ -164,15 +164,15 @@ function EmployeeAssetHistory() {
       };
       return colors[event.action_type] || 'secondary';
     }
-    
+
     if (event.type === 'temp_assignment') {
       return 'info';
     }
-    
+
     if (event.type === 'replacement') {
       return 'warning';
     }
-    
+
     return 'secondary';
   };
 
@@ -188,7 +188,7 @@ function EmployeeAssetHistory() {
       };
       return titles[event.event_type] || event.event_type;
     }
-    
+
     if (event.type === 'audit') {
       const titles = {
         'ASSET_ASSIGNED': 'Asset Assigned',
@@ -198,17 +198,17 @@ function EmployeeAssetHistory() {
       };
       return titles[event.action_type] || event.action_type?.replace(/_/g, ' ');
     }
-    
+
     if (event.type === 'temp_assignment') {
-      return event.sub_type === 'original' 
+      return event.sub_type === 'original'
         ? 'Device Sent for Repair (Loaner Assigned)'
         : 'Temporary Replacement Device';
     }
-    
+
     if (event.type === 'replacement') {
       return 'Permanent Device Replacement';
     }
-    
+
     return 'Event';
   };
 
@@ -236,17 +236,17 @@ function EmployeeAssetHistory() {
 
   const exportToPDF = () => {
     const doc = new jsPDF();
-    
+
     // Title
     doc.setFontSize(18);
     doc.text('Employee Asset History', 14, 20);
-    
+
     // Employee Info
     doc.setFontSize(12);
     doc.text(`Employee: ${employee.employee_name}`, 14, 30);
     doc.text(`ID: ${employee.emp_id}`, 14, 37);
     doc.text(`Department: ${employee.department || '—'}`, 14, 44);
-    
+
     // Timeline data
     const tableData = filteredEvents.map(event => [
       formatDateTime(event.date || event.timestamp),
@@ -256,7 +256,7 @@ function EmployeeAssetHistory() {
       getEventTitle(event),
       event.reason || event.remarks || '—'
     ]);
-    
+
     doc.autoTable({
       startY: 50,
       head: [['Date & Time', 'Asset Name', 'Serial', 'Category', 'Event', 'Details']],
@@ -265,7 +265,7 @@ function EmployeeAssetHistory() {
       headStyles: { fillColor: [99, 102, 241] },
       styles: { fontSize: 8 }
     });
-    
+
     doc.save(`${employee.employee_name}_asset_history_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
@@ -281,12 +281,12 @@ function EmployeeAssetHistory() {
       getEventTitle(event),
       event.reason || event.remarks || ''
     ]);
-    
+
     let csv = headers.join(',') + '\n';
     rows.forEach(row => {
       csv += row.map(cell => `"${cell}"`).join(',') + '\n';
     });
-    
+
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -396,7 +396,7 @@ function EmployeeAssetHistory() {
           <div className="row g-3">
             {currentAssets.map(asset => (
               <div key={asset.id} className="col-md-4">
-                <NavButton 
+                <NavButton
                   to={`/inventory/detail/${asset.id}`}
                   className="text-decoration-none"
                 >
@@ -436,6 +436,7 @@ function EmployeeAssetHistory() {
                 type="text"
                 className="form-control"
                 placeholder="Search by asset name, serial, category, brand, or event..."
+                autoComplete="off"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -448,8 +449,8 @@ function EmployeeAssetHistory() {
           </div>
           <div className="col-md-4">
             <label className="form-label small fw-600">Filter by Event Type</label>
-            <select 
-              className="form-select" 
+            <select
+              className="form-select"
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
             >
@@ -464,8 +465,8 @@ function EmployeeAssetHistory() {
           </div>
           <div className="col-md-2">
             <label className="form-label small fw-600">Sort Order</label>
-            <select 
-              className="form-select" 
+            <select
+              className="form-select"
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value)}
             >
@@ -532,7 +533,7 @@ function EmployeeAssetHistory() {
           <i className="bi bi-clock-history me-2 text-primary"></i>
           Complete Asset Timeline
         </h5>
-        
+
         {filteredEvents.length === 0 ? (
           <div className="text-center py-5">
             <i className="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
@@ -561,24 +562,24 @@ function EmployeeAssetHistory() {
                       {event.category || 'Event'}
                     </span>
                   </div>
-                  
+
                   {/* Asset Information */}
                   <div className="event-details">
                     <div className="detail-row">
                       <i className="bi bi-laptop text-primary me-2"></i>
-                      <strong>Asset:</strong> 
+                      <strong>Asset:</strong>
                       <NavButton to={`/inventory/detail/${event.asset_id}`} className="ms-2 text-decoration-none">
                         {event.asset_name || '—'}
                       </NavButton>
                     </div>
-                    
+
                     {event.asset_serial && (
                       <div className="detail-row">
                         <i className="bi bi-upc text-secondary me-2"></i>
                         <strong>Serial:</strong> <code className="ms-2">{event.asset_serial}</code>
                       </div>
                     )}
-                    
+
                     {event.brand_name && (
                       <div className="detail-row">
                         <i className="bi bi-tag text-info me-2"></i>
@@ -586,7 +587,7 @@ function EmployeeAssetHistory() {
                         {event.model_name && <span className="ms-2">({event.model_name})</span>}
                       </div>
                     )}
-                    
+
                     {/* Replacement specific details */}
                     {event.type === 'replacement' && event.old_asset_name && (
                       <div className="detail-row">
@@ -597,28 +598,28 @@ function EmployeeAssetHistory() {
                         )}
                       </div>
                     )}
-                    
+
                     {event.location && (
                       <div className="detail-row">
                         <i className="bi bi-geo-alt text-info me-2"></i>
                         <strong>Location:</strong> {event.location}
                       </div>
                     )}
-                    
+
                     {(event.from_status && event.to_status) && (
                       <div className="detail-row">
                         <i className="bi bi-toggle-on text-secondary me-2"></i>
                         <strong>Status Change:</strong> {event.from_status} → {event.to_status}
                       </div>
                     )}
-                    
+
                     {(event.reason || event.remarks) && (
                       <div className="detail-row">
                         <i className="bi bi-chat-left-text text-muted me-2"></i>
                         <strong>Details:</strong> {event.reason || event.remarks}
                       </div>
                     )}
-                    
+
                     {event.performed_by && (
                       <div className="detail-row text-muted small">
                         <i className="bi bi-person-circle me-2"></i>
@@ -635,7 +636,7 @@ function EmployeeAssetHistory() {
 
       {/* Quick Actions */}
       <div className="mt-4 d-flex gap-2 justify-content-center">
-        <button 
+        <button
           onClick={() => navigate('/employees')}
           className="btn btn-outline-secondary"
         >

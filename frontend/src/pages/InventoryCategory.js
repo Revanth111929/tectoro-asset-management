@@ -99,7 +99,7 @@ const CATEGORY_CONFIG = {
 function InventoryCategory() {
   const { type } = useParams();
   const config = CATEGORY_CONFIG[type];
-  
+
   const [assets, setAssets] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -117,7 +117,7 @@ function InventoryCategory() {
   };
   const listUrl = buildUrl(`/inventory/${type}`);
   useScrollRestoration(listUrl, !loading);
-  
+
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkAction, setBulkAction] = useState('');
@@ -128,16 +128,16 @@ function InventoryCategory() {
 
   const fetchAssets = useCallback(() => {
     if (!config) return; // Don't fetch if config is invalid
-    
+
     setLoading(true);
-    const params = { 
-      category: config.category, 
-      search, 
-      status, 
-      page, 
-      per_page: 20 
+    const params = {
+      category: config.category,
+      search,
+      status,
+      page,
+      per_page: 20
     };
-    
+
     assetAPI.getAll(params)
       .then(res => {
         setAssets(res.data.assets || []);
@@ -148,10 +148,10 @@ function InventoryCategory() {
   }, [config, search, status, page]);
 
   useEffect(() => { fetchAssets(); }, [fetchAssets]);
-  
+
   // Clear selection when page changes
   useEffect(() => { setSelectedIds([]); }, [page]);
-  
+
   // If category not found, show error message
   if (!config) {
     return (
@@ -192,14 +192,14 @@ function InventoryCategory() {
         `Asset data, history, and assignments will be preserved.\n\n` +
         `Continue?`
       );
-      
+
       if (!confirmed) return;
-      
+
       setBulkProcessing(true);
       let successCount = 0;
       let failCount = 0;
       const errors = [];
-      
+
       try {
         for (const id of selectedIds) {
           try {
@@ -211,10 +211,10 @@ function InventoryCategory() {
             errors.push(`Asset ID ${id}: ${errorMsg}`);
           }
         }
-        
+
         setSelectedIds([]);
         fetchAssets();
-        
+
         if (failCount === 0) {
           alert(`✓ Successfully deleted ${successCount} assets`);
         } else {
@@ -233,7 +233,7 @@ function InventoryCategory() {
         config.labels,
         ...selectedAssets.map(a => config.columns.map(col => a[col] || ''))
       ].map(row => row.join(',')).join('\n');
-      
+
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -248,12 +248,12 @@ function InventoryCategory() {
 
   const handleStatusChange = async () => {
     if (!newStatus || selectedIds.length === 0) return;
-    
+
     setBulkProcessing(true);
     let successCount = 0;
     let failCount = 0;
     const errors = [];
-    
+
     try {
       // Update assets one by one to catch individual errors
       for (const id of selectedIds) {
@@ -266,11 +266,11 @@ function InventoryCategory() {
           errors.push(`Item ID ${id}: ${errorMsg}`);
         }
       }
-      
+
       setSelectedIds([]);
       setShowStatusModal(false);
       fetchAssets();
-      
+
       if (failCount === 0) {
         alert(`✓ Successfully updated ${successCount} items to ${newStatus}`);
       } else {
@@ -297,9 +297,9 @@ function InventoryCategory() {
       `Asset data and history will be preserved.\n\n` +
       `Continue?`
     );
-    
+
     if (!confirmed) return;
-    
+
     try {
       await assetAPI.delete(asset.id);
       fetchAssets();
@@ -355,6 +355,7 @@ function InventoryCategory() {
                 type="text"
                 className="form-control"
                 placeholder="Search..."
+                autoComplete="off"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
@@ -468,39 +469,39 @@ function InventoryCategory() {
                       ))}
                       <td>
                         <div className="action-group">
-                          <NavButton 
-                            to={`/inventory/detail/${a.id}`} 
-                            state={{ returnTo: listUrl }} 
-                            onClick={() => markLastSelected(listUrl, a.id)} 
-                            className="action-btn action-view" 
+                          <NavButton
+                            to={`/inventory/detail/${a.id}`}
+                            state={{ returnTo: listUrl }}
+                            onClick={() => markLastSelected(listUrl, a.id)}
+                            className="action-btn action-view"
                             title="Inventory Details"
                           >
                             <i className="bi bi-box-seam"></i>
                           </NavButton>
-                          <NavButton 
-                            to={`/assets/view/${a.id}`} 
-                            state={{ returnTo: listUrl }} 
-                            onClick={() => markLastSelected(listUrl, a.id)} 
-                            className="action-btn action-view" 
+                          <NavButton
+                            to={`/assets/view/${a.id}`}
+                            state={{ returnTo: listUrl }}
+                            onClick={() => markLastSelected(listUrl, a.id)}
+                            className="action-btn action-view"
                             title="View Asset"
                           >
                             <i className="bi bi-eye"></i>
                           </NavButton>
                           {canPerform('edit') && (
-                            <NavButton 
-                              to={`/assets/edit/${a.id}`} 
-                              state={{ returnTo: listUrl }} 
-                              onClick={() => markLastSelected(listUrl, a.id)} 
-                              className="action-btn action-edit" 
+                            <NavButton
+                              to={`/assets/edit/${a.id}`}
+                              state={{ returnTo: listUrl }}
+                              onClick={() => markLastSelected(listUrl, a.id)}
+                              className="action-btn action-edit"
                               title="Edit Asset"
                             >
                               <i className="bi bi-pencil"></i>
                             </NavButton>
                           )}
                           {canPerform('delete') && (
-                            <button 
-                              onClick={() => handleSingleDelete(a)} 
-                              className="action-btn action-delete" 
+                            <button
+                              onClick={() => handleSingleDelete(a)}
+                              className="action-btn action-delete"
                               title="Delete Asset"
                             >
                               <i className="bi bi-trash"></i>
@@ -548,17 +549,17 @@ function InventoryCategory() {
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">Change Status for {selectedIds.length} Items</h5>
-                <button 
-                  type="button" 
-                  className="btn-close" 
+                <button
+                  type="button"
+                  className="btn-close"
                   onClick={() => setShowStatusModal(false)}
                 ></button>
               </div>
               <div className="modal-body">
                 <label className="form-label">Select New Status</label>
-                <select 
-                  className="form-select" 
-                  value={newStatus} 
+                <select
+                  className="form-select"
+                  value={newStatus}
                   onChange={e => setNewStatus(e.target.value)}
                 >
                   <option value="Available">Available</option>
@@ -572,16 +573,16 @@ function InventoryCategory() {
                 </div>
               </div>
               <div className="modal-footer">
-                <button 
-                  type="button" 
-                  className="btn btn-secondary" 
+                <button
+                  type="button"
+                  className="btn btn-secondary"
                   onClick={() => setShowStatusModal(false)}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="button" 
-                  className="btn btn-primary" 
+                <button
+                  type="button"
+                  className="btn btn-primary"
                   onClick={handleStatusChange}
                   disabled={bulkProcessing}
                 >

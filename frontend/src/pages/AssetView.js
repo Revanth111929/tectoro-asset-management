@@ -139,7 +139,7 @@ function AssetView() {
           <Row label="OS"            value={asset.os} />
           <Row label="Version"       value={asset.version} />
           <Row label="RAM"           value={asset.ram} />
-          <Row label="Location"      value={asset.location} />
+          <Row label="Client"        value={asset.location} />
           <Row label="Charger Serial Number" value={asset.charger_serial} mono />
         </div>
       </div>
@@ -171,7 +171,7 @@ function AssetView() {
               <div className="mt-2 p-2 border rounded d-flex align-items-center gap-2" style={{background: '#f8f9fa', display: 'inline-flex'}}>
                 <i className="bi bi-file-earmark-pdf text-danger"></i>
                 <span className="small">{asset.invoice_attachment.split('/').pop()}</span>
-                <button 
+                <button
                   type="button"
                   className="btn btn-sm btn-outline-primary"
                   onClick={handleViewInvoice}
@@ -179,7 +179,7 @@ function AssetView() {
                 >
                   <i className="bi bi-eye"></i> View
                 </button>
-                <button 
+                <button
                   type="button"
                   className="btn btn-sm btn-outline-success"
                   onClick={handleDownloadInvoice}

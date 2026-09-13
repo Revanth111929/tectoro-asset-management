@@ -13,18 +13,18 @@ import './InventoryLifecycle.css';
 function InventoryLifecycle() {
   const { assetId } = useParams(); // Future: will map to inventoryId
   const navigate = useNavigate();
-  
+
   const [loading, setLoading] = useState(true);
   const [asset, setAsset] = useState(null);
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [stats, setStats] = useState({});
-  
+
   // Filters and search
   const [filterType, setFilterType] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState('desc'); // desc = newest first, asc = oldest first
-  
+
   useEffect(() => {
     fetchLifecycleData();
   }, [assetId]);
@@ -36,37 +36,37 @@ function InventoryLifecycle() {
   const fetchLifecycleData = async () => {
     try {
       setLoading(true);
-      
+
       // Fetch asset details
       const assetRes = await assetAPI.getById(assetId);
       setAsset(assetRes.data);
-      
+
       // Fetch complete history
       const historyRes = await axios.get(`/api/assets/${assetId}/history`);
       const historyData = historyRes.data;
-      
+
       // Combine and normalize all events
       const allEvents = historyData.events || [];
-      
+
       // Calculate statistics
-      const assignments = allEvents.filter(e => 
+      const assignments = allEvents.filter(e =>
         e.event_type === 'ASSIGNED' || e.action_type === 'ASSET_ASSIGNED'
       );
-      
-      const repairs = allEvents.filter(e => 
-        e.event_type === 'MAINTENANCE_STARTED' || 
+
+      const repairs = allEvents.filter(e =>
+        e.event_type === 'MAINTENANCE_STARTED' ||
         e.event_type === 'MAINTENANCE_COMPLETED' ||
         e.type === 'temp_assignment'
       );
-      
-      const replacements = allEvents.filter(e => 
+
+      const replacements = allEvents.filter(e =>
         e.event_type === 'REPLACED' || e.action_type === 'ASSET_REPLACED'
       );
-      
-      const returns = allEvents.filter(e => 
+
+      const returns = allEvents.filter(e =>
         e.event_type === 'RETURNED' || e.action_type === 'ASSET_RETURNED'
       );
-      
+
       setStats({
         totalEvents: allEvents.length,
         assignments: assignments.length,
@@ -82,9 +82,9 @@ function InventoryLifecycle() {
         warrantyStatus: calculateWarrantyStatus(assetRes.data),
         lastActivity: allEvents.length > 0 ? allEvents[0] : null
       });
-      
+
       setEvents(allEvents);
-      
+
     } catch (error) {
       console.error('Error fetching lifecycle data:', error);
     } finally {
@@ -94,11 +94,11 @@ function InventoryLifecycle() {
 
   const calculateWarrantyStatus = (asset) => {
     if (!asset.warranty_end_date) return { status: 'N/A', color: 'secondary' };
-    
+
     const endDate = new Date(asset.warranty_end_date);
     const today = new Date();
     const diffDays = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays < 0) {
       return { status: 'Expired', color: 'danger', days: diffDays };
     } else if (diffDays <= 90) {
@@ -110,13 +110,13 @@ function InventoryLifecycle() {
 
   const applyFiltersAndSearch = () => {
     let filtered = [...events];
-    
+
     // Apply filter
     if (filterType !== 'all') {
       filtered = filtered.filter(event => {
         switch (filterType) {
           case 'assignments':
-            return event.event_type === 'ASSIGNED' || event.event_type === 'REASSIGNED' || 
+            return event.event_type === 'ASSIGNED' || event.event_type === 'REASSIGNED' ||
                    event.action_type === 'ASSET_ASSIGNED' || event.action_type === 'ASSET_REASSIGNED';
           case 'repairs':
             return event.event_type === 'MAINTENANCE_STARTED' || event.event_type === 'MAINTENANCE_COMPLETED' ||
@@ -134,7 +134,7 @@ function InventoryLifecycle() {
         }
       });
     }
-    
+
     // Apply search
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -149,16 +149,16 @@ function InventoryLifecycle() {
           event.remarks,
           event.performed_by
         ].filter(Boolean).join(' ').toLowerCase();
-        
+
         return searchableText.includes(term);
       });
     }
-    
+
     // Apply sort
     if (sortOrder === 'asc') {
       filtered.reverse();
     }
-    
+
     setFilteredEvents(filtered);
   };
 
@@ -228,7 +228,7 @@ function InventoryLifecycle() {
       };
       return titles[event.event_type] || event.event_type;
     }
-    
+
     if (event.type === 'audit') {
       const titles = {
         'ASSET_CREATED': 'Added to Inventory',
@@ -243,13 +243,13 @@ function InventoryLifecycle() {
       };
       return titles[event.action_type] || event.action_type?.replace(/_/g, ' ');
     }
-    
+
     if (event.type === 'temp_assignment') {
-      return event.sub_type === 'original' 
+      return event.sub_type === 'original'
         ? 'Sent for Repair (Loaner Assigned)'
         : 'Used as Temporary Replacement';
     }
-    
+
     return 'Event';
   };
 
@@ -267,17 +267,17 @@ function InventoryLifecycle() {
 
   const exportToPDF = () => {
     const doc = new jsPDF();
-    
+
     // Title
     doc.setFontSize(18);
     doc.text('Asset Lifecycle Timeline', 14, 20);
-    
+
     // Asset Info
     doc.setFontSize(12);
     doc.text(`Asset: ${asset.asset_name}`, 14, 30);
     doc.text(`Serial: ${asset.serial_number}`, 14, 37);
     doc.text(`Status: ${asset.status}`, 14, 44);
-    
+
     // Timeline data
     const tableData = filteredEvents.map(event => [
       formatDateTime(event.date || event.event_date || event.timestamp),
@@ -286,7 +286,7 @@ function InventoryLifecycle() {
       event.reason || event.remarks || '—',
       event.performed_by || '—'
     ]);
-    
+
     doc.autoTable({
       startY: 50,
       head: [['Date & Time', 'Event', 'Employee', 'Details', 'Performed By']],
@@ -295,7 +295,7 @@ function InventoryLifecycle() {
       headStyles: { fillColor: [99, 102, 241] },
       styles: { fontSize: 9 }
     });
-    
+
     doc.save(`${asset.asset_name}_lifecycle_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
@@ -309,12 +309,12 @@ function InventoryLifecycle() {
       event.performed_by || '',
       event.to_status || event.status || ''
     ]);
-    
+
     let csv = headers.join(',') + '\n';
     rows.forEach(row => {
       csv += row.map(cell => `"${cell}"`).join(',') + '\n';
     });
-    
+
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -472,6 +472,7 @@ function InventoryLifecycle() {
                 type="text"
                 className="form-control"
                 placeholder="Search by event type, employee, date, or remarks..."
+                autoComplete="off"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -484,8 +485,8 @@ function InventoryLifecycle() {
           </div>
           <div className="col-md-4">
             <label className="form-label small fw-600">Filter by Event Type</label>
-            <select 
-              className="form-select" 
+            <select
+              className="form-select"
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
             >
@@ -500,8 +501,8 @@ function InventoryLifecycle() {
           </div>
           <div className="col-md-2">
             <label className="form-label small fw-600">Sort Order</label>
-            <select 
-              className="form-select" 
+            <select
+              className="form-select"
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value)}
             >
@@ -542,7 +543,7 @@ function InventoryLifecycle() {
                       {event.event_type || event.action_type}
                     </span>
                   </div>
-                  
+
                   <div className="event-details">
                     {(event.to_employee || event.employee_name) && (
                       <div className="detail-row">
@@ -553,35 +554,35 @@ function InventoryLifecycle() {
                         )}
                       </div>
                     )}
-                    
+
                     {event.from_employee && event.from_employee !== event.to_employee && (
                       <div className="detail-row">
                         <i className="bi bi-arrow-left-right text-warning me-2"></i>
                         <strong>From:</strong> {event.from_employee}
                       </div>
                     )}
-                    
+
                     {event.location && (
                       <div className="detail-row">
                         <i className="bi bi-geo-alt text-info me-2"></i>
                         <strong>Location:</strong> {event.location}
                       </div>
                     )}
-                    
+
                     {(event.from_status && event.to_status) && (
                       <div className="detail-row">
                         <i className="bi bi-toggle-on text-secondary me-2"></i>
                         <strong>Status Change:</strong> {event.from_status} → {event.to_status}
                       </div>
                     )}
-                    
+
                     {(event.reason || event.remarks) && (
                       <div className="detail-row">
                         <i className="bi bi-chat-left-text text-muted me-2"></i>
                         <strong>Details:</strong> {event.reason || event.remarks}
                       </div>
                     )}
-                    
+
                     {event.performed_by && (
                       <div className="detail-row text-muted small">
                         <i className="bi bi-person-circle me-2"></i>
@@ -598,14 +599,14 @@ function InventoryLifecycle() {
 
       {/* Quick Actions */}
       <div className="mt-4 d-flex gap-2 justify-content-center">
-        <NavButton 
+        <NavButton
           to={`/inventory/detail/${assetId}`}
           className="btn btn-outline-primary"
         >
           <i className="bi bi-box-seam me-2"></i>
           Back to Inventory Detail
         </NavButton>
-        <NavButton 
+        <NavButton
           to={`/assets/view/${assetId}`}
           className="btn btn-outline-secondary"
         >

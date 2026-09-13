@@ -77,10 +77,10 @@ function PartReplacementHistory() {
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/A';
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-IN', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    return date.toLocaleDateString('en-IN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     });
   };
 
@@ -101,7 +101,7 @@ function PartReplacementHistory() {
           <div className="d-flex align-items-center gap-2 mb-2"><BackButton /><h2 className="mb-0">Part Replacement History</h2></div>
           <p>Track replaced components and their history</p>
         </div>
-        <button 
+        <button
           className="btn btn-primary"
           onClick={() => navigate('/part-replacements/add')}
         >
@@ -146,6 +146,7 @@ function PartReplacementHistory() {
               value={filters.search}
               onChange={handleFilterChange}
               placeholder="Search component, asset, serial..."
+                autoComplete="off"
               className="filter-input"
             />
           </div>
@@ -211,7 +212,7 @@ function PartReplacementHistory() {
           <div className="empty-state">
             <i className="bi bi-inbox"></i>
             <p>No part replacements found</p>
-            <button 
+            <button
               className="btn btn-primary"
               onClick={() => navigate('/part-replacements/add')}
             >

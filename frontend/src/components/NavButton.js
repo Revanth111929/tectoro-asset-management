@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 /**
  * NavButton - A button component that navigates using React Router's programmatic navigation
  * This prevents the browser from showing URL previews in the status bar on hover
- * 
+ *
  * @param {string} to - The navigation destination path
  * @param {object} state - Optional state to pass to the navigation
  * @param {string} className - CSS classes to apply
@@ -31,6 +31,9 @@ export function NavButton({ to, state, className = '', style = {}, children, onC
     }
   };
 
+  // Check if Bootstrap button classes are present
+  const hasBootstrapBtn = className && className.includes('btn');
+
   return (
     <button
       type="button"
@@ -42,11 +45,15 @@ export function NavButton({ to, state, className = '', style = {}, children, onC
       title={title}
       style={{
         cursor: 'pointer',
-        border: 'none',
-        background: 'none',
-        padding: 0,
-        font: 'inherit',
-        textDecoration: 'none',
+        // Only apply minimal styles if Bootstrap button classes are NOT present
+        // This allows btn-primary, btn-success, etc. to work properly
+        ...(hasBootstrapBtn ? {} : {
+          border: 'none',
+          background: 'none',
+          padding: 0,
+          font: 'inherit',
+          textDecoration: 'none',
+        }),
         ...style
       }}
       {...props}

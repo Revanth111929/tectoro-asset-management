@@ -1,0 +1,28 @@
+[Unit]
+Description=IT Asset Management Backend Service
+After=network.target
+
+[Service]
+Type=notify
+User=administrator
+WorkingDirectory=/home/administrator/Desktop/asset-management
+Environment="PATH=/home/administrator/Desktop/asset-management/venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/home/administrator/Desktop/asset-management/.env
+ExecStart=/home/administrator/Desktop/asset-management/venv/bin/gunicorn \
+    --bind 0.0.0.0:3000 \
+    --workers 4 \
+    --threads 2 \
+    --timeout 120 \
+    --access-logfile /home/administrator/Desktop/asset-management/logs/gunicorn-access.log \
+    --error-logfile /home/administrator/Desktop/asset-management/logs/gunicorn-error.log \
+    --log-level info \
+    --capture-output \
+    api_server:app
+
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

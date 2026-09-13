@@ -10,24 +10,26 @@ import { assetAPI } from '../services/api';
 function Layout({ children }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [openSections, setOpenSections] = useState({ 
-    assets: true, 
-    inventory: false, 
-    lifecycle: false, 
-    reports: false, 
-    settings: false 
+  const [openSections, setOpenSections] = useState({
+    assets: true,
+    inventory: false,
+    lifecycle: false,
+    reports: false,
+    settings: false
   });
   const navigate = useNavigate();
   const location = useLocation();
-  const { theme, setTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
 
   const user = JSON.parse(localStorage.getItem('user') || '{"username":"Admin"}');
   const userInfo = getUserInfo();
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
     localStorage.removeItem('tokenExpiry');
+    localStorage.removeItem('lastActivityTimestamp');
     window.location.href = '/login';
   };
 
@@ -136,12 +138,12 @@ function Layout({ children }) {
           }
         }}
       >
-        <i 
-          className={`bi bi-${icon}`} 
-          style={{ 
-            fontSize: '15px', 
-            flexShrink: 0, 
-            width: '15px', 
+        <i
+          className={`bi bi-${icon}`}
+          style={{
+            fontSize: '15px',
+            flexShrink: 0,
+            width: '15px',
             textAlign: 'center',
             color: isActive(to) ? 'var(--nav-active-icon)' : 'inherit'
           }}
@@ -222,7 +224,7 @@ function Layout({ children }) {
         :root {
           --sidebar-w: ${collapsed ? '70px' : '220px'};
           --topbar-h: 60px;
-          
+
           /* Sidebar Colors - Light - Clean solid backgrounds */
           --nav-bg: #ffffff;
           --nav-border: rgba(226, 232, 240, 1);
@@ -236,15 +238,15 @@ function Layout({ children }) {
           --nav-section: #94a3b8;
           --nav-section-hover: #64748b;
           --nav-divider: rgba(226, 232, 240, 0.5);
-          
+
           /* Topbar Colors - Light - Clean white header */
           --topbar-bg: #ffffff;
           --topbar-border: rgba(226, 232, 240, 1);
-          
+
           /* Content */
           --content-bg: #f0f4f8;
         }
-        
+
         [data-theme="dark"] {
           /* Sidebar Colors - Premium Dark Enterprise */
           --nav-bg: #050505;
@@ -259,11 +261,11 @@ function Layout({ children }) {
           --nav-section: #6F6F6F;
           --nav-section-hover: #A1A1A1;
           --nav-divider: rgba(255, 255, 255, 0.05);
-          
+
           /* Topbar Colors - Dark */
           --topbar-bg: #090909;
           --topbar-border: rgba(255, 255, 255, 0.08);
-          
+
           /* Content */
           --content-bg: #090909;
         }
@@ -290,7 +292,7 @@ function Layout({ children }) {
           transition: width 0.2s ease, transform 0.3s ease;
           overflow: hidden;
         }
-        
+
         [data-theme="dark"] .sidebar {
           backdrop-filter: none;
           -webkit-backdrop-filter: none;
@@ -350,9 +352,9 @@ function Layout({ children }) {
 
         /* Collapse Button */
         .collapse-btn {
-          width: 24px;
-          height: 24px;
-          border-radius: 50%;
+          width: 32px;
+          height: 32px;
+          border-radius: 6px;
           border: 1px solid var(--nav-border);
           background: var(--nav-bg);
           color: var(--nav-text);
@@ -360,20 +362,24 @@ function Layout({ children }) {
           align-items: center;
           justify-content: center;
           cursor: pointer;
-          font-size: 11px;
+          font-size: 18px;
           position: absolute;
-          right: -12px;
-          top: 18px;
+          right: 12px;
+          top: 14px;
           z-index: 101;
           transition: all 0.15s;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
         .collapse-btn:hover {
-          background: var(--primary);
-          color: #fff;
-          border-color: var(--primary);
-          transform: scale(1.05);
+          background: var(--nav-hover-bg);
+          color: var(--nav-hover-text);
+          border-color: var(--nav-border);
+          transform: none;
+        }
+
+        .collapse-btn:active {
+          transform: scale(0.95);
         }
 
         /* Main Content Area */
@@ -400,7 +406,7 @@ function Layout({ children }) {
           top: 0;
           z-index: 50;
         }
-        
+
         [data-theme="dark"] .topbar {
           backdrop-filter: none;
           -webkit-backdrop-filter: none;
@@ -479,16 +485,16 @@ function Layout({ children }) {
           .sidebar {
             transform: translateX(-100%);
           }
-          
+
           .sidebar.mobile-open {
             transform: translateX(0);
             box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
           }
-          
+
           .main-content {
             margin-left: 0 !important;
           }
-          
+
           .collapse-btn {
             display: none !important;
           }
@@ -548,9 +554,9 @@ function Layout({ children }) {
               />
             </div>
             {!collapsed && <span className="brand-name">TECTORO</span>}
-            
-            <button className="collapse-btn" onClick={() => setCollapsed(!collapsed)}>
-              <i className={`bi bi-chevron-${collapsed ? 'right' : 'left'}`}></i>
+
+            <button className="collapse-btn" onClick={() => setCollapsed(!collapsed)} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+              <i className="ri-menu-line"></i>
             </button>
           </div>
 
@@ -670,27 +676,9 @@ function Layout({ children }) {
             {/* Right */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {/* Theme Toggle */}
-              <div className="dropdown">
-                <button className="topbar-btn" data-bs-toggle="dropdown" title="Theme">
-                  <i className={`bi bi-${theme === 'dark' ? 'moon-stars-fill' : 'sun-fill'}`}></i>
-                </button>
-                <ul className="dropdown-menu dropdown-menu-end">
-                  {[
-                    ['light', 'sun-fill', 'Light'],
-                    ['dark', 'moon-stars-fill', 'Dark'],
-                    ['system', 'circle-half', 'System']
-                  ].map(([val, ico, lbl]) => (
-                    <li key={val}>
-                      <button
-                        className={`dropdown-item ${theme === val ? 'active' : ''}`}
-                        onClick={() => setTheme(val)}
-                      >
-                        <i className={`bi bi-${ico} me-2`}></i>{lbl}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <button className="topbar-btn" onClick={toggleTheme} title="Toggle theme">
+                <i className={`bi bi-${theme === 'dark' ? 'moon-stars-fill' : 'sun-fill'}`}></i>
+              </button>
 
               {/* User Menu */}
               <div className="dropdown">

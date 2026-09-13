@@ -16,10 +16,10 @@ function DeletedAssets() {
   const [restoring, setRestoring] = useState(false);
   const [assetToRestore, setAssetToRestore] = useState(null);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
-  
+
   // Selection state
   const [selectedAssets, setSelectedAssets] = useState(new Set());
-  
+
   // Permanent delete state
   const [deleting, setDeleting] = useState(false);
   const [assetToDelete, setAssetToDelete] = useState(null);
@@ -160,7 +160,7 @@ function DeletedAssets() {
 
   const handleBulkRestore = async () => {
     if (selectedAssets.size === 0) return;
-    
+
     if (!window.confirm(`Restore ${selectedAssets.size} selected asset(s)?`)) {
       return;
     }
@@ -237,6 +237,7 @@ function DeletedAssets() {
                 placeholder="Search by name, serial number, employee..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                autoComplete="off"
               />
               {search && (
                 <button
@@ -626,7 +627,7 @@ function DeletedAssets() {
                 <p className="mb-3">
                   You are about to permanently delete <strong>{selectedAssets.size}</strong> archived asset{selectedAssets.size !== 1 ? 's' : ''}.
                 </p>
-                
+
                 <div className="mb-3">
                   <strong>Safety Confirmation Required</strong>
                   <p className="small text-muted mb-2">

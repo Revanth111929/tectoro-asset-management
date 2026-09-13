@@ -75,3 +75,7 @@ frontend/.env.production.local
 *.temp
 *.cache
 .cache/
+.admin_password_secure
+
+# Credentials files
+ADMIN_CREDENTIALS.md

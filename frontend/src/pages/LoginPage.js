@@ -14,12 +14,12 @@ function LoginPage({ setAuth }) {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { theme } = useTheme();
-  
+
   // Background overlay based on theme
-  const overlayColor = theme === 'dark' 
-    ? 'rgba(10, 18, 28, 0.12)' 
+  const overlayColor = theme === 'dark'
+    ? 'rgba(10, 18, 28, 0.12)'
     : 'rgba(255, 255, 255, 0.06)';
-  
+
   const backgroundStyle = {
     backgroundImage: `linear-gradient(${overlayColor}, ${overlayColor}), url(${loginBackground})`
   };
@@ -52,24 +52,27 @@ try {
   });
 
   const data = await response.json();
-      
+
       if (response.ok && data.success) {
         // Store JWT tokens (support both old and new format)
         const token = data.access_token || data.token;
         const refreshToken = data.refresh_token;
-        
+
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(data.user));
-        
+
         if (refreshToken) {
           localStorage.setItem('refresh_token', refreshToken);
         }
-        
+
         // Set token expiry (use expires_in from response or default to 1 hour)
         const expiresIn = data.expires_in || 3600;
         const expiry = new Date().getTime() + (expiresIn * 1000);
         localStorage.setItem('tokenExpiry', expiry.toString());
-        
+
+        // Initialize inactivity timer
+        localStorage.setItem('lastActivityTimestamp', Date.now().toString());
+
         setAuth(true);
         navigate('/dashboard');
       } else {
@@ -89,9 +92,9 @@ try {
       <div className="login-branding">
         <div className="brand-header">
           <div className="brand-logo">
-            <img 
-              src={tectoroLoginLogo} 
-              alt="Tectoro Logo" 
+            <img
+              src={tectoroLoginLogo}
+              alt="Tectoro Logo"
               className="brand-logo-img"
               onError={(e) => {
                 console.error('Login logo failed to load');
@@ -129,7 +132,7 @@ try {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="login-form">
+          <form onSubmit={handleSubmit} className="login-form" autoComplete="off">
             {/* USERNAME INPUT - Proper structure with separate icon area */}
             <div className="login-field">
               <label htmlFor="username">Username</label>
@@ -138,13 +141,15 @@ try {
                   <i className="bi bi-person"></i>
                 </div>
                 <input
-                  id="username"
-                  name="username"
+                  id="login-username-field"
+                  name="login-user"
                   type="text"
                   placeholder="Enter your username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  autoComplete="username"
+                  autoComplete="off"
+                  data-lpignore="true"
+                  data-form-type="other"
                   required
                   autoFocus
                 />

@@ -56,7 +56,7 @@ function AssetImport() {
       const errorMsg = err.response?.data?.error || 'Failed to preview file';
       const errorDetails = err.response?.data?.details || '';
       const suggestion = err.response?.data?.suggestion || '';
-      
+
       setError(
         <div>
           <div><strong>{errorMsg}</strong></div>
@@ -73,7 +73,13 @@ function AssetImport() {
   };
 
   const handleImport = async () => {
+    console.log('[AssetImport] handleImport called');
+    console.log('[AssetImport] file:', file?.name);
+    console.log('[AssetImport] previewData:', previewData);
+    console.log('[AssetImport] can_import:', previewData?.can_import);
+
     if (!file || !previewData || !previewData.can_import) {
+      console.error('[AssetImport] Import blocked - validation check failed');
       setError('Cannot import - please fix validation errors first');
       return;
     }
@@ -85,6 +91,8 @@ function AssetImport() {
     const formData = new FormData();
     formData.append('file', file);
 
+    console.log('[AssetImport] Sending POST /assets/import...');
+
     try {
       const response = await api.post('/assets/import', formData, {
         headers: {
@@ -92,6 +100,7 @@ function AssetImport() {
         }
       });
 
+      console.log('[AssetImport] Import success:', response.data);
       setImportResult(response.data);
       // Clear file input
       setFile(null);
@@ -164,7 +173,7 @@ function AssetImport() {
               <h5 className="fw-bold mb-3">
                 <i className="bi bi-info-circle text-primary me-2"></i>How to Import
               </h5>
-              
+
               <div className="mb-3">
                 <h6 className="fw-bold mb-2">
                   <span className="badge bg-primary me-2">1</span>Download Template
@@ -278,7 +287,7 @@ function AssetImport() {
                       <i className={`bi ${previewData.can_import ? 'bi-check-circle text-success' : 'bi-exclamation-triangle text-warning'} me-2`}></i>
                       File Analysis Complete
                     </h6>
-                    
+
                     {/* Summary Stats */}
                     <div className="row g-3 mb-3">
                       <div className="col-6">
@@ -315,6 +324,40 @@ function AssetImport() {
                       </div>
                     )}
 
+                    {/* Validation Message */}
+                    {previewData.valid_rows > 0 && previewData.invalid_rows > 0 && (
+                      <div className="alert alert-info py-2 mb-3">
+                        <i className="bi bi-info-circle me-2"></i>
+                        <strong>{previewData.valid_rows} valid rows are ready to import. {previewData.invalid_rows} rows will be skipped.</strong>
+                      </div>
+                    )}
+
+                    {/* Import Button - Enable when valid rows exist */}
+                    <div className="mb-3">
+                      <button
+                        onClick={handleImport}
+                        disabled={!previewData.can_import || importing || previewing}
+                        className="btn btn-primary w-100 btn-lg"
+                      >
+                        {importing ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2"></span>
+                            Importing assets...
+                          </>
+                        ) : previewData.can_import ? (
+                          <>
+                            <i className="bi bi-upload me-2"></i>
+                            Import {previewData.valid_rows} Valid Assets
+                          </>
+                        ) : (
+                          <>
+                            <i className="bi bi-slash-circle me-2"></i>
+                            No Valid Rows - Cannot Import
+                          </>
+                        )}
+                      </button>
+                    </div>
+
                     {/* Validation Errors */}
                     {previewData.invalid_rows > 0 && previewData.error_details && (
                       <div className="alert alert-danger py-2 small mb-0">
@@ -329,7 +372,7 @@ function AssetImport() {
                         </ul>
                         <div className="mt-2">
                           <i className="bi bi-info-circle me-1"></i>
-                          Please fix these errors in your Excel file and re-upload.
+                          {previewData.invalid_rows} row{previewData.invalid_rows === 1 ? '' : 's'} contain{previewData.invalid_rows === 1 ? 's' : ''} errors and will be skipped. Valid rows can still be imported.
                         </div>
                       </div>
                     )}
@@ -391,7 +434,7 @@ function AssetImport() {
                     <i className="bi bi-check-circle me-2"></i>Import Completed Successfully!
                   </h6>
                   <p className="mb-2">{importResult.message}</p>
-                  
+
                   {/* Category Breakdown */}
                   {importResult.category_breakdown && Object.keys(importResult.category_breakdown).length > 0 && (
                     <div className="mb-2">
@@ -405,18 +448,102 @@ function AssetImport() {
                       </div>
                     </div>
                   )}
-                  
+
                   <div className="d-flex gap-3 mb-2">
                     <span className="badge bg-success">
                       <i className="bi bi-check-lg me-1"></i>Imported: {importResult.imported}
                     </span>
+                    {importResult.skipped > 0 && (
+                      <span className="badge bg-warning">
+                        <i className="bi bi-exclamation-triangle me-1"></i>Skipped: {importResult.skipped}
+                      </span>
+                    )}
                     {importResult.failed > 0 && (
                       <span className="badge bg-warning">
                         <i className="bi bi-exclamation-triangle me-1"></i>Failed: {importResult.failed}
                       </span>
                     )}
                   </div>
-                  
+
+                  {/* Error Table - Show when errors exist */}
+                  {importResult.error_rows && importResult.error_rows.length > 0 && (
+                    <div className="mt-3">
+                      <div className="d-flex justify-content-between align-items-center mb-2">
+                        <h6 className="fw-bold mb-0">
+                          <i className="bi bi-exclamation-triangle text-warning me-2"></i>
+                          Rejected Rows ({importResult.error_rows.length})
+                        </h6>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const token = localStorage.getItem('token');
+                              const response = await fetch('/api/assets/import/errors/download', {
+                                method: 'POST',
+                                headers: {
+                                  'Authorization': `Bearer ${token}`,
+                                  'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ error_rows: importResult.error_rows })
+                              });
+
+                              if (!response.ok) {
+                                throw new Error('Download failed');
+                              }
+
+                              const blob = await response.blob();
+                              const url = window.URL.createObjectURL(blob);
+                              const link = document.createElement('a');
+                              link.href = url;
+                              link.download = `Asset_Import_Errors_${new Date().toISOString().slice(0,10)}.xlsx`;
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                              window.URL.revokeObjectURL(url);
+                            } catch (err) {
+                              console.error('Error download failed:', err);
+                              alert('Failed to download error file');
+                            }
+                          }}
+                          className="btn btn-warning btn-sm"
+                        >
+                          <i className="bi bi-download me-1"></i>
+                          Download Errors
+                        </button>
+                      </div>
+                      <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                        <table className="table table-sm table-bordered">
+                          <thead>
+                            <tr>
+                              <th>Row</th>
+                              <th>Category</th>
+                              <th>Serial</th>
+                              <th>Employee ID</th>
+                              <th>Error</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {importResult.error_rows.slice(0, 20).map((errorRow, idx) => (
+                              <tr key={idx} className="table-warning">
+                                <td>{errorRow.row_number}</td>
+                                <td><span className="badge bg-secondary">{errorRow.category}</span></td>
+                                <td className="small">{errorRow.serial_number}</td>
+                                <td>{errorRow.emp_id}</td>
+                                <td className="small">{errorRow.errors}</td>
+                              </tr>
+                            ))}
+                            {importResult.error_rows.length > 20 && (
+                              <tr>
+                                <td colSpan="5" className="text-center text-muted small">
+                                  ... and {importResult.error_rows.length - 20} more errors (download for full list)
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="mt-3">
                     <NavButton to="/assets" className="btn btn-primary btn-sm">
                       <i className="bi bi-list-ul me-2"></i>View All Assets
@@ -424,30 +551,6 @@ function AssetImport() {
                   </div>
                 </div>
               )}
-
-              {/* Import Button */}
-              <button
-                onClick={handleImport}
-                disabled={!previewData || !previewData.can_import || importing || previewing}
-                className="btn btn-primary w-100"
-              >
-                {importing ? (
-                  <>
-                    <span className="spinner-border spinner-border-sm me-2"></span>
-                    Importing assets...
-                  </>
-                ) : previewData && previewData.can_import ? (
-                  <>
-                    <i className="bi bi-upload me-2"></i>
-                    Import {previewData.valid_rows} Assets
-                  </>
-                ) : (
-                  <>
-                    <i className="bi bi-upload me-2"></i>
-                    Import Assets
-                  </>
-                )}
-              </button>
 
               {!file && !previewing && (
                 <div className="alert alert-secondary py-2 mt-3 mb-0">

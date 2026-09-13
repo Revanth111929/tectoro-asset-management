@@ -1,6 +1,7 @@
 // AssetEdit.js – Edit existing asset, pre-populated with all 20 fields
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import { assetAPI } from '../services/api';
 import EmployeeAutocomplete from '../components/EmployeeAutocomplete';
 import BackButton from '../components/BackButton';
@@ -20,7 +21,6 @@ function AssetEdit() {
   const [loading,  setLoading]  = useState(true);
   const [saving,   setSaving]   = useState(false);
   const [errors,   setErrors]   = useState({});
-  const [apiError, setApiError] = useState('');
   const [recipientEmail, setRecipientEmail] = useState('');
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailMsg, setEmailMsg] = useState('');
@@ -46,9 +46,12 @@ function AssetEdit() {
           });
         }
       })
-      .catch(() => setApiError('Asset not found'))
+      .catch(() => {
+        toast.error('Asset not found');
+        navigate(returnTo);
+      })
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, navigate, returnTo]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -70,7 +73,7 @@ function AssetEdit() {
     // Validate file size (10MB)
     const maxSize = 10 * 1024 * 1024;
     if (file.size > maxSize) {
-      setApiError(`File size (${(file.size / 1024 / 1024).toFixed(2)} MB) exceeds maximum allowed size (10 MB)`);
+      toast.error(`File size (${(file.size / 1024 / 1024).toFixed(2)} MB) exceeds maximum allowed size (10 MB)`);
       e.target.value = '';
       return;
     }
@@ -78,13 +81,12 @@ function AssetEdit() {
     // Validate file type
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
     if (!allowedTypes.includes(file.type)) {
-      setApiError('Invalid file type. Only PDF, JPG, JPEG, and PNG files are allowed.');
+      toast.error('Invalid file type. Only PDF, JPG, JPEG, and PNG files are allowed.');
       e.target.value = '';
       return;
     }
 
     setInvoiceFile(file);
-    setApiError('');
   };
 
   const handleRemoveInvoice = () => {
@@ -130,18 +132,60 @@ function AssetEdit() {
     return errs;
   };
 
+  // Convert backend API errors to user-friendly short messages
+  const getErrorMessage = (apiError) => {
+    if (!apiError) return 'Failed to update asset';
+
+    const errorLower = apiError.toLowerCase();
+
+    // Status validation errors
+    if (errorLower.includes('invalid status') ||
+        errorLower.includes('status must be') ||
+        errorLower.includes('invalid combination')) {
+      return 'Invalid asset status. Please check the employee assignment.';
+    }
+
+    // Employee validation errors
+    if (errorLower.includes('employee') && errorLower.includes('required')) {
+      return 'Employee information is required for assigned assets.';
+    }
+
+    // Serial number errors
+    if (errorLower.includes('serial number') && errorLower.includes('exists')) {
+      return 'Serial number already exists.';
+    }
+
+    // Asset not found
+    if (errorLower.includes('not found')) {
+      return 'Asset not found.';
+    }
+
+    // Generic fallback - keep it short
+    if (apiError.length > 80) {
+      return 'Validation error. Please check your input.';
+    }
+
+    return apiError;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
     setSaving(true);
-    setApiError('');
     try {
       await assetAPI.update(id, form, invoiceFile);
       navigate(returnTo, { state: { success: 'Asset updated successfully!' } });
     } catch (err) {
-      setApiError(err.response?.data?.error || 'Failed to update asset');
+      const backendError = err.response?.data?.error || 'Failed to update asset';
+      const userMessage = getErrorMessage(backendError);
+
+      // Log full error for debugging
+      console.error('Asset update error:', backendError);
+
+      // Show short user-friendly message
+      toast.error(userMessage);
     } finally {
       setSaving(false);
     }
@@ -176,44 +220,44 @@ function AssetEdit() {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('PDF generation failed:', errorText);
-        setApiError('Failed to generate PDF: ' + (response.status === 404 ? 'Asset not found' : response.statusText));
+        toast.error('Failed to generate PDF: ' + (response.status === 404 ? 'Asset not found' : response.statusText));
         return;
       }
-      
+
       const blob = await response.blob();
       console.log('PDF blob received, size:', blob.size, 'type:', blob.type);
-      
+
       if (blob.size === 0) {
-        setApiError('Received empty PDF file');
+        toast.error('Received empty PDF file');
         return;
       }
-      
+
       // Create a safe blob URL
       const blobUrl = window.URL.createObjectURL(blob);
-      
+
       // Create a temporary link element
       const link = document.createElement('a');
       link.style.display = 'none';
       link.href = blobUrl;
       link.download = `Assignment_Form_${id}_${form.asset_name || 'Asset'}.pdf`.replace(/ /g, '_');
-      
+
       // Append to body, click, and cleanup
       document.body.appendChild(link);
-      
+
       // Use a small timeout to ensure the link is in the DOM
       setTimeout(() => {
         link.click();
         document.body.removeChild(link);
         window.URL.revokeObjectURL(blobUrl);
       }, 100);
-      
+
     } catch (err) {
       console.error('PDF download error:', err);
-      setApiError('Failed to download PDF: ' + err.message);
+      toast.error('Failed to download PDF: ' + err.message);
     }
   };
 
@@ -226,40 +270,40 @@ function AssetEdit() {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('PDF generation failed:', errorText);
-        setApiError('Failed to generate PDF for printing: ' + (response.status === 404 ? 'Asset not found' : response.statusText));
+        toast.error('Failed to generate PDF for printing: ' + (response.status === 404 ? 'Asset not found' : response.statusText));
         return;
       }
-      
+
       const blob = await response.blob();
       console.log('PDF blob for print received, size:', blob.size, 'type:', blob.type);
-      
+
       if (blob.size === 0) {
-        setApiError('Received empty PDF file for printing');
+        toast.error('Received empty PDF file for printing');
         return;
       }
-      
+
       const url = window.URL.createObjectURL(blob);
       const iframe = document.createElement('iframe');
       iframe.style.display = 'none';
       iframe.style.position = 'fixed';
       iframe.src = url;
       document.body.appendChild(iframe);
-      
+
       iframe.onload = () => {
         setTimeout(() => {
           try {
             iframe.contentWindow.print();
           } catch (e) {
             console.error('Print error:', e);
-            setApiError('Failed to open print dialog');
+            toast.error('Failed to open print dialog');
           }
         }, 500);
       };
-      
+
       // Cleanup after 30 seconds
       setTimeout(() => {
         if (iframe.parentNode) {
@@ -267,10 +311,10 @@ function AssetEdit() {
           window.URL.revokeObjectURL(url);
         }
       }, 30000);
-      
+
     } catch (err) {
       console.error('Print PDF error:', err);
-      setApiError('Failed to print PDF: ' + err.message);
+      toast.error('Failed to print PDF: ' + err.message);
     }
   };
 
@@ -280,7 +324,9 @@ function AssetEdit() {
     </div>
   );
 
-  if (!form) return <div className="alert alert-danger">{apiError || 'Asset not found'}</div>;
+  if (!form) {
+    return null; // Handled by useEffect error toast
+  }
 
   return (
     <div>
@@ -295,9 +341,7 @@ function AssetEdit() {
         </p>
       </div>
 
-      {apiError && <div className="alert alert-danger mb-3">{apiError}</div>}
-
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} autoComplete="off">
         {/* ── Employee Info ─────────────────────────────────────────────── */}
         <div className="table-card mb-3">
           <h6 className="fw-bold mb-3 text-primary">
@@ -320,7 +364,7 @@ function AssetEdit() {
               </small>
             </div>
           </div>
-          
+
           {/* Read-only employee details display */}
           {selectedEmployee && (
             <div className="row g-3 mt-2">
@@ -417,7 +461,7 @@ function AssetEdit() {
             </div>
 
             <div className="col-md-4">
-              <label className="form-label">Location</label>
+              <label className="form-label">Client</label>
               <input type="text" name="location" className="form-control" value={form.location || ''} onChange={handleChange} autoComplete="off" />
             </div>
 
@@ -469,14 +513,14 @@ function AssetEdit() {
             </div>
             <div className="col-md-12">
               <label className="form-label">Invoice Attachment</label>
-              
+
               {/* Show current invoice if exists */}
               {currentInvoice && !form.remove_invoice_attachment && (
                 <div className="mb-2 p-2 border rounded d-flex align-items-center justify-content-between" style={{background: '#f8f9fa'}}>
                   <div className="d-flex align-items-center gap-2">
                     <i className="bi bi-file-earmark-pdf text-danger"></i>
                     <span className="small">{currentInvoice.split('/').pop()}</span>
-                    <button 
+                    <button
                       type="button"
                       className="btn btn-sm btn-outline-primary"
                       onClick={async () => {
@@ -489,13 +533,13 @@ function AssetEdit() {
                           // Cleanup after a delay
                           setTimeout(() => window.URL.revokeObjectURL(blobUrl), 30000);
                         } catch (err) {
-                          setApiError('Failed to view invoice: ' + (err.response?.data?.error || err.message));
+                          toast.error('Failed to view invoice: ' + (err.response?.data?.error || err.message));
                         }
                       }}
                     >
                       <i className="bi bi-eye"></i> View
                     </button>
-                    <button 
+                    <button
                       type="button"
                       className="btn btn-sm btn-outline-success"
                       onClick={async () => {
@@ -512,15 +556,15 @@ function AssetEdit() {
                           document.body.removeChild(link);
                           window.URL.revokeObjectURL(blobUrl);
                         } catch (err) {
-                          setApiError('Failed to download invoice: ' + (err.response?.data?.error || err.message));
+                          toast.error('Failed to download invoice: ' + (err.response?.data?.error || err.message));
                         }
                       }}
                     >
                       <i className="bi bi-download"></i> Download
                     </button>
                   </div>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className="btn btn-sm btn-outline-danger"
                     onClick={handleRemoveInvoice}
                     title="Remove invoice"
@@ -529,7 +573,7 @@ function AssetEdit() {
                   </button>
                 </div>
               )}
-              
+
               {/* Show new file selector or replacement message */}
               {(!currentInvoice || form.remove_invoice_attachment) && (
                 <>
@@ -545,7 +589,7 @@ function AssetEdit() {
                   </small>
                 </>
               )}
-              
+
               {/* Show new file name if selected */}
               {invoiceFile && (
                 <div className="mt-2 p-2 border rounded" style={{background: '#e7f3ff'}}>
